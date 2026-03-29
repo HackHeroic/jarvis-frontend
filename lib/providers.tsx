@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { useTheme, type Theme } from "@/lib/hooks/useTheme";
+import { ToastProvider } from "@/components/ui/Toast";
 
 type ThemeContextType = { theme: Theme; setTheme: (t: Theme) => void; toggleTheme: () => void };
 const ThemeContext = createContext<ThemeContextType | null>(null);
@@ -41,7 +42,9 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeContext.Provider value={{ theme: themeHook.theme, setTheme: themeHook.setTheme, toggleTheme: themeHook.toggleTheme }}>
       <ModeContext.Provider value={{ mode, setMode, isDemoMode: mode === "demo" }}>
-        {children}
+        <ToastProvider>
+          {children}
+        </ToastProvider>
       </ModeContext.Provider>
     </ThemeContext.Provider>
   );
