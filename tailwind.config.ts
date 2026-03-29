@@ -32,9 +32,9 @@ const config: Config = {
         muted: "var(--text-muted)",
       },
       fontFamily: {
-        display: ["Inter Display", "Inter", "sans-serif"],
-        sans: ["Inter", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        display: ["var(--font-inter)", "Inter", "sans-serif"],
+        sans: ["var(--font-inter)", "Inter", "sans-serif"],
+        mono: ["var(--font-jetbrains-mono)", "JetBrains Mono", "monospace"],
       },
       boxShadow: {
         sm: "0 1px 2px rgba(44,41,36,0.06)",
