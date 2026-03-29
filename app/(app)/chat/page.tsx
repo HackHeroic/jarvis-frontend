@@ -166,6 +166,18 @@ export default function ChatPage() {
                           ))}
                         </div>
                       )}
+
+                    {/* PEARL Insights */}
+                    {msg.response?.pearl_insights && !msg.isStreaming && (
+                      <div className="mt-2 space-y-1.5">
+                        {msg.response.pearl_insights.map((insight, idx) => (
+                          <div key={idx} className="p-2.5 rounded-lg bg-terra/[0.08] border border-terra/15">
+                            <p className="text-[10px] font-semibold text-terra tracking-wide mb-0.5">PEARL INSIGHT</p>
+                            <p className="text-xs leading-relaxed">{insight.insight}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

@@ -64,11 +64,16 @@ export default function Pricing() {
               <h3 className="text-[#FAF8F4] font-semibold text-xl mb-2">
                 {plan.name}
               </h3>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-[#FAF8F4] text-4xl font-extrabold">
-                  {plan.price}
-                </span>
-                <span className="text-[#FAF8F4]/40 text-sm">{plan.period}</span>
+              <div className="mb-6">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-[#FAF8F4] text-4xl font-extrabold">
+                    {plan.price}
+                  </span>
+                  <span className="text-[#FAF8F4]/40 text-sm">{plan.period}</span>
+                </div>
+                {plan.popular && (
+                  <span className="text-[#FAF8F4]/40 text-xs">($89/yr)</span>
+                )}
               </div>
 
               <ul className="space-y-3 mb-8">

@@ -25,6 +25,7 @@ export default function Hero() {
               "radial-gradient(ellipse 500px 500px at 70% 30%, #6B7FB533 0%, transparent 70%)",
               "radial-gradient(ellipse 400px 300px at 60% 80%, #4A7B6B33 0%, transparent 70%)",
             ].join(", "),
+            animation: "aurora-drift 15s ease-in-out infinite",
           }}
         />
       </div>
@@ -175,6 +176,11 @@ export default function Hero() {
         @keyframes orbit {
           from { transform: translate(-50%, -50%) rotate(0deg); }
           to   { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        @keyframes aurora-drift {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(-5%, 3%) scale(1.02); }
+          66% { transform: translate(3%, -2%) scale(0.98); }
         }
       `}</style>
     </section>
