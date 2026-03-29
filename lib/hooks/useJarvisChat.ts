@@ -5,8 +5,10 @@ import type {
   JarvisMessage,
   JarvisStreamState,
   ChatResponse,
+  PhaseEvent,
 } from "@/lib/types";
 import { INITIAL_STREAM_STATE } from "@/lib/types";
+import type { ModelMode } from "@/components/app/ModelModeSelector";
 import { DEMO_USER } from "@/lib/constants";
 import { sendChat } from "@/lib/api";
 import {
@@ -24,6 +26,7 @@ export function useJarvisChat() {
   const [streamState, setStreamState] =
     useState<JarvisStreamState>(INITIAL_STREAM_STATE);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [modelMode, setModelMode] = useState<ModelMode>("auto");
   const conversationId = useRef<string>(
     getConversationId() ?? `conv-${Date.now()}`
   );
@@ -85,28 +88,52 @@ export function useJarvisChat() {
         const response: ChatResponse = await sendChat(trimmed, {
           userId: DEMO_USER.id,
           conversationId: conversationId.current,
+          modelMode,
         });
+
+        const phaseHistory: PhaseEvent[] = [];
+
+        // Phase: connecting
+        phaseHistory.push({ phase: "connecting", timestamp: Date.now() });
+        setStreamState((s) => ({
+          ...s,
+          phase: "connecting",
+          phaseHistory: [...phaseHistory],
+        }));
 
         // Simulate reasoning phase
         if (response.thinking_process) {
+          await delay(200);
+          phaseHistory.push({ phase: "reasoning", timestamp: Date.now() });
           setStreamState((s) => ({
             ...s,
             phase: "reasoning",
             reasoning: response.thinking_process ?? "",
+            phaseHistory: [...phaseHistory],
+            activeModel: response.generation_metrics?.model ?? null,
           }));
           await delay(400);
         }
 
         // Simulate responding phase
+        phaseHistory.push({ phase: "responding", timestamp: Date.now() });
         setStreamState((s) => ({
           ...s,
           phase: "responding",
           message: response.message,
+          phaseHistory: [...phaseHistory],
+          activeModel: response.generation_metrics?.model ?? null,
         }));
         await delay(300);
 
         // Complete
-        setStreamState((s) => ({ ...s, phase: "complete" }));
+        phaseHistory.push({ phase: "complete", timestamp: Date.now() });
+        setStreamState((s) => ({
+          ...s,
+          phase: "complete",
+          phaseHistory: [...phaseHistory],
+          activeModel: response.generation_metrics?.model ?? null,
+        }));
 
         setMessages((prev) =>
           prev.map((m) =>
@@ -115,6 +142,7 @@ export function useJarvisChat() {
                   ...m,
                   content: response.message,
                   reasoning: response.thinking_process,
+                  phaseHistory: [...phaseHistory],
                   response,
                   isStreaming: false,
                 }
@@ -144,7 +172,7 @@ export function useJarvisChat() {
         setIsStreaming(false);
       }
     },
-    [isStreaming]
+    [isStreaming, modelMode]
   );
 
   const clearMessages = useCallback(() => {
@@ -160,5 +188,7 @@ export function useJarvisChat() {
     sendMessage,
     clearMessages,
     conversationId: conversationId.current,
+    modelMode,
+    setModelMode,
   };
 }

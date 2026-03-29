@@ -10,12 +10,17 @@ import { useJarvisChat } from "@/lib/hooks/useJarvisChat";
 import { ThinkingProcess } from "@/components/app/ThinkingProcess";
 import { PromptSelector } from "@/components/app/PromptSelector";
 import { EmptyState } from "@/components/app/EmptyState";
+import { ModelModeSelector } from "@/components/app/ModelModeSelector";
+import { PipelineTrace } from "@/components/app/PipelineTrace";
 
 export default function ChatPage() {
   const {
     messages,
+    streamState,
     isStreaming,
     sendMessage,
+    modelMode,
+    setModelMode,
   } = useJarvisChat();
 
   const [input, setInput] = useState("");
@@ -65,6 +70,16 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Chat header bar */}
+      <div className="flex items-center justify-between border-b border-border px-6 py-2">
+        <span className="text-sm font-medium text-primary">Chat</span>
+        <ModelModeSelector
+          value={modelMode}
+          onChange={setModelMode}
+          disabled={isStreaming}
+        />
+      </div>
+
       {/* Messages area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4">
         {isEmpty ? (
@@ -110,6 +125,14 @@ export default function ChatPage() {
                       borderRadius: "14px 14px 14px 4px",
                     }}
                   >
+                    {/* Pipeline trace */}
+                    <PipelineTrace
+                      phases={msg.phaseHistory ?? []}
+                      currentPhase={msg.isStreaming ? streamState.phase : "complete"}
+                      activeModel={msg.isStreaming ? streamState.activeModel : null}
+                      isStreaming={!!msg.isStreaming}
+                    />
+
                     {/* Thinking process */}
                     {msg.reasoning && (
                       <ThinkingProcess
@@ -117,6 +140,15 @@ export default function ChatPage() {
                         isStreaming={!!msg.isStreaming}
                         durationSec={thinkingDuration}
                       />
+                    )}
+
+                    {/* Active model badge when streaming */}
+                    {msg.isStreaming && streamState.activeModel && (
+                      <div className="mt-1 mb-1">
+                        <span className="text-[9px] bg-terra/10 text-terra px-1.5 py-0.5 rounded-full">
+                          {streamState.activeModel}
+                        </span>
+                      </div>
                     )}
 
                     {/* Message body */}

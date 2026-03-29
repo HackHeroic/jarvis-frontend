@@ -339,8 +339,19 @@ export function getDemoResponse(prompt: string): ChatResponse {
   if (lower.includes("practice problems") || lower.includes("upload") || lower.includes("pdf") || lower.includes("here are"))
     return DEMO_UPLOAD_DOC;
 
-  // Default to the learning scenario
-  return DEMO_LEARN_DIJKSTRA;
+  // Default fallback: friendly Jarvis greeting for any unmatched prompt
+  return {
+    intent: "GENERAL_QA",
+    message:
+      "Hey! I'm Jarvis, your AI productivity engine. Here's what I can help you with:\n\n- **Plan your week** around deadlines and goals\n- **Teach you something** by breaking it into micro-tasks\n- **Add habits and constraints** to your schedule\n- **Upload documents** and link them to your study plan\n\nTry telling me about an upcoming exam, a topic you want to learn, or a habit you want to build!",
+    generation_metrics: {
+      model: "Gemini 2.5 Flash",
+      tokens_per_second: 58.3,
+      total_tokens: 124,
+      total_time_ms: 2127,
+      ttft_ms: 98,
+    },
+  };
 }
 
 // --- Prompt Selector Cards ---
@@ -366,6 +377,8 @@ export const DEMO_PROMPTS = [
     prompt: "I don't work before 2 PM and I need 1-hour breaks between sessions",
     icon: "Target",
     color: "#6B7FB5",
+    hint: "Try planning your week first",
+    dependsOn: "plan_week",
   },
   {
     id: "upload",
@@ -373,5 +386,7 @@ export const DEMO_PROMPTS = [
     prompt: "Here are my practice problems for the DL contest",
     icon: "FileUp",
     color: "#E09D5C",
+    hint: "Plan a week to link documents to tasks",
+    dependsOn: "plan_week",
   },
 ];
