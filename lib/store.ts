@@ -10,7 +10,7 @@ const ONBOARDED_KEY = "jarvis-onboarded";
 export function saveChatMessages(messages: JarvisMessage[]): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(CHAT_KEY, JSON.stringify(messages));
+    localStorage.setItem(CHAT_KEY, JSON.stringify(messages.slice(-50)));
   } catch {
     // localStorage full or unavailable
   }
@@ -78,13 +78,7 @@ export function markOnboarded(): void {
 
 // --- Schedule Slot Converter ---
 
-const TASK_COLORS = [
-  "var(--accent)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-];
+const TASK_COLORS = ["#6B7FB5", "#4A7B6B", "#D4775A", "#E09D5C"];
 
 export function slotsToScheduleTasks(
   slots: Record<string, ScheduleSlot>,

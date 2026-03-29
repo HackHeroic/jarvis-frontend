@@ -37,7 +37,19 @@ export function Providers({ children }: { children: ReactNode }) {
     localStorage.setItem("jarvis-demo-mode", m);
   };
 
-  if (!mounted || !themeHook.mounted) return null;
+  if (!mounted || !themeHook.mounted) {
+    // Render children with default context values to prevent flash of empty content.
+    // The inline theme script in layout.tsx handles the initial theme.
+    const noopTheme: ThemeContextType = { theme: "dark" as Theme, setTheme: () => {}, toggleTheme: () => {} };
+    const noopMode: ModeContextType = { mode: "demo", setMode: () => {}, isDemoMode: true };
+    return (
+      <ThemeContext.Provider value={noopTheme}>
+        <ModeContext.Provider value={noopMode}>
+          {children}
+        </ModeContext.Provider>
+      </ThemeContext.Provider>
+    );
+  }
 
   return (
     <ThemeContext.Provider value={{ theme: themeHook.theme, setTheme: themeHook.setTheme, toggleTheme: themeHook.toggleTheme }}>

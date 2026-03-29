@@ -24,6 +24,7 @@ export function ThinkingProcess({
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
         className="flex items-center gap-1.5 text-xs text-muted hover:text-secondary transition-colors"
       >
         <span>
