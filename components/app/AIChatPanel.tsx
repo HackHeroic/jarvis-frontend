@@ -17,13 +17,15 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
 
   if (collapsed) {
     return (
-      <div
-        className="group relative w-px cursor-pointer bg-terra"
-        onClick={onToggle}
-      >
-        <div className="absolute inset-y-0 right-0 flex w-0 items-center justify-center overflow-hidden bg-surface-subtle transition-all duration-200 group-hover:w-10">
-          <span className="text-sm font-bold text-terra">J</span>
-        </div>
+      <div className="relative w-0">
+        <button
+          onClick={onToggle}
+          className="fixed right-4 top-1/2 -translate-y-1/2 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-terra text-sm font-bold text-white shadow-lg transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-terra/50"
+          aria-label="Open Jarvis (Cmd+J)"
+          title="Open Jarvis (Cmd+J)"
+        >
+          J
+        </button>
       </div>
     );
   }
