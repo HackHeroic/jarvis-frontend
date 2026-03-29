@@ -29,20 +29,35 @@ export function PromptSelector({ onSelect }: PromptSelectorProps) {
           COLOR_MAP[prompt.color] ??
           "border-terra/30 hover:border-terra/60 text-terra";
 
+        const isBlocked =
+          "dependsOn" in prompt &&
+          prompt.dependsOn &&
+          !usedIds.has(prompt.dependsOn);
+
         return (
           <button
             key={prompt.id}
             type="button"
             onClick={() => {
+              if (isBlocked) return;
               setUsedIds((prev) => new Set(prev).add(prompt.id));
               onSelect(prompt.prompt);
             }}
-            className={`border rounded-xl px-4 py-3 max-w-[200px] text-left transition-colors bg-surface-card hover:bg-surface-subtle ${colorClass}`}
+            className={`border rounded-xl px-4 py-3 max-w-[200px] text-left transition-colors bg-surface-card ${
+              isBlocked
+                ? "opacity-50 cursor-not-allowed border-border"
+                : `hover:bg-surface-subtle ${colorClass}`
+            }`}
           >
             <div className="text-xs font-semibold">{prompt.label}</div>
             <div className="text-[10px] text-secondary mt-0.5 line-clamp-2">
               {prompt.prompt}
             </div>
+            {isBlocked && "hint" in prompt && prompt.hint && (
+              <div className="text-[9px] text-muted mt-1 italic">
+                {prompt.hint}
+              </div>
+            )}
           </button>
         );
       })}

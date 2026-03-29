@@ -17,7 +17,7 @@
 ## File Structure (Tier 1 only)
 
 ```
-jarvis-frontend/
+jarvis-frontend/  
 ├── app/
 │   ├── layout.tsx                    # Root layout: fonts, theme script, providers
 │   ├── page.tsx                      # Landing page (dark, cinematic)
