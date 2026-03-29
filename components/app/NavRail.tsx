@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -12,6 +13,9 @@ import {
   Dna,
   BarChart3,
   Command,
+  Moon,
+  Sun,
+  Trash2,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -31,6 +35,34 @@ const iconMap: Record<string, LucideIcon> = {
 
 export default function NavRail() {
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
+
+  const toggleTheme = () => {
+    document.documentElement.classList.toggle("dark");
+    const isDark = document.documentElement.classList.contains("dark");
+    localStorage.setItem("jarvis-theme", isDark ? "dark" : "light");
+    setMenuOpen(false);
+  };
+
+  const clearAllData = () => {
+    if (window.confirm("Clear all local data? This cannot be undone.")) {
+      localStorage.clear();
+      window.location.reload();
+    }
+  };
 
   return (
     <nav
@@ -71,16 +103,43 @@ export default function NavRail() {
       </div>
 
       {/* Bottom section */}
-      <div className="flex flex-col items-center gap-3">
+      <div className="relative flex flex-col items-center gap-3" ref={menuRef}>
         <button
           className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/30 transition-colors hover:text-white/50"
           aria-label="Command palette"
         >
           <Command size={16} />
         </button>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-terra text-[11px] font-bold text-ink">
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-terra text-[11px] font-bold text-ink transition-transform hover:scale-110"
+          aria-label="User menu"
+        >
           MM
-        </div>
+        </button>
+
+        {/* Popover menu */}
+        {menuOpen && (
+          <div className="absolute bottom-full left-full mb-1 ml-1 w-44 rounded-lg border border-border bg-surface-card p-2 shadow-lg z-50">
+            <p className="px-2 py-1.5 text-xs font-semibold text-primary">Madhav</p>
+            <div className="my-1 h-px bg-border" />
+            <button
+              onClick={toggleTheme}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-secondary hover:bg-surface-muted hover:text-primary transition-colors"
+            >
+              <Sun size={14} className="dark:hidden" />
+              <Moon size={14} className="hidden dark:block" />
+              <span>Toggle theme</span>
+            </button>
+            <button
+              onClick={clearAllData}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+            >
+              <Trash2 size={14} />
+              <span>Clear all data</span>
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   );

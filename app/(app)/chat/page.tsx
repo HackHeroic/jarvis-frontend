@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { Paperclip, ArrowUp } from "lucide-react";
+import { Paperclip, ArrowUp, SquarePen } from "lucide-react";
 import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -19,6 +19,7 @@ export default function ChatPage() {
     streamState,
     isStreaming,
     sendMessage,
+    clearMessages,
     modelMode,
     setModelMode,
   } = useJarvisChat();
@@ -73,11 +74,22 @@ export default function ChatPage() {
       {/* Chat header bar */}
       <div className="flex items-center justify-between border-b border-border px-6 py-2">
         <span className="text-sm font-medium text-primary">Chat</span>
-        <ModelModeSelector
-          value={modelMode}
-          onChange={setModelMode}
-          disabled={isStreaming}
-        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={clearMessages}
+            disabled={isStreaming || messages.length === 0}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-secondary transition-colors hover:bg-surface-muted hover:text-primary disabled:opacity-40 disabled:pointer-events-none"
+          >
+            <SquarePen size={14} />
+            <span>New Chat</span>
+          </button>
+          <ModelModeSelector
+            value={modelMode}
+            onChange={setModelMode}
+            disabled={isStreaming}
+          />
+        </div>
       </div>
 
       {/* Messages area */}
@@ -139,6 +151,7 @@ export default function ChatPage() {
                         reasoning={msg.reasoning}
                         isStreaming={!!msg.isStreaming}
                         durationSec={thinkingDuration}
+                        phaseHistory={msg.phaseHistory}
                       />
                     )}
 

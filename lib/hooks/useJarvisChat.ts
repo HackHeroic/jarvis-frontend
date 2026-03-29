@@ -92,47 +92,65 @@ export function useJarvisChat() {
         });
 
         const phaseHistory: PhaseEvent[] = [];
+        const model = response.generation_metrics?.model ?? null;
 
         // Phase: connecting
-        phaseHistory.push({ phase: "connecting", timestamp: Date.now() });
+        phaseHistory.push({ phase: "connecting", message: "Connecting to Jarvis...", timestamp: Date.now() });
         setStreamState((s) => ({
           ...s,
           phase: "connecting",
           phaseHistory: [...phaseHistory],
         }));
+        await delay(300);
 
-        // Simulate reasoning phase
-        if (response.thinking_process) {
-          await delay(200);
-          phaseHistory.push({ phase: "reasoning", timestamp: Date.now() });
-          setStreamState((s) => ({
-            ...s,
-            phase: "reasoning",
-            reasoning: response.thinking_process ?? "",
-            phaseHistory: [...phaseHistory],
-            activeModel: response.generation_metrics?.model ?? null,
-          }));
-          await delay(400);
-        }
+        // Phase: brain_dump_extraction
+        phaseHistory.push({ phase: "brain_dump_extraction", message: "Extracting context...", timestamp: Date.now() });
+        setStreamState((s) => ({
+          ...s,
+          phase: "brain_dump_extraction",
+          phaseHistory: [...phaseHistory],
+        }));
+        await delay(500);
 
-        // Simulate responding phase
-        phaseHistory.push({ phase: "responding", timestamp: Date.now() });
+        // Phase: intent_classified
+        phaseHistory.push({ phase: "intent_classified", message: `Intent: ${response.intent ?? "general"}`, timestamp: Date.now() });
+        setStreamState((s) => ({
+          ...s,
+          phase: "intent_classified",
+          intent: response.intent ?? null,
+          phaseHistory: [...phaseHistory],
+        }));
+        await delay(400);
+
+        // Phase: reasoning
+        phaseHistory.push({ phase: "reasoning", message: "Reasoning...", timestamp: Date.now() });
+        setStreamState((s) => ({
+          ...s,
+          phase: "reasoning",
+          reasoning: response.thinking_process ?? "",
+          phaseHistory: [...phaseHistory],
+          activeModel: model,
+        }));
+        await delay(800);
+
+        // Phase: responding
+        phaseHistory.push({ phase: "responding", message: "Generating response...", timestamp: Date.now() });
         setStreamState((s) => ({
           ...s,
           phase: "responding",
           message: response.message,
           phaseHistory: [...phaseHistory],
-          activeModel: response.generation_metrics?.model ?? null,
+          activeModel: model,
         }));
         await delay(300);
 
         // Complete
-        phaseHistory.push({ phase: "complete", timestamp: Date.now() });
+        phaseHistory.push({ phase: "complete", message: "Done", timestamp: Date.now() });
         setStreamState((s) => ({
           ...s,
           phase: "complete",
           phaseHistory: [...phaseHistory],
-          activeModel: response.generation_metrics?.model ?? null,
+          activeModel: model,
         }));
 
         setMessages((prev) =>
