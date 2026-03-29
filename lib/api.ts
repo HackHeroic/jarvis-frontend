@@ -45,7 +45,7 @@ export interface StreamHandlers {
 
 export async function sendChat(
   prompt: string,
-  opts?: { userId?: string; fileBase64?: string; mediaType?: string; conversationId?: string },
+  opts?: { userId?: string; fileBase64?: string; mediaType?: string; conversationId?: string; modelMode?: string },
 ): Promise<ChatResponse> {
   if (isDemoMode()) {
     await delay(DEMO_LATENCY);
