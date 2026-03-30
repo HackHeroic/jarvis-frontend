@@ -223,15 +223,16 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
       </div>
 
       {/* PEARL Insight Banner */}
-      <div className="mx-3 mt-3 rounded-[10px] border border-terra/15 bg-terra/[0.08] px-3 py-2.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-terra">
-          PEARL INSIGHT
-        </p>
-        <p className="mt-1 text-xs text-secondary">
-          {pearlInsight?.insight ??
-            "You focus best in 25-min blocks after a warm-up task. Starting with review today."}
-        </p>
-      </div>
+      {pearlInsight && (
+        <div className="mx-3 mt-3 rounded-[10px] border border-terra/15 bg-terra/[0.08] px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-terra">
+            PEARL INSIGHT
+          </p>
+          <p className="mt-1 text-xs text-secondary">
+            {pearlInsight.insight}
+          </p>
+        </div>
+      )}
 
       {/* Messages area — condensed last 5 */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">

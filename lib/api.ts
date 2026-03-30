@@ -428,8 +428,9 @@ export async function listDocuments(
 ): Promise<IngestionDocument[]> {
   if (IS_DEMO_MODE) return [];
   const res = await fetch(
-    `${API_BASE}/api/v1/documents?user_id=${encodeURIComponent(userId)}`,
+    `${API_BASE}/api/v1/documents/?user_id=${encodeURIComponent(userId)}`,
   );
+  if (res.status === 404 || res.status === 503) return [];
   if (!res.ok) throw new Error(`Failed to list documents: ${res.status}`);
   const data = await res.json();
   return data.documents ?? [];
@@ -511,18 +512,22 @@ export async function editDraftTask(
 // ---------------------------------------------------------------------------
 
 export async function listTasks(): Promise<Record<string, unknown>[]> {
+  if (IS_DEMO_MODE) return [];
   const res = await fetch(
     `${API_BASE}/api/v1/tasks/?user_id=${encodeURIComponent(USER_ID)}`,
   );
+  if (res.status === 404 || res.status === 503) return [];
   if (!res.ok) throw new Error(`Failed to list tasks: ${res.status}`);
   const data = await res.json();
   return data.tasks ?? data;
 }
 
-export async function getWorkspace(taskId: string): Promise<TaskWorkspace> {
+export async function getWorkspace(taskId: string): Promise<TaskWorkspace | null> {
+  if (IS_DEMO_MODE) return null;
   const res = await fetch(
     `${API_BASE}/api/v1/tasks/${encodeURIComponent(taskId)}/workspace?user_id=${encodeURIComponent(USER_ID)}`,
   );
+  if (res.status === 404 || res.status === 503) return null;
   if (!res.ok) throw new Error(`Workspace failed: ${res.status}`);
   return res.json();
 }
@@ -553,11 +558,14 @@ export async function processDocument(
 // ---------------------------------------------------------------------------
 
 export async function getDueHabits(): Promise<Record<string, unknown>[]> {
+  if (IS_DEMO_MODE) return [];
   const res = await fetch(
     `${API_BASE}/api/v1/habits/tracker/due?user_id=${encodeURIComponent(USER_ID)}`,
   );
+  if (res.status === 404 || res.status === 503) return [];
   if (!res.ok) throw new Error(`Failed to get due habits: ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  return data.due_trackers ?? data;
 }
 
 export async function completeHabit(

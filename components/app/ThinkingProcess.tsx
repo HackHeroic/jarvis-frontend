@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { PhaseEventData } from '@/lib/types';
 
 interface ThinkingProcessProps {
@@ -79,9 +81,9 @@ export function ThinkingProcess({
       </button>
       {expanded && reasoning && (
         <div className="mt-1.5 ml-1 rounded-lg border border-border bg-surface-subtle/50 p-3 max-h-60 overflow-y-auto">
-          <p className="text-xs text-muted whitespace-pre-wrap leading-relaxed break-words">
-            {reasoning}
-          </p>
+          <div className="text-xs text-muted leading-relaxed break-words prose prose-xs max-w-none prose-p:my-1 prose-p:text-muted prose-strong:text-secondary prose-headings:text-secondary prose-headings:text-xs prose-headings:mt-2 prose-headings:mb-1 prose-li:text-muted prose-li:my-0 prose-ul:my-1 prose-ol:my-1 prose-code:text-terra prose-code:text-[10px]">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{reasoning}</ReactMarkdown>
+          </div>
         </div>
       )}
     </div>
