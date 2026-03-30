@@ -27,6 +27,15 @@ import clsx from "clsx";
 // Asset icon + color by type
 // ---------------------------------------------------------------------------
 
+// Static Tailwind class map — avoids dynamic `bg-${color}` which Tailwind can't detect
+const COLOR_CLASSES: Record<string, { bg: string; text: string; border: string }> = {
+  terra: { bg: "bg-terra/15", text: "text-terra", border: "border-terra" },
+  sage:  { bg: "bg-sage/15",  text: "text-sage",  border: "border-sage" },
+  dusk:  { bg: "bg-dusk/15",  text: "text-dusk",  border: "border-dusk" },
+  gold:  { bg: "bg-gold/15",  text: "text-gold",  border: "border-gold" },
+  ink:   { bg: "bg-ink/15",   text: "text-ink",   border: "border-ink" },
+};
+
 const ASSET_CONFIG: Record<string, { icon: typeof Play; color: string; label: string }> = {
   youtube_link:      { icon: Play,     color: "terra", label: "YouTube" },
   article_link:      { icon: FileText, color: "dusk",  label: "Article" },
@@ -50,6 +59,7 @@ function ExpandableAssetCard({ asset }: { asset: StudyAsset }) {
   const [open, setOpen] = useState(false);
   const config = ASSET_CONFIG[asset.asset_type] || { icon: FileText, color: "ink", label: asset.asset_type };
   const Icon = config.icon;
+  const colors = COLOR_CLASSES[config.color] || COLOR_CLASSES.terra;
 
   return (
     <Card className="overflow-hidden">
@@ -58,8 +68,8 @@ function ExpandableAssetCard({ asset }: { asset: StudyAsset }) {
         onClick={() => setOpen(!open)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-subtle"
       >
-        <div className={clsx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", `bg-${config.color}/15`)}>
-          <Icon size={16} className={`text-${config.color}`} />
+        <div className={clsx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", colors.bg)}>
+          <Icon size={16} className={colors.text} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-primary truncate">{asset.title}</p>
@@ -85,6 +95,7 @@ function ExpandableAssetCard({ asset }: { asset: StudyAsset }) {
 function LinkAssetCard({ asset }: { asset: StudyAsset }) {
   const config = ASSET_CONFIG[asset.asset_type] || { icon: ExternalLink, color: "ink", label: asset.asset_type };
   const Icon = config.icon;
+  const colors = COLOR_CLASSES[config.color] || COLOR_CLASSES.terra;
 
   return (
     <a
@@ -94,8 +105,8 @@ function LinkAssetCard({ asset }: { asset: StudyAsset }) {
       className="block"
     >
       <Card hover className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-subtle">
-        <div className={clsx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", `bg-${config.color}/15`)}>
-          <Icon size={16} className={`text-${config.color}`} />
+        <div className={clsx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", colors.bg)}>
+          <Icon size={16} className={colors.text} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-primary truncate">{asset.title}</p>
@@ -142,21 +153,23 @@ export default function WorkspacePage() {
         // Parse criteria from primary_objective or from localStorage execution_graph
         const parsedCriteria: string[] = [];
         try {
-          const graphRaw = localStorage.getItem("jarvis-execution-graph");
-          if (graphRaw) {
-            const graph = JSON.parse(graphRaw);
-            const task = graph.decomposition?.find(
-              (t: Record<string, unknown>) => t.task_id === taskId,
-            );
-            if (task?.completion_criteria) {
-              const lines = (task.completion_criteria as string)
-                .split(/[;\n]/)
-                .map((s: string) => s.trim())
-                .filter(Boolean);
-              parsedCriteria.push(...lines);
-            }
-            if (task?.implementation_intention) {
-              setWoop(task.implementation_intention as ImplementationIntention);
+          const stored = localStorage.getItem("jarvis-last-chat-response");
+          if (stored) {
+            const response = JSON.parse(stored);
+            if (response.execution_graph) {
+              const task = response.execution_graph.decomposition?.find(
+                (t: Record<string, unknown>) => t.task_id === taskId,
+              );
+              if (task?.completion_criteria) {
+                const lines = (task.completion_criteria as string)
+                  .split(/[;\n]/)
+                  .map((s: string) => s.trim())
+                  .filter(Boolean);
+                parsedCriteria.push(...lines);
+              }
+              if (task?.implementation_intention) {
+                setWoop(task.implementation_intention as ImplementationIntention);
+              }
             }
           }
         } catch {

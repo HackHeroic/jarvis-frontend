@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, Send, ArrowRight } from "lucide-react";
 import clsx from "clsx";
 
-import { useJarvisChat } from "@/lib/hooks/useJarvisChat";
+import { chatStream } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { IS_DEMO_MODE, getIntentColor } from "@/lib/constants";
+import { USER_ID } from "@/lib/constants";
 import type { PearlInsight, ChatResponse } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -15,6 +16,17 @@ import type { PearlInsight, ChatResponse } from "@/lib/types";
 // ---------------------------------------------------------------------------
 
 const HEAVY_INTENTS = new Set(["PLAN_DAY", "INGEST_DOCUMENT"]);
+
+// ---------------------------------------------------------------------------
+// Lightweight message type for the panel (no shared state with main chat)
+// ---------------------------------------------------------------------------
+
+interface PanelMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  response?: ChatResponse;
+}
 
 // ---------------------------------------------------------------------------
 // PEARL Insight loader
@@ -50,12 +62,9 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
   const router = useRouter();
   const isDemoMode = IS_DEMO_MODE;
 
-  const {
-    messages,
-    isStreaming,
-    sendMessage,
-  } = useJarvisChat();
-
+  // Lightweight local state — no shared localStorage with main chat
+  const [messages, setMessages] = useState<PanelMessage[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -95,13 +104,79 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
     return null;
   }, [messages]);
 
-  // Send handler — force 4B mode
+  // Send handler — force 4B mode, use chatStream directly
   const handleSend = useCallback(() => {
     if (!input.trim() || isStreaming) return;
-    const msg = input;
+    const userText = input;
     setInput("");
-    sendMessage(msg, { modelMode: "4b" });
-  }, [input, isStreaming, sendMessage]);
+
+    const userMsg: PanelMessage = {
+      id: `panel-u-${Date.now()}`,
+      role: "user",
+      content: userText,
+    };
+
+    const assistantMsg: PanelMessage = {
+      id: `panel-a-${Date.now()}`,
+      role: "assistant",
+      content: "",
+    };
+
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    setIsStreaming(true);
+
+    chatStream(
+      {
+        user_prompt: userText,
+        user_id: USER_ID,
+        model_mode: "4b",
+      },
+      {
+        onMessageToken: (token: string) => {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last && last.role === "assistant") {
+              updated[updated.length - 1] = {
+                ...last,
+                content: last.content + token,
+              };
+            }
+            return updated;
+          });
+        },
+        onComplete: (response: ChatResponse) => {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last && last.role === "assistant") {
+              updated[updated.length - 1] = {
+                ...last,
+                content: response.message || last.content,
+                response,
+              };
+            }
+            return updated;
+          });
+          setIsStreaming(false);
+        },
+        onError: () => {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last && last.role === "assistant") {
+              updated[updated.length - 1] = {
+                ...last,
+                content: "Something went wrong. Try again.",
+              };
+            }
+            return updated;
+          });
+          setIsStreaming(false);
+        },
+      },
+    );
+  }, [input, isStreaming]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
