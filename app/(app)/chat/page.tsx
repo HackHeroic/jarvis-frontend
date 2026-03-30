@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import {
   Paperclip,
   ArrowUp,
@@ -8,6 +8,7 @@ import {
   SquarePen,
   X,
   FileText,
+  Brain,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -17,6 +18,8 @@ import { PromptSelector } from "@/components/app/PromptSelector";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ModelModeSelector } from "@/components/app/ModelModeSelector";
 import { ChatSessionPanel } from "@/components/app/ChatSessionPanel";
+import MemoryPanel from "@/components/app/MemoryPanel";
+import type { MemoryRecord } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Attachment type
@@ -56,6 +59,18 @@ export default function ChatPage() {
 
   const [input, setInput] = useState("");
   const [attachment, setAttachment] = useState<FileAttachment | null>(null);
+  const [showMemoryPanel, setShowMemoryPanel] = useState(false);
+
+  // Collect memories from latest assistant response
+  const latestMemories: MemoryRecord[] = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "assistant" && msg.response?.memories?.length) {
+        return msg.response.memories;
+      }
+    }
+    return [];
+  }, [messages]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -179,6 +194,19 @@ export default function ChatPage() {
               onChange={setModelMode}
               disabled={isStreaming}
             />
+            <button
+              type="button"
+              onClick={() => setShowMemoryPanel((p) => !p)}
+              className={clsx(
+                "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
+                showMemoryPanel
+                  ? "bg-dusk/15 text-dusk"
+                  : "text-secondary hover:bg-surface-muted hover:text-primary"
+              )}
+              title="Jarvis's Memory"
+            >
+              <Brain size={14} />
+            </button>
           </div>
         </div>
 
@@ -333,6 +361,13 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+
+      {/* Memory Panel */}
+      <MemoryPanel
+        memories={latestMemories}
+        isOpen={showMemoryPanel}
+        onClose={() => setShowMemoryPanel(false)}
+      />
     </div>
   );
 }
