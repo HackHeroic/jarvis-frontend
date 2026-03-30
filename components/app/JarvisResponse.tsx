@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -295,7 +298,7 @@ export function JarvisResponse({
               prose-a:text-dusk prose-a:no-underline hover:prose-a:underline
               prose-blockquote:border-terra prose-blockquote:text-secondary"
           >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
               {cleanContent}
             </ReactMarkdown>
           </div>

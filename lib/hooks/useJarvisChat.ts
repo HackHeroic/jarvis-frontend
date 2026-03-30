@@ -188,7 +188,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
         },
         {
           onPhase: (phase, data) => {
-            const phaseEvent: PhaseEventData = { phase, ...data };
+            const phaseEvent: PhaseEventData = { phase, timestamp: Date.now(), ...data };
             const intent = (data.intent as string) || null;
             const activeModel = (data.model as string) || null;
             const phaseModeMode = (data.model_mode as string) || null;
@@ -196,6 +196,14 @@ export function useJarvisChat(): UseJarvisChatReturn {
               ...phaseHistoryRef.current,
               phaseEvent,
             ];
+            // Update streaming message so PhaseProgress renders live
+            if (streamingMsg.current) {
+              streamingMsg.current.phaseHistory = [...phaseHistoryRef.current];
+              setMessages((m) => {
+                const updated = { ...streamingMsg.current! };
+                return [...m.slice(0, -1), updated];
+              });
+            }
             setStreamState((s) => ({
               ...s,
               phase: phase as JarvisStreamPhase,
