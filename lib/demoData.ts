@@ -334,6 +334,113 @@ Top matches: dl_1 (CNNs, sim=0.82), dl_2 (backprop, sim=0.79), dl_4 (implement, 
   },
 };
 
+// --- Demo Schedule Tasks (for /schedule page) ---
+
+/** Returns today's date as YYYY-MM-DD so demo times are always "today". */
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function getDemoScheduleTasks(): Record<string, unknown>[] {
+  const day = todayISO();
+  return [
+    // Sleep block
+    {
+      task_id: "block_sleep",
+      title: "Sleep",
+      start_time: `${day}T00:00:00`,
+      end_time: `${day}T08:00:00`,
+      duration_minutes: 480,
+      status: "completed",
+      goal_id: null,
+      constraint_applied: "sleep",
+    },
+    // Completed: DSA prep 1
+    {
+      task_id: "task_dsa_1",
+      title: "DSA prep — binary search problems",
+      start_time: `${day}T09:00:00`,
+      end_time: `${day}T09:25:00`,
+      duration_minutes: 25,
+      status: "completed",
+      goal_id: "goal_dsa",
+    },
+    // Completed: DSA prep 2
+    {
+      task_id: "task_dsa_2",
+      title: "DSA prep — graph traversal (BFS/DFS)",
+      start_time: `${day}T09:30:00`,
+      end_time: `${day}T09:55:00`,
+      duration_minutes: 25,
+      status: "completed",
+      goal_id: "goal_dsa",
+    },
+    // In progress: Deep learning
+    {
+      task_id: "task_dl_1",
+      title: "Deep learning — attention mechanisms",
+      start_time: `${day}T10:00:00`,
+      end_time: `${day}T10:25:00`,
+      duration_minutes: 25,
+      status: "in_progress",
+      goal_id: "goal_dl",
+    },
+    // Lunch block
+    {
+      task_id: "block_lunch",
+      title: "Lunch",
+      start_time: `${day}T12:00:00`,
+      end_time: `${day}T13:00:00`,
+      duration_minutes: 60,
+      status: "pending",
+      goal_id: null,
+      constraint_applied: "lunch",
+    },
+    // Pending: Essay writing 1
+    {
+      task_id: "task_essay_1",
+      title: "Essay writing — outline and thesis",
+      start_time: `${day}T13:30:00`,
+      end_time: `${day}T13:55:00`,
+      duration_minutes: 25,
+      status: "pending",
+      goal_id: "goal_essay",
+    },
+    // Pending: Essay writing 2
+    {
+      task_id: "task_essay_2",
+      title: "Essay writing — first draft body paragraphs",
+      start_time: `${day}T14:00:00`,
+      end_time: `${day}T14:25:00`,
+      duration_minutes: 25,
+      status: "pending",
+      goal_id: "goal_essay",
+    },
+    // Volleyball block
+    {
+      task_id: "block_volleyball",
+      title: "Volleyball",
+      start_time: `${day}T16:00:00`,
+      end_time: `${day}T17:30:00`,
+      duration_minutes: 90,
+      status: "pending",
+      goal_id: null,
+      constraint_applied: "volleyball",
+    },
+    // Pending: Review lecture notes
+    {
+      task_id: "task_review_1",
+      title: "Review lecture notes — probability & stats",
+      start_time: `${day}T18:00:00`,
+      end_time: `${day}T18:25:00`,
+      duration_minutes: 25,
+      status: "pending",
+      goal_id: "goal_review",
+    },
+  ];
+}
+
 // --- Demo Response Router ---
 
 export function getDemoResponse(prompt: string): ChatResponse {

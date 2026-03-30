@@ -57,6 +57,7 @@ export function apiTasksToScheduleTasks(
         goal_id: (t.goal_id as string) || undefined,
         color: colorForGoal((t.goal_id as string) || undefined),
         deadline_hint: (t.deadline_hint as string) || undefined,
+        constraint_applied: (t.constraint_applied as string) || undefined,
       } satisfies ScheduleTask;
     })
     .sort((a, b) => a.start_time.getTime() - b.start_time.getTime());
