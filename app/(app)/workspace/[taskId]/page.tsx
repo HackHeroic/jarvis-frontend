@@ -148,7 +148,6 @@ export default function WorkspacePage() {
       try {
         const ws = await getWorkspace(taskId);
         if (cancelled) return;
-        setWorkspace(ws);
 
         // Parse criteria from primary_objective or from localStorage execution_graph
         const parsedCriteria: string[] = [];
@@ -176,9 +175,33 @@ export default function WorkspacePage() {
           // ignore
         }
 
-        // Fallback: use primary_objective as single criterion
-        if (parsedCriteria.length === 0 && ws.primary_objective) {
-          parsedCriteria.push(ws.primary_objective);
+        if (ws) {
+          setWorkspace(ws);
+          // Fallback: use primary_objective as single criterion
+          if (parsedCriteria.length === 0 && ws.primary_objective) {
+            parsedCriteria.push(ws.primary_objective);
+          }
+        } else {
+          // Backend returned null (404/503) — build a minimal workspace from local data
+          const taskTitle = (() => {
+            try {
+              const stored = localStorage.getItem("jarvis-last-chat-response");
+              if (stored) {
+                const response = JSON.parse(stored);
+                const task = response.execution_graph?.decomposition?.find(
+                  (t: Record<string, unknown>) => t.task_id === taskId,
+                );
+                return (task?.title as string) || `Task ${taskId.slice(0, 8)}`;
+              }
+            } catch { /* ignore */ }
+            return `Task ${taskId.slice(0, 8)}`;
+          })();
+          setWorkspace({
+            task_id: taskId,
+            task_title: taskTitle,
+            primary_objective: parsedCriteria[0] || "",
+            surfaced_assets: [],
+          });
         }
 
         setCriteria(parsedCriteria);

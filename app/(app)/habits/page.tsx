@@ -169,8 +169,10 @@ export default function HabitsPage() {
       const raw = await getDueHabits();
       setHabits(raw.map(parseHabit));
       setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load habits");
+    } catch {
+      // Backend unavailable — show empty state, not error
+      setHabits([]);
+      setError(null);
     } finally {
       setLoading(false);
     }

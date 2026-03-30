@@ -50,7 +50,6 @@ export default function SchedulePage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<ScheduleTask[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const now = useMemo(() => new Date(), []);
 
@@ -62,9 +61,10 @@ export default function SchedulePage() {
         if (!cancelled) {
           setTasks(apiTasksToScheduleTasks(raw));
         }
-      } catch (err) {
+      } catch {
+        // Backend unavailable or network error — show empty state, not error
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load schedule");
+          setTasks([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -106,15 +106,8 @@ export default function SchedulePage() {
         </div>
       )}
 
-      {/* Error */}
-      {error && !loading && (
-        <Card className="px-5 py-4 text-center">
-          <p className="text-sm text-red-500">{error}</p>
-        </Card>
-      )}
-
       {/* Empty state */}
-      {!loading && !error && tasks.length === 0 && (
+      {!loading && tasks.length === 0 && (
         <Card className="px-6 py-12">
           <EmptyState
             icon="📅"

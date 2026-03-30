@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { DEMO_USER } from "@/lib/constants";
+import { Tooltip } from "@/components/ui/Tooltip";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -41,19 +42,34 @@ export default function DailyGreeting({ taskCount, estimatedMinutes }: DailyGree
       </div>
 
       <div className="flex gap-1 rounded-button bg-surface-muted p-0.5">
-        {(["Today", "Week", "Month"] as const).map((label) => (
-          <button
-            key={label}
-            className={clsx(
-              "rounded-button px-3 py-1.5 text-xs font-medium transition-colors",
-              label === "Today"
-                ? "bg-terra text-white"
-                : "text-secondary hover:text-primary"
-            )}
-          >
-            {label}
-          </button>
-        ))}
+        {(["Today", "Week", "Month"] as const).map((label) => {
+          const isActive = label === "Today";
+          const isDisabled = label !== "Today";
+
+          const btn = (
+            <button
+              key={label}
+              disabled={isDisabled}
+              className={clsx(
+                "rounded-button px-3 py-1.5 text-xs font-medium transition-colors",
+                isActive
+                  ? "bg-terra text-white"
+                  : "text-muted cursor-not-allowed opacity-50"
+              )}
+            >
+              {label}
+            </button>
+          );
+
+          if (isDisabled) {
+            return (
+              <Tooltip key={label} content="Coming soon">
+                {btn}
+              </Tooltip>
+            );
+          }
+          return btn;
+        })}
       </div>
     </div>
   );

@@ -441,7 +441,7 @@ export async function deleteDocument(
   userId: string = USER_ID,
 ): Promise<void> {
   const res = await fetch(
-    `${API_BASE}/api/v1/documents/${encodeURIComponent(sourceId)}?user_id=${encodeURIComponent(userId)}`,
+    `${API_BASE}/api/v1/documents/${encodeURIComponent(sourceId)}/?user_id=${encodeURIComponent(userId)}`,
     { method: 'DELETE' },
   );
   if (!res.ok) throw new Error(`Failed to delete document: ${res.status}`);
