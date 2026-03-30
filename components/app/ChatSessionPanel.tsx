@@ -73,9 +73,13 @@ export function ChatSessionPanel({
     }
   }, []);
 
+  // Fetch on mount only. A 30-second interval avoids flooding the backend
+  // while keeping the list reasonably fresh.
   useEffect(() => {
     fetchSessions();
-  }, [fetchSessions, currentSessionId]);
+    const interval = setInterval(fetchSessions, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchSessions]);
 
   // ---- Delete (archive) single session ----
   const handleDeleteClick = useCallback(

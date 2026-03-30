@@ -592,8 +592,25 @@ export function useJarvisChat(): UseJarvisChatReturn {
   const loadConversation = useCallback(async (sessionId: string) => {
     setConversationId(sessionId);
     localStorage.setItem("jarvis-conversation-id", sessionId);
+    // Clear draft state when switching conversations
+    setDraftScheduleResponse(null);
+    clearDraftSchedule();
+    setPendingTasks(null);
     try {
       const sessionMessages = await loadConversationAPI(sessionId, USER_ID);
+      if (sessionMessages.length === 0) {
+        // Session exists but has no messages (or was not found)
+        const placeholder: JarvisMessage = {
+          id: `msg-${Date.now()}-empty`,
+          role: "assistant",
+          content: "No messages found for this conversation.",
+          isStreaming: false,
+          timestamp: Date.now(),
+        };
+        setMessages([placeholder]);
+        saveChatMessages([placeholder]);
+        return;
+      }
       const loaded: JarvisMessage[] = sessionMessages.map((m, i) => ({
         id: m.id || `msg-${Date.now()}-${i}`,
         role: m.role as "user" | "assistant",
@@ -605,12 +622,16 @@ export function useJarvisChat(): UseJarvisChatReturn {
       }));
       setMessages(loaded);
       saveChatMessages(loaded);
-      // Clear draft state when switching conversations
-      setDraftScheduleResponse(null);
-      clearDraftSchedule();
-      setPendingTasks(null);
     } catch {
-      // Graceful degradation
+      const errorPlaceholder: JarvisMessage = {
+        id: `msg-${Date.now()}-error`,
+        role: "assistant",
+        content: "Could not load this conversation. It may have been deleted.",
+        isStreaming: false,
+        timestamp: Date.now(),
+      };
+      setMessages([errorPlaceholder]);
+      saveChatMessages([errorPlaceholder]);
     }
   }, []);
 

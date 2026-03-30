@@ -370,8 +370,9 @@ export async function loadConversation(
   if (IS_DEMO_MODE) return [];
   const params = new URLSearchParams({ user_id: userId });
   const res = await fetch(
-    `${API_BASE}/api/v1/sessions/${encodeURIComponent(sessionId)}/messages?${params}`,
+    `${API_BASE}/api/v1/sessions/${encodeURIComponent(sessionId)}?${params}`,
   );
+  if (res.status === 404) return [];
   if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
   const data = await res.json();
   return data.messages ?? [];
@@ -512,7 +513,10 @@ export async function editDraftTask(
 // ---------------------------------------------------------------------------
 
 export async function listTasks(): Promise<Record<string, unknown>[]> {
-  if (IS_DEMO_MODE) return [];
+  if (IS_DEMO_MODE) {
+    const { getDemoScheduleTasks } = await import('./demoData');
+    return getDemoScheduleTasks();
+  }
   const res = await fetch(
     `${API_BASE}/api/v1/tasks/?user_id=${encodeURIComponent(USER_ID)}`,
   );
