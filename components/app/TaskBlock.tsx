@@ -22,6 +22,7 @@ function formatTime(date: Date): string {
 
 export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlockProps) {
   const isCompleted = task.status === "completed";
+  const isSkipped = task.status === "skipped";
   const remaining = task.duration_minutes - progressMinutes;
   const progressPercent = task.duration_minutes > 0
     ? Math.min(100, Math.round((progressMinutes / task.duration_minutes) * 100))
@@ -38,12 +39,13 @@ export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlock
       <div
         className={clsx(
           "flex-1 rounded-[10px] border-l-[3px] px-3.5 py-2.5 transition-all",
-          isCompleted && "border-sage bg-sage/[0.08] opacity-50",
-          isActive && "border-dusk bg-dusk/[0.08] shadow-md",
-          !isCompleted && !isActive && "bg-opacity-[0.06]"
+          isCompleted && "border-sage bg-sage/[0.08] opacity-60",
+          isSkipped && "border-muted bg-surface-muted opacity-40",
+          isActive && "border-terra bg-terra/[0.06] shadow-md",
+          !isCompleted && !isActive && !isSkipped && "bg-opacity-[0.06]"
         )}
         style={
-          !isCompleted && !isActive
+          !isCompleted && !isActive && !isSkipped
             ? { borderLeftColor: task.color, backgroundColor: `${task.color}0F` }
             : undefined
         }
@@ -59,7 +61,8 @@ export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlock
               <span
                 className={clsx(
                   "text-sm font-medium text-primary",
-                  isCompleted && "line-through opacity-70"
+                  isCompleted && "line-through opacity-70",
+                  isSkipped && "line-through opacity-50"
                 )}
               >
                 {task.title}
@@ -73,11 +76,11 @@ export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlock
               </p>
             )}
             {isActive && (
-              <p className="mt-0.5 text-xs text-dusk">
+              <p className="mt-0.5 text-xs text-terra">
                 {remaining} min remaining
               </p>
             )}
-            {!isCompleted && !isActive && task.deadline_hint && (
+            {!isCompleted && !isActive && !isSkipped && task.deadline_hint && (
               <p className="mt-0.5 text-xs text-muted">{task.deadline_hint}</p>
             )}
           </div>
@@ -85,19 +88,25 @@ export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlock
           {/* Right side badge/button */}
           {isActive && (
             <div className="flex flex-col items-end gap-1.5">
-              <Badge color="dusk">IN PROGRESS</Badge>
+              <Badge color="terra">IN PROGRESS</Badge>
               <Button size="sm" variant="primary">
                 Open Workspace
               </Button>
             </div>
           )}
+          {!isActive && !isCompleted && !isSkipped && (
+            <Badge color="ink">PENDING</Badge>
+          )}
+          {isCompleted && (
+            <Badge color="sage">DONE</Badge>
+          )}
         </div>
 
         {/* Mini progress bar for active task */}
         {isActive && (
-          <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-dusk/20">
+          <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-terra/20">
             <div
-              className="h-full rounded-full bg-dusk transition-all duration-500"
+              className="h-full rounded-full bg-terra transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
