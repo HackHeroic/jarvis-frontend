@@ -122,8 +122,10 @@ export default function DocumentsPage() {
       const docs = await listDocuments();
       setDocuments(docs);
       setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load documents");
+    } catch {
+      // Backend unavailable — show empty state, not error
+      setDocuments([]);
+      setError(null);
     } finally {
       setLoading(false);
     }
