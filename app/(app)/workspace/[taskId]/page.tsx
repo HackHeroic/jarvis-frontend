@@ -6,7 +6,6 @@ import { getWorkspace, completeTask } from "@/lib/api";
 import { USER_ID } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
 import type { TaskWorkspace, StudyAsset, ImplementationIntention } from "@/lib/types";
 import {
