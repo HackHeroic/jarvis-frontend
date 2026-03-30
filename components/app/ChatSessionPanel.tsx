@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { MessageSquare, Plus, Trash2, ChevronLeft, Menu, X, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { MessageSquare, Plus, Trash2, Pencil, MoreHorizontal, ChevronLeft, Menu, X, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { listSessions, archiveSession } from "@/lib/api";
 import type { Session } from "@/lib/types";
@@ -54,8 +54,11 @@ export function ChatSessionPanel({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [clearingAll, setClearingAll] = useState(false);
-  const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renamedTitles, setRenamedTitles] = useState<Record<string, string>>({});
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // ---- Fetch sessions ----
   const fetchSessions = useCallback(async () => {
@@ -80,6 +83,34 @@ export function ChatSessionPanel({
     const interval = setInterval(fetchSessions, 30_000);
     return () => clearInterval(interval);
   }, [fetchSessions]);
+
+  // ---- Close menu on outside click ----
+  useEffect(() => {
+    if (!menuOpenId) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenId(null);
+        setConfirmDeleteId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpenId]);
+
+  // ---- Rename helpers ----
+  const startRename = useCallback((session: Session) => {
+    setMenuOpenId(null);
+    setRenamingId(session.id);
+    setRenameValue(renamedTitles[session.id] || session.title || "New conversation");
+  }, [renamedTitles]);
+
+  const commitRename = useCallback((sessionId: string) => {
+    const trimmed = renameValue.trim();
+    if (trimmed) {
+      setRenamedTitles((prev) => ({ ...prev, [sessionId]: trimmed }));
+    }
+    setRenamingId(null);
+  }, [renameValue]);
 
   // ---- Delete (archive) single session ----
   const handleDeleteClick = useCallback(
@@ -109,23 +140,6 @@ export function ChatSessionPanel({
     },
     [currentSessionId, onNewChat]
   );
-
-  // ---- Clear all sessions ----
-  const handleClearAll = useCallback(async () => {
-    setClearingAll(true);
-    setConfirmClearAll(false);
-    try {
-      await Promise.all(sessions.map((s) => archiveSession(s.id)));
-      setSessions([]);
-      localStorage.removeItem("jarvis-conversation-id");
-      localStorage.removeItem("jarvis-chat-messages");
-      onNewChat();
-    } catch {
-      // Silently degrade
-    } finally {
-      setClearingAll(false);
-    }
-  }, [sessions, onNewChat]);
 
   // ---- Panel content (shared between desktop + mobile) ----
   const panelContent = (
@@ -190,6 +204,9 @@ export function ChatSessionPanel({
           const isActive = session.id === currentSessionId;
           const isArchiving = archivingId === session.id;
           const isConfirming = confirmDeleteId === session.id;
+          const isMenuOpen = menuOpenId === session.id;
+          const isRenaming = renamingId === session.id;
+          const displayTitle = renamedTitles[session.id] || session.title || "New conversation";
 
           return (
             <div key={session.id} className="relative">
@@ -197,12 +214,15 @@ export function ChatSessionPanel({
                 role="button"
                 tabIndex={0}
                 onClick={() => {
+                  if (isRenaming) return;
                   onSelectSession(session.id);
                   setMobileOpen(false);
+                  setMenuOpenId(null);
                   setConfirmDeleteId(null);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
+                    if (isRenaming) return;
                     onSelectSession(session.id);
                     setMobileOpen(false);
                   }
@@ -221,32 +241,85 @@ export function ChatSessionPanel({
 
                 {/* Title + date */}
                 <div className="flex-1 min-w-0">
-                  <p className="truncate font-medium leading-snug text-[13px]">
-                    {session.title || "New conversation"}
-                  </p>
+                  {isRenaming ? (
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === "Enter") commitRename(session.id);
+                        if (e.key === "Escape") setRenamingId(null);
+                      }}
+                      onBlur={() => commitRename(session.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full bg-transparent border border-terra/40 rounded px-1.5 py-0.5 text-[13px] font-medium text-primary outline-none focus:border-terra"
+                    />
+                  ) : (
+                    <p className="truncate font-medium leading-snug text-[13px]">
+                      {displayTitle}
+                    </p>
+                  )}
                   <p className="text-[10px] text-muted mt-0.5">
                     {relativeDate(session.updated_at)}
                   </p>
                 </div>
 
-                {/* Delete button -- always visible */}
-                <button
-                  type="button"
-                  onClick={(e) => handleDeleteClick(e, session.id)}
-                  disabled={isArchiving}
-                  className="shrink-0 p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                  aria-label="Delete conversation"
-                  title="Delete"
-                >
-                  {isArchiving ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={14} />
-                  )}
-                </button>
+                {/* Three-dot menu button -- visible on hover or when menu is open */}
+                {isArchiving ? (
+                  <span className="shrink-0 p-1.5">
+                    <Loader2 size={14} className="animate-spin text-muted" />
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpenId(isMenuOpen ? null : session.id);
+                      setConfirmDeleteId(null);
+                    }}
+                    className={clsx(
+                      "shrink-0 p-1.5 rounded text-muted hover:text-primary hover:bg-surface-muted transition-all",
+                      isMenuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    )}
+                    aria-label="Session options"
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+                )}
+
+                {/* Dropdown menu */}
+                {isMenuOpen && !isConfirming && (
+                  <div
+                    ref={menuRef}
+                    className="absolute right-2 top-full mt-1 w-40 rounded-lg border border-border bg-surface-card shadow-lg py-1 z-50"
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startRename(session);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-surface-subtle transition-colors"
+                    >
+                      <Pencil size={14} /> Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpenId(null);
+                        setConfirmDeleteId(session.id);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Inline confirmation */}
+              {/* Inline delete confirmation */}
               {isConfirming && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px]">
                   <span className="text-muted">Delete?</span>
@@ -274,47 +347,6 @@ export function ChatSessionPanel({
         })}
       </div>
 
-      {/* Clear All button */}
-      {sessions.length > 0 && (
-        <div className="px-3 py-2 border-t border-border">
-          {confirmClearAll ? (
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] text-muted">Clear all conversations?</span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleClearAll}
-                  disabled={clearingAll}
-                  className="px-2.5 py-1 rounded text-[11px] font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
-                >
-                  {clearingAll ? "Clearing..." : "Yes"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmClearAll(false)}
-                  className="px-2.5 py-1 rounded text-[11px] text-muted hover:text-primary transition-colors"
-                >
-                  No
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmClearAll(true)}
-              disabled={clearingAll}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
-            >
-              {clearingAll ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <Trash2 size={12} />
-              )}
-              {clearingAll ? "Clearing..." : "Clear All"}
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 
