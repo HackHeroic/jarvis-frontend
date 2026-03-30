@@ -533,7 +533,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
         { signal: controller.signal },
       );
     },
-    [],
+    [modelMode],
   );
 
   const cancelConfirmation = useCallback(() => {
