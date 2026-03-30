@@ -58,6 +58,8 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [attachment, setAttachment] = useState<FileAttachment | null>(null);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const isResizing = useRef(false);
 
   // Collect memories from latest assistant response
   const latestMemories: MemoryRecord[] = useMemo(() => {
@@ -161,6 +163,29 @@ export default function ChatPage() {
     textareaRef.current?.focus();
   }, []);
 
+  // ---- Sidebar drag-to-resize ----
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = Math.min(400, Math.max(180, startWidth + ev.clientX - startX));
+      setSidebarWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      isResizing.current = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, [sidebarWidth]);
+
   const isEmpty = messages.length === 0;
 
   return (
@@ -169,7 +194,20 @@ export default function ChatPage() {
         currentSessionId={conversationId}
         onSelectSession={(id) => loadConversation(id)}
         onNewChat={handleNewChat}
+        sidebarWidth={sidebarWidth}
       />
+      {/* Drag handle — visible separator on desktop */}
+      <div
+        onMouseDown={handleResizeStart}
+        className="hidden lg:block w-px shrink-0 cursor-col-resize relative select-none bg-border"
+        title="Drag to resize"
+      >
+        {/* Wider invisible hit area for easy grabbing */}
+        <div
+          className="absolute inset-y-0 transition-colors hover:bg-terra/30 active:bg-terra/50"
+          style={{ left: -4, right: -4 }}
+        />
+      </div>
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0 h-full">
         {/* Top bar */}
