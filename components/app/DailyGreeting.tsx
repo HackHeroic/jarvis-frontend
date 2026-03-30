@@ -21,9 +21,10 @@ function formatDate(date: Date): string {
 interface DailyGreetingProps {
   taskCount: number;
   estimatedMinutes: number;
+  focusMinutes?: number;
 }
 
-export default function DailyGreeting({ taskCount, estimatedMinutes }: DailyGreetingProps) {
+export default function DailyGreeting({ taskCount, estimatedMinutes, focusMinutes }: DailyGreetingProps) {
   const today = new Date();
   const dayName = today.toLocaleDateString("en-US", { weekday: "long" });
 
