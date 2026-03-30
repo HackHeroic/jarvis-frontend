@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronLeft, Paperclip, Send } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
-import { useModeContext } from "@/lib/providers";
+import { IS_DEMO_MODE } from "@/lib/constants";
 import clsx from "clsx";
 
 interface AIChatPanelProps {
@@ -13,7 +13,7 @@ interface AIChatPanelProps {
 
 export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
   const [message, setMessage] = useState("");
-  const { isDemoMode } = useModeContext();
+  const isDemoMode = IS_DEMO_MODE;
 
   if (collapsed) {
     return (
