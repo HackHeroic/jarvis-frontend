@@ -163,67 +163,14 @@ export default function ChatPage() {
 
   const isEmpty = messages.length === 0;
 
-  // ---- Resizable sidebar ----
-  const [sidebarWidth, setSidebarWidth] = useState(260);
-  const isDragging = useRef(false);
-  const startX = useRef(0);
-  const startWidth = useRef(260);
-
-  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
-    isDragging.current = true;
-    startX.current = e.clientX;
-    startWidth.current = sidebarWidth;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!isDragging.current) return;
-      const delta = ev.clientX - startX.current;
-      const newWidth = Math.min(Math.max(startWidth.current + delta, 180), 500);
-      setSidebarWidth(newWidth);
-    };
-
-    const onMouseUp = () => {
-      isDragging.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    };
-
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  }, [sidebarWidth]);
-
   return (
     <div className="flex h-full">
-      {/* Left column: Session panel */}
-      <div style={{ width: sidebarWidth }} className="shrink-0 hidden lg:block">
-        <ChatSessionPanel
-          currentSessionId={conversationId}
-          onSelectSession={(id) => loadConversation(id)}
-          onNewChat={handleNewChat}
-        />
-      </div>
-      {/* Mobile-only: ChatSessionPanel without wrapper */}
-      <div className="lg:hidden">
-        <ChatSessionPanel
-          currentSessionId={conversationId}
-          onSelectSession={(id) => loadConversation(id)}
-          onNewChat={handleNewChat}
-        />
-      </div>
-
-      {/* Draggable divider */}
-      <div
-        onMouseDown={handleDividerMouseDown}
-        className="hidden lg:flex w-1 cursor-col-resize items-center justify-center hover:bg-terra/20 active:bg-terra/30 transition-colors group"
-        title="Drag to resize"
-      >
-        <div className="w-0.5 h-8 rounded-full bg-border group-hover:bg-terra/50 transition-colors" />
-      </div>
-
-      {/* Right column: Main chat area */}
+      <ChatSessionPanel
+        currentSessionId={conversationId}
+        onSelectSession={(id) => loadConversation(id)}
+        onNewChat={handleNewChat}
+      />
+      {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0 h-full">
         {/* Top bar */}
         <div className="flex items-center justify-between border-b border-border px-6 py-2 shrink-0">

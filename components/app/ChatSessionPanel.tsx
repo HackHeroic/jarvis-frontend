@@ -349,11 +349,11 @@ export function ChatSessionPanel({
         {panelContent}
       </div>
 
-      {/* Desktop panel — width controlled by parent */}
+      {/* Desktop panel */}
       <div
         className={clsx(
-          "hidden lg:flex shrink-0 h-full transition-all duration-200 overflow-hidden w-full",
-          collapsed && "!w-0"
+          "hidden lg:flex shrink-0 h-full border-r border-border transition-all duration-200 overflow-hidden",
+          collapsed ? "w-0" : "w-[260px]"
         )}
       >
         {!collapsed && panelContent}
