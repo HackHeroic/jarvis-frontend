@@ -66,9 +66,7 @@ export type UseJarvisChatReturn = {
 };
 
 export function useJarvisChat(): UseJarvisChatReturn {
-  const [messages, setMessages] = useState<JarvisMessage[]>(() =>
-    loadChatMessages(),
-  );
+  const [messages, setMessages] = useState<JarvisMessage[]>([]);
   const [streamState, setStreamState] =
     useState<JarvisStreamState>(INITIAL_STREAM_STATE);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -78,21 +76,28 @@ export function useJarvisChat(): UseJarvisChatReturn {
     unknown
   > | null>(null);
   const [draftScheduleResponse, setDraftScheduleResponse] =
-    useState<ChatResponse | null>(() => loadDraftSchedule());
+    useState<ChatResponse | null>(null);
   const [acceptState, setAcceptState] = useState<
     "idle" | "accepting" | "accepted"
   >("idle");
-  const [conversationId, setConversationId] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("jarvis-conversation-id");
-    }
-    return null;
-  });
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [isReplanning, setIsReplanning] = useState(false);
-  const [modelMode, setModelMode] = useState<ModelMode>(() => {
-    if (typeof window === "undefined") return "auto";
-    return (localStorage.getItem("jarvis-model-mode") as ModelMode) || "auto";
-  });
+  const [modelMode, setModelMode] = useState<ModelMode>("auto");
+
+  // Hydrate state from localStorage on mount
+  useEffect(() => {
+    const savedMessages = loadChatMessages();
+    if (savedMessages.length > 0) setMessages(savedMessages);
+
+    const savedDraft = loadDraftSchedule();
+    if (savedDraft) setDraftScheduleResponse(savedDraft);
+
+    const savedConversationId = localStorage.getItem("jarvis-conversation-id");
+    if (savedConversationId) setConversationId(savedConversationId);
+
+    const savedModelMode = localStorage.getItem("jarvis-model-mode") as ModelMode;
+    if (savedModelMode) setModelMode(savedModelMode);
+  }, []);
 
   // Persist model mode to localStorage
   useEffect(() => {
