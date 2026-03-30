@@ -391,6 +391,7 @@ export interface Session {
   created_at: string;
   updated_at: string;
   is_archived: boolean;
+  is_pinned?: boolean;
   summary?: string;
   messages?: SessionMessage[];
 }

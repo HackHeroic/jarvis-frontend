@@ -408,6 +408,23 @@ export async function renameSession(
   if (!res.ok) throw new Error(`Failed to rename session: ${res.status}`);
 }
 
+export async function pinSession(
+  sessionId: string,
+  isPinned: boolean,
+  userId: string = USER_ID,
+): Promise<void> {
+  if (IS_DEMO_MODE) return;
+  const res = await fetch(
+    `${API_BASE}/api/v1/sessions/${encodeURIComponent(sessionId)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, is_pinned: isPinned }),
+    },
+  );
+  if (!res.ok) throw new Error(`Failed to pin session: ${res.status}`);
+}
+
 // ---------------------------------------------------------------------------
 // Document Management
 // ---------------------------------------------------------------------------
