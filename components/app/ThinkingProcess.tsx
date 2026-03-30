@@ -35,9 +35,9 @@ export function ThinkingProcess({
   // Calculate duration from phaseHistory if not provided directly
   let displayDuration: string | null = null;
   if (durationMs && durationMs > 0) {
-    displayDuration = durationMs < 1000
+    displayDuration = durationMs >= 1000
       ? `${(durationMs / 1000).toFixed(1)}s`
-      : `${Math.round(durationMs / 1000)}s`;
+      : `${Math.round(durationMs)}ms`;
   } else if (phaseHistory && phaseHistory.length >= 2) {
     const reasoningPhase = phaseHistory.find((p) => p.phase === 'reasoning');
     const respondingPhase = phaseHistory.find((p) => p.phase === 'responding');
