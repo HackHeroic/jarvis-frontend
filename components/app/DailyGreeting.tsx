@@ -24,7 +24,7 @@ interface DailyGreetingProps {
   focusMinutes?: number;
 }
 
-export default function DailyGreeting({ taskCount, estimatedMinutes, focusMinutes: _focusMinutes }: DailyGreetingProps) {
+export default function DailyGreeting({ taskCount, estimatedMinutes }: DailyGreetingProps) {
   const today = new Date();
   const dayName = today.toLocaleDateString("en-US", { weekday: "long" });
 
