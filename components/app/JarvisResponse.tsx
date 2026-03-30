@@ -16,6 +16,7 @@ import { InfeasibleGuidance } from './InfeasibleGuidance';
 import { ReplanBanner } from './ReplanBanner';
 import { ActionProposalCards } from './ActionProposalCards';
 import { PendingCalendarApproval } from './PendingCalendarApproval';
+import { DraftReview } from './DraftReview';
 
 import type {
   JarvisMessage,
@@ -35,6 +36,10 @@ interface JarvisResponseProps {
   isReplanning?: boolean;
   onCalendarApproved?: (id: string) => void;
   onCalendarRejected?: (id: string) => void;
+  onConfirmTasks?: (tasks: TaskChunk[]) => void;
+  onAcceptDraft?: () => void;
+  onRejectDraft?: () => void;
+  onChatModify?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +215,10 @@ export function JarvisResponse({
   isReplanning,
   onCalendarApproved,
   onCalendarRejected,
+  onConfirmTasks,
+  onAcceptDraft,
+  onRejectDraft,
+  onChatModify,
 }: JarvisResponseProps) {
   const {
     content,
@@ -311,6 +320,19 @@ export function JarvisResponse({
       {/* 7. Draft Schedule */}
       {!isStreaming && schedule && scheduleStatus === 'draft' && (
         <DraftScheduleSection schedule={schedule} />
+      )}
+
+      {/* 7b. Interactive Draft Review (two-stage) */}
+      {!isStreaming && response && (
+        response.awaiting_task_confirmation || response.schedule_status === 'draft'
+      ) && (
+        <DraftReview
+          response={response}
+          onConfirmTasks={onConfirmTasks || (() => {})}
+          onAcceptDraft={onAcceptDraft || (() => {})}
+          onRejectDraft={onRejectDraft || (() => {})}
+          onChatModify={onChatModify || (() => {})}
+        />
       )}
 
       {/* 8. Clarification Chips */}
