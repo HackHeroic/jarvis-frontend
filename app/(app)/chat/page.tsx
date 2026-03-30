@@ -209,7 +209,7 @@ export default function ChatPage() {
         {/* Messages area */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-6 py-4"
+          className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-4 min-h-0"
         >
           {isEmpty ? (
             <div className="flex flex-col items-center justify-center h-full">
