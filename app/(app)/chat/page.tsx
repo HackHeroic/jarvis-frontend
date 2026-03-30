@@ -49,12 +49,9 @@ export default function ChatPage() {
     loadConversation,
     triggerReplan,
     isReplanning,
-    pendingTasks: _pendingTasks,
     confirmTasks,
-    draftScheduleResponse: _draftScheduleResponse,
     acceptDraft,
     rejectDraft,
-    acceptState: _acceptState,
   } = useJarvisChat();
 
   const [input, setInput] = useState("");
