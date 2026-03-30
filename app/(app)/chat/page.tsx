@@ -248,8 +248,7 @@ export default function ChatPage() {
                 return (
                   <div key={msg.id} className="flex justify-start">
                     <div
-                      className="bg-surface-muted text-primary px-4 py-2.5 text-sm max-w-[85%]"
-                      style={{ borderRadius: "14px 14px 14px 4px" }}
+                      className="text-primary px-1 py-1 text-sm max-w-[85%]"
                     >
                       <JarvisResponse
                         message={msg}
