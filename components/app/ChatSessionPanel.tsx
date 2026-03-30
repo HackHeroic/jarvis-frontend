@@ -1,7 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { MessageSquare, Plus, Trash2, Pencil, MoreHorizontal, ChevronLeft, Menu, X, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
+import {
+  MessageSquare,
+  Plus,
+  Trash2,
+  Pencil,
+  MoreHorizontal,
+  ChevronLeft,
+  Menu,
+  X,
+  Loader2,
+  Pin,
+  PinOff,
+} from "lucide-react";
 import clsx from "clsx";
 import { listSessions, archiveSession } from "@/lib/api";
 import type { Session } from "@/lib/types";
@@ -55,10 +68,16 @@ export function ChatSessionPanel({
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renamedTitles, setRenamedTitles] = useState<Record<string, string>>({});
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Portal requires client-side mount
+  useEffect(() => { setMounted(true); }, []);
 
   // ---- Fetch sessions ----
   const fetchSessions = useCallback(async () => {
@@ -76,8 +95,6 @@ export function ChatSessionPanel({
     }
   }, []);
 
-  // Fetch on mount only. A 30-second interval avoids flooding the backend
-  // while keeping the list reasonably fresh.
   useEffect(() => {
     fetchSessions();
     const interval = setInterval(fetchSessions, 30_000);
@@ -90,6 +107,7 @@ export function ChatSessionPanel({
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpenId(null);
+        setMenuPos(null);
         setConfirmDeleteId(null);
       }
     }
@@ -97,30 +115,71 @@ export function ChatSessionPanel({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [menuOpenId]);
 
-  // ---- Rename helpers ----
-  const startRename = useCallback((session: Session) => {
-    setMenuOpenId(null);
-    setRenamingId(session.id);
-    setRenameValue(renamedTitles[session.id] || session.title || "New conversation");
-  }, [renamedTitles]);
+  // ---- Sort sessions: pinned first, then by date ----
+  const sortedSessions = useMemo(() => {
+    const pinned = sessions.filter((s) => pinnedIds.includes(s.id));
+    const unpinned = sessions.filter((s) => !pinnedIds.includes(s.id));
+    return [...pinned, ...unpinned];
+  }, [sessions, pinnedIds]);
 
-  const commitRename = useCallback((sessionId: string) => {
-    const trimmed = renameValue.trim();
-    if (trimmed) {
-      setRenamedTitles((prev) => ({ ...prev, [sessionId]: trimmed }));
-    }
-    setRenamingId(null);
-  }, [renameValue]);
-
-  // ---- Delete (archive) single session ----
-  const handleDeleteClick = useCallback(
+  // ---- Menu open/close ----
+  const handleMenuToggle = useCallback(
     (e: React.MouseEvent, sessionId: string) => {
       e.stopPropagation();
-      setConfirmDeleteId((prev) => (prev === sessionId ? null : sessionId));
+      if (menuOpenId === sessionId) {
+        setMenuOpenId(null);
+        setMenuPos(null);
+      } else {
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        setMenuPos({
+          top: rect.bottom + 4,
+          right: window.innerWidth - rect.right,
+        });
+        setMenuOpenId(sessionId);
+        setConfirmDeleteId(null);
+      }
     },
-    []
+    [menuOpenId]
   );
 
+  // ---- Pin / Unpin ----
+  const handlePin = useCallback((sessionId: string) => {
+    setPinnedIds((prev) =>
+      prev.includes(sessionId)
+        ? prev.filter((id) => id !== sessionId)
+        : [...prev, sessionId]
+    );
+    setMenuOpenId(null);
+    setMenuPos(null);
+  }, []);
+
+  // ---- Rename helpers ----
+  const startRename = useCallback(
+    (sessionId: string) => {
+      const session = sessions.find((s) => s.id === sessionId);
+      if (!session) return;
+      setMenuOpenId(null);
+      setMenuPos(null);
+      setRenamingId(sessionId);
+      setRenameValue(
+        renamedTitles[sessionId] || session.title || "New conversation"
+      );
+    },
+    [sessions, renamedTitles]
+  );
+
+  const commitRename = useCallback(
+    (sessionId: string) => {
+      const trimmed = renameValue.trim();
+      if (trimmed) {
+        setRenamedTitles((prev) => ({ ...prev, [sessionId]: trimmed }));
+      }
+      setRenamingId(null);
+    },
+    [renameValue]
+  );
+
+  // ---- Delete (archive) ----
   const handleDeleteConfirm = useCallback(
     async (e: React.MouseEvent, sessionId: string) => {
       e.stopPropagation();
@@ -141,16 +200,21 @@ export function ChatSessionPanel({
     [currentSessionId, onNewChat]
   );
 
+  // ---- Current session for portal menu ----
+  const menuSession = menuOpenId
+    ? sessions.find((s) => s.id === menuOpenId)
+    : null;
+  const isPinned = menuOpenId ? pinnedIds.includes(menuOpenId) : false;
+
   // ---- Panel content (shared between desktop + mobile) ----
   const panelContent = (
     <div className="flex flex-col h-full bg-surface-muted/50 backdrop-blur-sm">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">
           Conversations
         </span>
         <div className="flex items-center gap-1">
-          {/* Close on mobile */}
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
@@ -159,7 +223,6 @@ export function ChatSessionPanel({
           >
             <X size={16} />
           </button>
-          {/* Collapse on desktop */}
           <button
             type="button"
             onClick={() => setCollapsed(true)}
@@ -172,7 +235,7 @@ export function ChatSessionPanel({
       </div>
 
       {/* New Chat button */}
-      <div className="px-3 py-2">
+      <div className="px-3 py-2 shrink-0">
         <button
           type="button"
           onClick={() => {
@@ -187,8 +250,8 @@ export function ChatSessionPanel({
       </div>
 
       {/* Session list */}
-      <div className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
-        {sessions.length === 0 && (
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1 space-y-0.5 min-h-0">
+        {sortedSessions.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 px-4">
             <MessageSquare size={24} className="text-muted mb-2 opacity-40" />
             <p className="text-xs text-muted text-center">
@@ -200,13 +263,15 @@ export function ChatSessionPanel({
           </div>
         )}
 
-        {sessions.map((session) => {
+        {sortedSessions.map((session) => {
           const isActive = session.id === currentSessionId;
           const isArchiving = archivingId === session.id;
           const isConfirming = confirmDeleteId === session.id;
           const isMenuOpen = menuOpenId === session.id;
           const isRenaming = renamingId === session.id;
-          const displayTitle = renamedTitles[session.id] || session.title || "New conversation";
+          const isPinnedSession = pinnedIds.includes(session.id);
+          const displayTitle =
+            renamedTitles[session.id] || session.title || "New conversation";
 
           return (
             <div key={session.id} className="relative">
@@ -218,6 +283,7 @@ export function ChatSessionPanel({
                   onSelectSession(session.id);
                   setMobileOpen(false);
                   setMenuOpenId(null);
+                  setMenuPos(null);
                   setConfirmDeleteId(null);
                 }}
                 onKeyDown={(e) => {
@@ -265,7 +331,14 @@ export function ChatSessionPanel({
                   </p>
                 </div>
 
-                {/* Three-dot menu button -- visible on hover or when menu is open */}
+                {/* Pin indicator (always visible if pinned) */}
+                {isPinnedSession && !isArchiving && (
+                  <span className="shrink-0 text-terra/60">
+                    <Pin size={11} />
+                  </span>
+                )}
+
+                {/* Three-dot menu button */}
                 {isArchiving ? (
                   <span className="shrink-0 p-1.5">
                     <Loader2 size={14} className="animate-spin text-muted" />
@@ -273,62 +346,30 @@ export function ChatSessionPanel({
                 ) : (
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuOpenId(isMenuOpen ? null : session.id);
-                      setConfirmDeleteId(null);
-                    }}
+                    onClick={(e) => handleMenuToggle(e, session.id)}
                     className={clsx(
                       "shrink-0 p-1.5 rounded text-muted hover:text-primary hover:bg-surface-muted transition-all",
-                      isMenuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                      isMenuOpen
+                        ? "opacity-100 bg-surface-muted"
+                        : "opacity-0 group-hover:opacity-100"
                     )}
                     aria-label="Session options"
                   >
                     <MoreHorizontal size={14} />
                   </button>
                 )}
-
-                {/* Dropdown menu */}
-                {isMenuOpen && !isConfirming && (
-                  <div
-                    ref={menuRef}
-                    className="absolute right-2 top-full mt-1 w-40 rounded-lg border border-border bg-surface-card shadow-lg py-1 z-50"
-                  >
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startRename(session);
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-surface-subtle transition-colors"
-                    >
-                      <Pencil size={14} /> Rename
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuOpenId(null);
-                        setConfirmDeleteId(session.id);
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
-                    >
-                      <Trash2 size={14} /> Delete
-                    </button>
-                  </div>
-                )}
               </div>
 
               {/* Inline delete confirmation */}
               {isConfirming && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px]">
-                  <span className="text-muted">Delete?</span>
+                  <span className="text-muted">Delete this chat?</span>
                   <button
                     type="button"
                     onClick={(e) => handleDeleteConfirm(e, session.id)}
                     className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 hover:bg-red-500/25 font-medium transition-colors"
                   >
-                    Yes
+                    Delete
                   </button>
                   <button
                     type="button"
@@ -338,7 +379,7 @@ export function ChatSessionPanel({
                     }}
                     className="px-2 py-0.5 rounded text-muted hover:text-primary transition-colors"
                   >
-                    No
+                    Cancel
                   </button>
                 </div>
               )}
@@ -346,9 +387,61 @@ export function ChatSessionPanel({
           );
         })}
       </div>
-
     </div>
   );
+
+  // ---- Portal dropdown menu ----
+  const dropdownMenu =
+    mounted && menuOpenId && menuPos && menuSession && !confirmDeleteId
+      ? createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: "fixed",
+              top: menuPos.top,
+              right: menuPos.right,
+              zIndex: 9999,
+            }}
+            className="w-44 rounded-xl border border-border bg-surface-card shadow-lg py-1.5 overflow-hidden"
+          >
+            <button
+              type="button"
+              onClick={() => handlePin(menuOpenId)}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-[13px] text-primary hover:bg-surface-subtle transition-colors"
+            >
+              {isPinned ? (
+                <>
+                  <PinOff size={14} className="text-muted" /> Unpin
+                </>
+              ) : (
+                <>
+                  <Pin size={14} className="text-muted" /> Pin
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => startRename(menuOpenId)}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-[13px] text-primary hover:bg-surface-subtle transition-colors"
+            >
+              <Pencil size={14} className="text-muted" /> Rename
+            </button>
+            <div className="my-1 border-t border-border" />
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpenId(null);
+                setMenuPos(null);
+                setConfirmDeleteId(menuOpenId);
+              }}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-[13px] text-red-500 hover:bg-red-500/10 transition-colors"
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </div>,
+          document.body
+        )
+      : null;
 
   return (
     <>
@@ -365,16 +458,16 @@ export function ChatSessionPanel({
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-30 bg-black/40 backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer — z-50 so it covers the NavRail */}
       <div
         className={clsx(
-          "lg:hidden fixed inset-y-0 left-0 z-40 w-[260px] transition-transform duration-200",
+          "lg:hidden fixed inset-y-0 left-0 z-50 w-[260px] transition-transform duration-200",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -402,6 +495,9 @@ export function ChatSessionPanel({
           <Menu size={16} />
         </button>
       )}
+
+      {/* Portal dropdown — rendered outside overflow containers */}
+      {dropdownMenu}
     </>
   );
 }
