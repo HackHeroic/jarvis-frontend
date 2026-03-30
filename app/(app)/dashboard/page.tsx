@@ -9,22 +9,8 @@ import ScheduleTimeline from "@/components/app/ScheduleTimeline";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ArrowRight, Sparkles, Send } from "lucide-react";
+import { apiTasksToScheduleTasks } from "@/lib/transforms";
 import type { ScheduleTask, PearlInsight } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Color palette for auto-assigning goal colors
-// ---------------------------------------------------------------------------
-
-const GOAL_COLORS: Record<string, string> = {};
-const PALETTE = ["#D4775A", "#4A7B6B", "#6B7FB5", "#C9A84C", "#3D3D3D"];
-
-function colorForGoal(goalId?: string): string {
-  if (!goalId) return PALETTE[0];
-  if (!GOAL_COLORS[goalId]) {
-    GOAL_COLORS[goalId] = PALETTE[Object.keys(GOAL_COLORS).length % PALETTE.length];
-  }
-  return GOAL_COLORS[goalId];
-}
 
 // ---------------------------------------------------------------------------
 // Demo fallback data
@@ -93,49 +79,6 @@ const DEMO_TASKS: ScheduleTask[] = [
     deadline_hint: "Exam Friday",
   },
 ];
-
-// ---------------------------------------------------------------------------
-// Helpers: convert API task records to ScheduleTask
-// ---------------------------------------------------------------------------
-
-function apiTasksToScheduleTasks(
-  raw: Record<string, unknown>[],
-): ScheduleTask[] {
-  return raw
-    .map((t) => {
-      const startTime = t.start_time
-        ? new Date(t.start_time as string)
-        : t.horizon_start && typeof t.start_min === "number"
-          ? new Date(
-              new Date(t.horizon_start as string).getTime() +
-                (t.start_min as number) * 60_000,
-            )
-          : new Date();
-      const dur = (t.duration_minutes as number) || 25;
-      const endTime = t.end_time
-        ? new Date(t.end_time as string)
-        : new Date(startTime.getTime() + dur * 60_000);
-
-      const status =
-        (t.status as ScheduleTask["status"]) || "pending";
-
-      return {
-        task_id: (t.task_id as string) || (t.id as string) || "",
-        title: (t.title as string) || "Untitled",
-        start_time: startTime,
-        end_time: endTime,
-        duration_minutes: dur,
-        status,
-        completed_at: t.completed_at
-          ? new Date(t.completed_at as string)
-          : undefined,
-        goal_id: (t.goal_id as string) || undefined,
-        color: colorForGoal((t.goal_id as string) || undefined),
-        deadline_hint: (t.deadline_hint as string) || undefined,
-      } satisfies ScheduleTask;
-    })
-    .sort((a, b) => a.start_time.getTime() - b.start_time.getTime());
-}
 
 // ---------------------------------------------------------------------------
 // Dashboard Page
