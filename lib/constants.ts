@@ -71,7 +71,21 @@ export const INTENT_COLORS: Record<string, string> = {
   ACTION_ITEM: 'dusk',
 };
 
-const PALETTE_ROTATION = ['terra', 'sage', 'dusk', 'gold'];
+export const PALETTE_ROTATION = ['terra', 'sage', 'dusk', 'gold'];
+
+// ---------------------------------------------------------------------------
+// Memory type color mapping
+// ---------------------------------------------------------------------------
+
+export const MEMORY_TYPE_COLORS: Record<string, string> = {
+  constraint: 'terra',
+  behavioral_pattern: 'sage',
+  preference: 'dusk',
+  temporal_event: 'gold',
+  goal: 'sage',
+  fact: 'ink',
+  feedback: 'ink',
+};
 
 export function hashCode(str: string): number {
   let hash = 0;
