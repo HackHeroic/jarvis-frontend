@@ -292,7 +292,7 @@ export default function DocumentsPage() {
               {/* Icon */}
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-subtle">
                 {doc.media_type?.includes("image") ? (
-                  <Image size={18} className="text-dusk" />
+                  <Image size={18} className="text-dusk" alt="Document thumbnail" />
                 ) : (
                   <FileText size={18} className="text-terra" />
                 )}
