@@ -10,8 +10,6 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "workspace", label: "Workspace", icon: "BookOpen", href: "/workspace" },
   { id: "documents", label: "Documents", icon: "FileText", href: "/documents" },
   { id: "habits", label: "Habits", icon: "Target", href: "/habits" },
-  { id: "architecture", label: "Architecture", icon: "Dna", href: "/architecture" },
-  { id: "analytics", label: "Analytics", icon: "BarChart3", href: "/analytics" },
 ];
 
 export const DEMO_USER = {

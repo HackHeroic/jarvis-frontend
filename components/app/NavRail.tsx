@@ -10,14 +10,13 @@ import {
   BookOpen,
   FileText,
   Target,
-  Dna,
-  BarChart3,
   Command,
   Moon,
   Sun,
   Trash2,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
+import { useThemeContext } from "@/lib/providers";
 import { Tooltip } from "@/components/ui/Tooltip";
 import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
@@ -29,12 +28,11 @@ const iconMap: Record<string, LucideIcon> = {
   BookOpen,
   FileText,
   Target,
-  Dna,
-  BarChart3,
 };
 
 export default function NavRail() {
   const pathname = usePathname();
+  const { theme, toggleTheme } = useThemeContext();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -50,10 +48,8 @@ export default function NavRail() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [menuOpen]);
 
-  const toggleTheme = () => {
-    document.documentElement.classList.toggle("dark");
-    const isDark = document.documentElement.classList.contains("dark");
-    localStorage.setItem("jarvis-theme", isDark ? "dark" : "light");
+  const handleToggleTheme = () => {
+    toggleTheme();
     setMenuOpen(false);
   };
 
@@ -124,12 +120,11 @@ export default function NavRail() {
             <p className="px-2 py-1.5 text-xs font-semibold text-primary">Madhav</p>
             <div className="my-1 h-px bg-border" />
             <button
-              onClick={toggleTheme}
+              onClick={handleToggleTheme}
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-secondary hover:bg-surface-muted hover:text-primary transition-colors"
             >
-              <Sun size={14} className="dark:hidden" />
-              <Moon size={14} className="hidden dark:block" />
-              <span>Toggle theme</span>
+              {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+              <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
             </button>
             <button
               onClick={clearAllData}
