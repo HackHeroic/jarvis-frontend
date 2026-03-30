@@ -89,7 +89,15 @@ export function useJarvisChat(): UseJarvisChatReturn {
     return null;
   });
   const [isReplanning, setIsReplanning] = useState(false);
-  const [modelMode, setModelMode] = useState<ModelMode>("auto");
+  const [modelMode, setModelMode] = useState<ModelMode>(() => {
+    if (typeof window === "undefined") return "auto";
+    return (localStorage.getItem("jarvis-model-mode") as ModelMode) || "auto";
+  });
+
+  // Persist model mode to localStorage
+  useEffect(() => {
+    localStorage.setItem("jarvis-model-mode", modelMode);
+  }, [modelMode]);
 
   // Persist non-streaming messages to localStorage
   useEffect(() => {
@@ -412,6 +420,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
             dependencies: [],
           })),
           goal_metadata: goalMetadata,
+          model_mode: modelMode,
         },
         {
           onPhase: (phase, data) => {

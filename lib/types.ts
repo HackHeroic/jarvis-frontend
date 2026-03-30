@@ -209,6 +209,7 @@ export interface ConfirmScheduleRequest {
     implementation_intention?: ImplementationIntention;
   }>;
   goal_metadata?: Record<string, unknown>;
+  model_mode?: "auto" | "4b" | "27b";
 }
 
 // ---------------------------------------------------------------------------
