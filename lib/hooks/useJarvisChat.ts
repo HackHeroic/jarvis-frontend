@@ -315,7 +315,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
               );
               setPendingGoalMetadata(
                 (response.execution_graph
-                  ?.goal_metadata as Record<string, unknown>) || null,
+                  ?.goal_metadata as unknown as Record<string, unknown>) || null,
               );
               setStreamState((s) => ({
                 ...s,
@@ -544,7 +544,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
         })),
         goal_metadata:
           (draftScheduleResponse.execution_graph
-            ?.goal_metadata as Record<string, unknown>) || undefined,
+            ?.goal_metadata as unknown as Record<string, unknown>) || undefined,
       });
       promoteDraftToFinal(draftScheduleResponse);
       setAcceptState("accepted");

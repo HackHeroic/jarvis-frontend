@@ -1,37 +1,43 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { ChevronDown } from "lucide-react";
-import clsx from "clsx";
-import type { PhaseEvent } from "@/lib/types";
+import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import clsx from 'clsx';
+import type { PhaseEventData } from '@/lib/types';
 
 interface ThinkingProcessProps {
   reasoning: string;
   isStreaming: boolean;
-  durationSec: number;
-  phaseHistory?: PhaseEvent[];
+  durationMs?: number | null;
+  phaseHistory?: PhaseEventData[];
 }
 
 export function ThinkingProcess({
   reasoning,
   isStreaming,
-  durationSec,
+  durationMs,
   phaseHistory,
 }: ThinkingProcessProps) {
   const [expanded, setExpanded] = useState(false);
 
-  if (!reasoning) return null;
+  if (!reasoning && !isStreaming) return null;
 
-  // Calculate duration from phaseHistory if available
-  let displayDuration = durationSec;
-  if (phaseHistory && phaseHistory.length >= 2) {
-    const reasoningPhase = phaseHistory.find((p) => p.phase === "reasoning");
-    const respondingPhase = phaseHistory.find((p) => p.phase === "responding");
-    const completePhase = phaseHistory.find((p) => p.phase === "complete");
+  // Calculate duration from phaseHistory if not provided directly
+  let displayDuration: string | null = null;
+  if (durationMs && durationMs > 0) {
+    displayDuration = durationMs < 1000
+      ? `${(durationMs / 1000).toFixed(1)}s`
+      : `${Math.round(durationMs / 1000)}s`;
+  } else if (phaseHistory && phaseHistory.length >= 2) {
+    const reasoningPhase = phaseHistory.find((p) => p.phase === 'reasoning');
+    const respondingPhase = phaseHistory.find((p) => p.phase === 'responding');
+    const completePhase = phaseHistory.find((p) => p.phase === 'complete');
     const startTs = reasoningPhase?.timestamp ?? phaseHistory[0].timestamp;
     const endTs = completePhase?.timestamp ?? respondingPhase?.timestamp ?? phaseHistory[phaseHistory.length - 1].timestamp;
-    const calculated = Math.round((endTs - startTs) / 1000);
-    if (calculated > 0) displayDuration = calculated;
+    if (startTs && endTs) {
+      const diff = Math.round((endTs - startTs) / 1000);
+      if (diff > 0) displayDuration = `${diff}s`;
+    }
   }
 
   return (
@@ -40,13 +46,15 @@ export function ThinkingProcess({
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
         aria-expanded={expanded}
-        className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-muted hover:text-secondary hover:bg-surface-subtle transition-colors"
+        className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-muted
+          hover:text-secondary hover:bg-surface-subtle transition-colors"
       >
         <span className="flex items-center gap-1">
           {isStreaming ? (
             <span className="inline-flex items-center gap-1">
-              <span role="img" aria-label="thinking">
-                🧠
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-terra opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-terra" />
               </span>
               Thinking
               <span className="inline-flex gap-px ml-0.5">
@@ -57,22 +65,19 @@ export function ThinkingProcess({
             </span>
           ) : (
             <span>
-              <span role="img" aria-label="thought">
-                🧠
-              </span>{" "}
-              Thought for {displayDuration}s
+              Thought{displayDuration ? ` for ${displayDuration}` : ''}
             </span>
           )}
         </span>
         <ChevronDown
           size={14}
           className={clsx(
-            "transition-transform duration-200 flex-shrink-0",
-            expanded && "rotate-180"
+            'transition-transform duration-200 flex-shrink-0',
+            expanded && 'rotate-180'
           )}
         />
       </button>
-      {expanded && (
+      {expanded && reasoning && (
         <div className="mt-1.5 ml-1 rounded-lg border border-border bg-surface-subtle/50 p-3 max-h-60 overflow-y-auto">
           <p className="text-xs text-muted whitespace-pre-wrap leading-relaxed break-words">
             {reasoning}
