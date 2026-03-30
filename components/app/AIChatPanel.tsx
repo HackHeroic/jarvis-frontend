@@ -8,7 +8,7 @@ import clsx from "clsx";
 import { useJarvisChat } from "@/lib/hooks/useJarvisChat";
 import { Badge } from "@/components/ui/Badge";
 import { IS_DEMO_MODE, getIntentColor } from "@/lib/constants";
-import type { PearlInsight, JarvisMessage, ChatResponse } from "@/lib/types";
+import type { PearlInsight, ChatResponse } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Heavy intents that should redirect to full chat

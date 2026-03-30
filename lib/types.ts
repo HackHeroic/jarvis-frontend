@@ -155,7 +155,7 @@ export interface ChatResponse {
   execution_graph?: ExecutionGraph;
   ingestion_result?: Record<string, unknown>;
   action_proposals?: ActionItemProposal[];
-  search_result?: Record<string, any>;
+  search_result?: Record<string, unknown>;
   thinking_process?: string;
   generation_metrics?: GenerationMetrics;
   awaiting_task_confirmation?: boolean;
@@ -369,7 +369,7 @@ export interface StudyAsset {
   title: string;
   content_or_url: string;
   rationale: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface TaskWorkspace {
