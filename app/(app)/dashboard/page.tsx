@@ -230,6 +230,7 @@ export default function DashboardPage() {
       estimatedMinutes: tasks.reduce((s, t) => s + t.duration_minutes, 0),
       // Streak: count from localStorage or default
       streakDays: (() => {
+        if (typeof window === 'undefined') return 7;
         try {
           const s = localStorage.getItem("jarvis-streak-days");
           return s ? parseInt(s, 10) : 7;
@@ -238,6 +239,7 @@ export default function DashboardPage() {
         }
       })(),
       patternsLearned: (() => {
+        if (typeof window === 'undefined') return 0;
         try {
           const m = localStorage.getItem("jarvis-last-chat-response");
           if (m) {
