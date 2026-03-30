@@ -125,9 +125,9 @@ export default function ChatPage() {
               const resp = msg.response;
               const metrics = resp?.generation_metrics;
               const clarifications = resp?.clarification_options;
-              const thinkingDuration = metrics?.total_time_ms
-                ? Math.round(metrics.total_time_ms / 1000)
-                : 2;
+              const thinkingDuration = metrics?.total_time_s
+                ? Math.round(metrics.total_time_s * 1000)
+                : 2000;
 
               return (
                 <div key={msg.id} className="flex justify-start">
@@ -150,7 +150,7 @@ export default function ChatPage() {
                       <ThinkingProcess
                         reasoning={msg.reasoning}
                         isStreaming={!!msg.isStreaming}
-                        durationSec={thinkingDuration}
+                        durationMs={thinkingDuration}
                         phaseHistory={msg.phaseHistory}
                       />
                     )}
@@ -183,12 +183,12 @@ export default function ChatPage() {
                     {metrics && !msg.isStreaming && (
                       <div className="mt-2 flex items-center gap-2 text-[10px] text-muted">
                         {metrics.model && <span>{metrics.model}</span>}
-                        {metrics.tokens_per_second && (
-                          <span>{metrics.tokens_per_second} tok/s</span>
+                        {metrics.tok_per_sec > 0 && (
+                          <span>{metrics.tok_per_sec.toFixed(1)} tok/s</span>
                         )}
-                        {metrics.total_time_ms && (
+                        {metrics.total_time_s > 0 && (
                           <span>
-                            {(metrics.total_time_ms / 1000).toFixed(1)}s
+                            {metrics.total_time_s.toFixed(1)}s
                           </span>
                         )}
                       </div>
