@@ -234,7 +234,7 @@ export function ChatSessionPanel({
                   type="button"
                   onClick={(e) => handleDeleteClick(e, session.id)}
                   disabled={isArchiving}
-                  className="shrink-0 p-1 rounded text-muted/40 hover:text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                  className="shrink-0 p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
                   aria-label="Delete conversation"
                   title="Delete"
                 >
@@ -349,11 +349,11 @@ export function ChatSessionPanel({
         {panelContent}
       </div>
 
-      {/* Desktop panel */}
+      {/* Desktop panel — width controlled by parent */}
       <div
         className={clsx(
-          "hidden lg:flex shrink-0 h-full border-r border-border transition-all duration-200 overflow-hidden",
-          collapsed ? "w-0" : "w-[260px]"
+          "hidden lg:flex shrink-0 h-full transition-all duration-200 overflow-hidden w-full",
+          collapsed && "!w-0"
         )}
       >
         {!collapsed && panelContent}
