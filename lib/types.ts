@@ -179,6 +179,14 @@ export interface ChatRequest {
   conversation_id?: string;
   file_base64?: string;
   media_type?: string;
+  file_name?: string;
+  model_mode?: 'auto' | '4b' | '27b';
+  confirm_before_schedule?: boolean;
+  draft_schedule?: {
+    schedule?: ScheduleResponse;
+    execution_graph?: ExecutionGraph;
+    horizon_start?: string;
+  };
   day_start_hour?: number;
   deadline_override?: string;
   min_deep_work_minutes?: number;
@@ -190,10 +198,17 @@ export interface ChatRequest {
 // ---------------------------------------------------------------------------
 
 export interface ConfirmScheduleRequest {
-  draft_id: string;
   user_id: string;
-  action: 'accept' | 'reject';
-  components?: string[];
+  tasks: Array<{
+    task_id: string;
+    title: string;
+    duration_minutes: number;
+    difficulty_weight: number;
+    dependencies: unknown[];
+    completion_criteria: string;
+    implementation_intention?: ImplementationIntention;
+  }>;
+  goal_metadata?: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
