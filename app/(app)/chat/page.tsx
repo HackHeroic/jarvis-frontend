@@ -46,6 +46,12 @@ export default function ChatPage() {
     loadConversation,
     triggerReplan,
     isReplanning,
+    pendingTasks,
+    confirmTasks,
+    draftScheduleResponse,
+    acceptDraft,
+    rejectDraft,
+    acceptState,
   } = useJarvisChat();
 
   const [input, setInput] = useState("");
@@ -137,6 +143,11 @@ export default function ChatPage() {
     setAttachment(null);
   }, [startNewConversation]);
 
+  // Focus chat input for "Chat to modify" flow
+  const handleChatModify = useCallback(() => {
+    textareaRef.current?.focus();
+  }, []);
+
   const isEmpty = messages.length === 0;
 
   return (
@@ -221,6 +232,10 @@ export default function ChatPage() {
                         onClarificationSelect={(text) => sendMessage(text)}
                         onReplan={() => triggerReplan()}
                         isReplanning={isReplanning}
+                        onConfirmTasks={(tasks) => confirmTasks(tasks)}
+                        onAcceptDraft={() => acceptDraft()}
+                        onRejectDraft={() => rejectDraft()}
+                        onChatModify={handleChatModify}
                       />
                     </div>
                   </div>
