@@ -183,7 +183,6 @@ export default function SchedulePage() {
               const isCompleted = task.status === "completed";
               const isSkipped = task.status === "skipped";
               const config = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
-              const StatusIcon = config.icon;
 
               return (
                 <div key={task.task_id}>
