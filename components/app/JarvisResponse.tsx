@@ -41,7 +41,7 @@ interface JarvisResponseProps {
   onCalendarRejected?: (id: string) => void;
   onConfirmTasks?: (tasks: TaskChunk[]) => void;
   onAcceptDraft?: () => void;
-  onRejectDraft?: () => void;
+  onRejectDraft?: (reason?: string) => void;
   onChatModify?: () => void;
 }
 
@@ -315,8 +315,8 @@ export function JarvisResponse({
         />
       )}
 
-      {/* 6. Task Decomposition Preview */}
-      {!isStreaming && executionGraph && (
+      {/* 6. Task Decomposition Preview — skip when DraftReview will render (avoids duplicate) */}
+      {!isStreaming && executionGraph && !response?.awaiting_task_confirmation && response?.schedule_status !== 'draft' && (
         <TaskDecompositionPreview graph={executionGraph} />
       )}
 

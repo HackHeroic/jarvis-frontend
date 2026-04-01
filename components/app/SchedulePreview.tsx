@@ -4,17 +4,17 @@ import { useMemo } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 
-import type { ScheduleResponse, TaskSchedule } from '@/lib/types';
+import type { SchedulePayload, TaskSchedule } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 
 interface SchedulePreviewProps {
-  schedule: ScheduleResponse;
+  schedule: SchedulePayload;
   draftId: string;
   onAccept: () => void;
-  onReject: () => void;
+  onReject: (reason?: string) => void;
   isLoading?: boolean;
 }
 
@@ -94,11 +94,57 @@ function TimelineBlock({ entry }: { entry: TimelineEntry }) {
 }
 
 // ---------------------------------------------------------------------------
+// Day Grouping Helpers
+// ---------------------------------------------------------------------------
+
+type DayGroup = {
+  date: Date;
+  label: string;
+  entries: TimelineEntry[];
+};
+
+function formatDayLabel(date: Date): string {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function groupByDay(entries: TimelineEntry[], horizonStart: string): DayGroup[] {
+  const base = new Date(horizonStart);
+  const groups = new Map<string, DayGroup>();
+  for (const entry of entries) {
+    const taskDate = new Date(base.getTime() + entry.startMin * 60_000);
+    const dateKey = taskDate.toDateString();
+    if (!groups.has(dateKey)) {
+      groups.set(dateKey, { date: taskDate, label: formatDayLabel(taskDate), entries: [] });
+    }
+    groups.get(dateKey)!.entries.push(entry);
+  }
+  return Array.from(groups.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+function DayHeader({ label, taskCount }: { label: string; taskCount: number }) {
+  return (
+    <div className="flex items-center gap-2 py-2 mt-3 first:mt-0">
+      <span className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">{label}</span>
+      <span className="text-[10px] text-muted/60">{taskCount} tasks</span>
+      <div className="flex-1 h-px bg-border" />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Break Gap
 // ---------------------------------------------------------------------------
 
 function BreakGap({ minutes }: { minutes: number }) {
-  if (minutes <= 0) return null;
+  if (minutes <= 0 || minutes > 360) return null;
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  const label = hrs > 0 ? `${hrs}h ${mins}m break` : `${mins}m break`;
 
   return (
     <div className="flex gap-3 items-stretch">
@@ -108,7 +154,7 @@ function BreakGap({ minutes }: { minutes: number }) {
       </div>
       <div className="flex-1 flex items-center py-1.5">
         <span className="text-[10px] text-muted/60 italic">
-          {minutes}m break
+          {label}
         </span>
       </div>
     </div>
@@ -169,17 +215,25 @@ export function SchedulePreview({
 
       {/* Timeline */}
       <div className="relative">
-        {entries.map((entry, index) => {
-          const prevEnd = index > 0 ? entries[index - 1].endMin : entry.startMin;
-          const gap = entry.startMin - prevEnd;
-
-          return (
-            <div key={entry.taskId}>
-              {gap > 0 && <BreakGap minutes={gap} />}
-              <TimelineBlock entry={entry} />
+        {(() => {
+          const horizonStart = schedule.horizon_start || new Date().toISOString();
+          const dayGroups = groupByDay(entries, horizonStart);
+          return dayGroups.map((group) => (
+            <div key={group.label}>
+              <DayHeader label={group.label} taskCount={group.entries.length} />
+              {group.entries.map((entry, i) => {
+                const prevEnd = i > 0 ? group.entries[i - 1].endMin : entry.startMin;
+                const gap = entry.startMin - prevEnd;
+                return (
+                  <div key={entry.taskId}>
+                    {gap > 5 && <BreakGap minutes={gap} />}
+                    <TimelineBlock entry={entry} />
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          ));
+        })()}
 
         {/* End time marker */}
         {entries.length > 0 && (
@@ -197,11 +251,23 @@ export function SchedulePreview({
         )}
       </div>
 
+      {/* Applied constraints */}
+      {schedule.applied_constraints && schedule.applied_constraints.length > 0 && (
+        <div className="px-4 py-2 rounded-lg bg-sage-50 dark:bg-sage-900/20 text-xs text-sage-700 dark:text-sage-300 mt-2">
+          <span className="font-medium">Schedule shaped by your preferences:</span>
+          <ul className="mt-1 space-y-0.5 list-disc list-inside">
+            {schedule.applied_constraints.map((c, i) => (
+              <li key={i}>{c.name.replace(/_/g, " ").replace(/memory constraint |pearl pattern /g, "")}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Action buttons */}
       <div className="flex items-center gap-2 pt-1">
         <button
           type="button"
-          onClick={onAccept}
+          onClick={() => onAccept()}
           disabled={isLoading}
           className={clsx(
             'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
@@ -212,7 +278,7 @@ export function SchedulePreview({
           {isLoading ? (
             <>
               <Loader2 size={14} className="animate-spin" />
-              Accepting...
+              Saving...
             </>
           ) : (
             'Accept All'
@@ -220,7 +286,12 @@ export function SchedulePreview({
         </button>
         <button
           type="button"
-          onClick={onReject}
+          onClick={() => {
+            const reason = window.prompt("What would you like changed?");
+            if (reason !== null) {
+              onReject(reason || undefined);
+            }
+          }}
           disabled={isLoading}
           className="px-4 py-2.5 rounded-xl text-sm font-medium border border-red-400/30 text-red-400 hover:bg-red-400/10 hover:border-red-400/50 transition-all disabled:opacity-40"
         >

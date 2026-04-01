@@ -7,7 +7,9 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { chatStream, confirmScheduleStream, acceptSchedule, loadConversation as loadConversationAPI } from "../api";
+import { useRouter } from "next/navigation";
+import { chatStream, confirmScheduleStream, acceptDraft, acceptScheduleDirect, rejectDraft, loadConversation as loadConversationAPI } from "../api";
+import { useJarvis } from "@/lib/context/JarvisContext";
 import type {
   JarvisMessage,
   JarvisStreamState,
@@ -24,7 +26,6 @@ import {
   saveDraftSchedule,
   loadDraftSchedule,
   clearDraftSchedule,
-  promoteDraftToFinal,
 } from "../store";
 import { USER_ID } from "../constants";
 
@@ -55,7 +56,7 @@ export type UseJarvisChatReturn = {
   draftScheduleResponse: ChatResponse | null;
   acceptDraft: () => Promise<void>;
   acceptState: "idle" | "accepting" | "accepted";
-  rejectDraft: () => void;
+  rejectDraft: (reason?: string) => void;
   conversationId: string | null;
   startNewConversation: () => void;
   loadConversation: (sessionId: string) => Promise<void>;
@@ -66,6 +67,9 @@ export type UseJarvisChatReturn = {
 };
 
 export function useJarvisChat(): UseJarvisChatReturn {
+  const jarvis = useJarvis();
+  const router = useRouter();
+
   const [messages, setMessages] = useState<JarvisMessage[]>([]);
   const [streamState, setStreamState] =
     useState<JarvisStreamState>(INITIAL_STREAM_STATE);
@@ -354,6 +358,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
             ) {
               setDraftScheduleResponse(response);
               saveDraftSchedule(response);
+              jarvis.setDraft(response);
             }
 
             setStreamState((s) => ({ ...s, phase: "complete" }));
@@ -510,6 +515,17 @@ export function useJarvisChat(): UseJarvisChatReturn {
               setMessages((m) => [...m.slice(0, -1), final]);
               streamingMsg.current = null;
             }
+
+            // Store draft schedule so Accept All button can access it
+            if (
+              response.schedule_status === "draft" &&
+              response.schedule
+            ) {
+              setDraftScheduleResponse(response);
+              saveDraftSchedule(response);
+              jarvis.setDraft(response);
+            }
+
             setStreamState((s) => ({ ...s, phase: "complete" }));
             setIsStreaming(false);
             abortRef.current = null;
@@ -549,40 +565,63 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
   const acceptDraftFn = useCallback(async () => {
     if (!draftScheduleResponse) return;
+    const draftId =
+      draftScheduleResponse.draft_id ||
+      draftScheduleResponse.schedule?.draft_id;
+
     setAcceptState("accepting");
     try {
-      const tasks =
-        draftScheduleResponse.execution_graph?.decomposition || [];
-      await acceptSchedule({
-        user_id: USER_ID,
-        tasks: tasks.map((t) => ({
-          task_id: t.task_id,
-          title: t.title,
-          duration_minutes: t.duration_minutes,
-          difficulty_weight: t.difficulty_weight,
-          dependencies: t.dependencies || [],
-          completion_criteria: t.completion_criteria,
-          implementation_intention: t.implementation_intention,
-        })),
-        goal_metadata:
-          (draftScheduleResponse.execution_graph
-            ?.goal_metadata as unknown as Record<string, unknown>) || undefined,
-      });
-      promoteDraftToFinal(draftScheduleResponse);
-      setAcceptState("accepted");
-      setTimeout(() => {
-        setDraftScheduleResponse(null);
-        setAcceptState("idle");
-      }, 2000);
-    } catch {
-      setAcceptState("idle");
-    }
-  }, [draftScheduleResponse]);
+      if (draftId) {
+        await acceptDraft(draftId);
+      } else {
+        const tasks = draftScheduleResponse.execution_graph?.decomposition || [];
+        const schedule = draftScheduleResponse.schedule;
+        await acceptScheduleDirect(
+          tasks,
+          schedule ? { schedule: schedule.schedule, horizon_start: schedule.horizon_start } : null,
+          schedule?.horizon_start,
+          draftScheduleResponse.execution_graph?.goal_metadata,
+        );
+      }
 
-  const rejectDraftFn = useCallback(() => {
-    clearDraftSchedule();
-    setDraftScheduleResponse(null);
-  }, []);
+      jarvis.clearDraft();
+      setDraftScheduleResponse(null);
+      setAcceptState("accepted");
+
+      await jarvis.refreshTasks();
+
+      jarvis.showToast("Schedule saved!", "success");
+      setTimeout(() => {
+        setAcceptState("idle");
+        router.push("/schedule");
+      }, 1000);
+    } catch (err) {
+      console.error("[ACCEPT] Failed:", err);
+      setAcceptState("idle");
+      jarvis.showToast("Failed to save schedule. Try again.", "error");
+    }
+  }, [draftScheduleResponse, jarvis, router]);
+
+  const rejectDraftFn = useCallback(async (reason?: string) => {
+    const draftId =
+      draftScheduleResponse?.draft_id ||
+      draftScheduleResponse?.schedule?.draft_id;
+    try {
+      if (draftId) {
+        await rejectDraft(draftId, ["tasks", "schedule"]);
+      }
+      jarvis.clearDraft();
+      setDraftScheduleResponse(null);
+      jarvis.showToast("Schedule rejected. Replanning...", "info");
+    } catch {
+      jarvis.clearDraft();
+      setDraftScheduleResponse(null);
+      jarvis.showToast("Failed to reject. Try again.", "error");
+    }
+    if (reason) {
+      sendMessage(`I rejected the schedule because: ${reason}. Please suggest a different approach.`);
+    }
+  }, [draftScheduleResponse, sendMessage, jarvis]);
 
   const startNewConversation = useCallback(() => {
     setConversationId(null);

@@ -2,14 +2,13 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { listTasks } from "@/lib/api";
+import { useJarvis } from "@/lib/context/JarvisContext";
 import DailyGreeting from "@/components/app/DailyGreeting";
 import StatsStrip from "@/components/app/StatsStrip";
 import ScheduleTimeline from "@/components/app/ScheduleTimeline";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ArrowRight, Sparkles, Send } from "lucide-react";
-import { apiTasksToScheduleTasks } from "@/lib/transforms";
 import type { ScheduleTask, PearlInsight } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -86,46 +85,15 @@ const DEMO_TASKS: ScheduleTask[] = [
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [tasks, setTasks] = useState<ScheduleTask[]>(DEMO_TASKS);
-  const [isLive, setIsLive] = useState(false);
-  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const { tasks: contextTasks, tasksLoading, draftResponse } = useJarvis();
+  const tasks = contextTasks.length > 0 ? contextTasks : DEMO_TASKS;
+  const isLive = contextTasks.length > 0;
+  const activeDraftId = draftResponse?.draft_id || draftResponse?.schedule?.draft_id || null;
   const [pearlInsights, setPearlInsights] = useState<PearlInsight[]>([]);
   const [brainDump, setBrainDump] = useState("");
 
-  // ---- Fetch real tasks on mount ----
+  // ---- Load PEARL insights from localStorage ----
   useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const raw = await listTasks();
-        if (!cancelled && raw.length > 0) {
-          setTasks(apiTasksToScheduleTasks(raw));
-          setIsLive(true);
-        }
-      } catch {
-        // Backend unavailable — keep demo data
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // ---- Load draft & PEARL insights from localStorage ----
-  useEffect(() => {
-    try {
-      const draftRaw = localStorage.getItem("jarvis-active-draft");
-      if (draftRaw) {
-        const parsed = JSON.parse(draftRaw);
-        setActiveDraftId(parsed.draft_id || parsed.id || null);
-      }
-    } catch {
-      // ignore
-    }
-
     try {
       const chatRaw = localStorage.getItem("jarvis-last-chat-response");
       if (chatRaw) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Paperclip,
   ArrowUp,
@@ -14,7 +15,7 @@ import clsx from "clsx";
 
 import { useJarvisChat } from "@/lib/hooks/useJarvisChat";
 import { JarvisResponse } from "@/components/app/JarvisResponse";
-import { approveCalendar, rejectCalendar } from "@/lib/api";
+import { approveCalendar, rejectCalendar, listMemories, deleteMemory, confirmMemory, dismissMemory } from "@/lib/api";
 import { PromptSelector } from "@/components/app/PromptSelector";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ModelModeSelector } from "@/components/app/ModelModeSelector";
@@ -55,6 +56,22 @@ export default function ChatPage() {
     rejectDraft,
   } = useJarvisChat();
 
+  const searchParams = useSearchParams();
+
+  const hasHandledParams = useRef(false);
+  useEffect(() => {
+    if (hasHandledParams.current) return;
+    const sessionParam = searchParams.get("session");
+    const promptParam = searchParams.get("prompt");
+    if (sessionParam) {
+      hasHandledParams.current = true;
+      loadConversation(sessionParam);
+    } else if (promptParam && messages.length === 0) {
+      hasHandledParams.current = true;
+      sendMessage(decodeURIComponent(promptParam));
+    }
+  }, [searchParams, loadConversation, sendMessage, messages.length]);
+
   const [input, setInput] = useState("");
   const [attachment, setAttachment] = useState<FileAttachment | null>(null);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
@@ -71,6 +88,18 @@ export default function ChatPage() {
     }
     return [];
   }, [messages]);
+
+  // Independently-fetched memories for the panel
+  const [panelMemories, setPanelMemories] = useState<MemoryRecord[]>([]);
+
+  const refreshMemories = useCallback(async () => {
+    try {
+      const fresh = await listMemories();
+      setPanelMemories(fresh);
+    } catch {
+      // Non-critical — panel will fall back to latestMemories
+    }
+  }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -230,7 +259,12 @@ export default function ChatPage() {
             />
             <button
               type="button"
-              onClick={() => setShowMemoryPanel((p) => !p)}
+              onClick={() => {
+                setShowMemoryPanel((p) => {
+                  if (!p) refreshMemories();
+                  return !p;
+                });
+              }}
               className={clsx(
                 "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
                 showMemoryPanel
@@ -295,7 +329,7 @@ export default function ChatPage() {
                         isReplanning={isReplanning}
                         onConfirmTasks={(tasks) => confirmTasks(tasks)}
                         onAcceptDraft={() => acceptDraft()}
-                        onRejectDraft={() => rejectDraft()}
+                        onRejectDraft={(reason) => rejectDraft(reason)}
                         onChatModify={handleChatModify}
                         onCalendarApproved={(id) => approveCalendar(id)}
                         onCalendarRejected={(id) => rejectCalendar(id)}
@@ -399,9 +433,12 @@ export default function ChatPage() {
 
       {/* Memory Panel */}
       <MemoryPanel
-        memories={latestMemories}
+        memories={panelMemories.length > 0 ? panelMemories : latestMemories}
         isOpen={showMemoryPanel}
         onClose={() => setShowMemoryPanel(false)}
+        onDeleteMemory={async (id: string) => { try { await deleteMemory(id); await refreshMemories(); } catch { /* silently handle */ } }}
+        onConfirmPattern={async (id: string) => { try { await confirmMemory(id); await refreshMemories(); } catch { /* silently handle */ } }}
+        onDismissPattern={async (id: string) => { try { await dismissMemory(id); await refreshMemories(); } catch { /* silently handle */ } }}
       />
     </div>
   );

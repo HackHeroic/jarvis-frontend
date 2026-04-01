@@ -68,6 +68,11 @@ export function setConversationId(id: string): void {
   localStorage.setItem(CONVERSATION_KEY, id);
 }
 
+export function clearConversationId(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(CONVERSATION_KEY);
+}
+
 // ---------------------------------------------------------------------------
 // Draft Schedule — stores full ChatResponse for draft review
 // ---------------------------------------------------------------------------

@@ -28,21 +28,44 @@ export function apiTasksToScheduleTasks(
 ): ScheduleTask[] {
   return raw
     .map((t) => {
-      const startTime = t.start_time
-        ? new Date(t.start_time as string)
-        : t.horizon_start && typeof t.start_min === "number"
-          ? new Date(
-              new Date(t.horizon_start as string).getTime() +
-                (t.start_min as number) * 60_000,
-            )
-          : new Date();
-      const dur = (t.duration_minutes as number) || 25;
+      let startTime: Date;
+      if (t.start_time) {
+        startTime = new Date(t.start_time as string);
+      } else if (t.scheduled_start) {
+        startTime = new Date(t.scheduled_start as string);
+      } else if (t.horizon_start && typeof t.start_min === "number") {
+        startTime = new Date(
+          new Date(t.horizon_start as string).getTime() +
+            (t.start_min as number) * 60_000,
+        );
+      } else {
+        const today = new Date();
+        today.setHours(8, 0, 0, 0);
+        startTime = today;
+        console.warn(
+          `[transforms] Task "${t.title || t.task_id}" has no start time — defaulting to 8 AM today`,
+        );
+      }
+
+      let dur = t.duration_minutes as number;
+      if (!dur || dur <= 0) {
+        dur = 25;
+        console.warn(
+          `[transforms] Task "${t.title || t.task_id}" has no duration — defaulting to 25 min`,
+        );
+      }
+
       const endTime = t.end_time
         ? new Date(t.end_time as string)
-        : new Date(startTime.getTime() + dur * 60_000);
+        : t.scheduled_end
+          ? new Date(t.scheduled_end as string)
+          : new Date(startTime.getTime() + dur * 60_000);
 
-      const status =
-        (t.status as ScheduleTask["status"]) || "pending";
+      const VALID_STATUSES = new Set(["pending", "in_progress", "completed", "skipped"]);
+      const rawStatus = (t.status as string) || "pending";
+      const status = VALID_STATUSES.has(rawStatus)
+        ? (rawStatus as ScheduleTask["status"])
+        : "pending";
 
       return {
         task_id: (t.task_id as string) || (t.id as string) || "",

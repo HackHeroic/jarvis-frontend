@@ -7,7 +7,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: "House", href: "/dashboard" },
   { id: "chat", label: "Chat", icon: "MessageSquare", href: "/chat" },
   { id: "schedule", label: "Schedule", icon: "Calendar", href: "/schedule" },
-  { id: "workspace", label: "Workspace", icon: "BookOpen", href: "/workspace" },
+  // Workspace is accessed per-task via /workspace/[taskId], not directly navigable
   { id: "documents", label: "Documents", icon: "FileText", href: "/documents" },
   { id: "habits", label: "Habits", icon: "Target", href: "/habits" },
 ];
