@@ -13,7 +13,7 @@ interface DraftReviewProps {
   response: ChatResponse;
   onConfirmTasks: (tasks: TaskChunk[]) => void;
   onAcceptDraft: () => void;
-  onRejectDraft: () => void;
+  onRejectDraft: (reason?: string) => void;
   onChatModify: () => void;
   isLoading?: boolean;
 }

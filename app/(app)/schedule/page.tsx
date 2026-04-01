@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { listTasks, completeTask, skipTask } from "@/lib/api";
+import { useMemo, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { completeTask, skipTask } from "@/lib/api";
+import { useJarvis } from "@/lib/context/JarvisContext";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/app/EmptyState";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
@@ -12,11 +13,9 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Loader2,
 } from "lucide-react";
 import clsx from "clsx";
-import { apiTasksToScheduleTasks } from "@/lib/transforms";
 import type { ScheduleTask } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -131,30 +130,23 @@ const STATUS_COLORS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export default function SchedulePage() {
+  return (
+    <Suspense>
+      <SchedulePageInner />
+    </Suspense>
+  );
+}
+
+function SchedulePageInner() {
   const router = useRouter();
-  const [allTasks, setAllTasks] = useState<ScheduleTask[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>("day");
+  const searchParams = useSearchParams();
+  const { tasks: allTasks, tasksLoading: loading, refreshTasks } = useJarvis();
+  const initialView = (searchParams.get("view") as ViewMode) || "day";
+  const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [ratingTaskId, setRatingTaskId] = useState<string | null>(null);
 
   const now = useMemo(() => new Date(), []);
-
-  // ---- Data fetch ----
-  const loadTasks = useCallback(async () => {
-    try {
-      const raw = await listTasks();
-      setAllTasks(apiTasksToScheduleTasks(raw));
-    } catch {
-      setAllTasks([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
 
   // ---- Tasks for selected day ----
   const dayTasks = useMemo(
@@ -180,27 +172,19 @@ export default function SchedulePage() {
     setRatingTaskId(null);
     try {
       await completeTask(taskId, undefined, quality);
+      await refreshTasks();
     } catch {
       // silently fail in demo
     }
-    setAllTasks((prev) =>
-      prev.map((t) =>
-        t.task_id === taskId ? { ...t, status: "completed" as const } : t,
-      ),
-    );
   }
 
   async function handleSkip(taskId: string) {
     try {
       await skipTask(taskId);
+      await refreshTasks();
     } catch {
       // silently fail in demo
     }
-    setAllTasks((prev) =>
-      prev.map((t) =>
-        t.task_id === taskId ? { ...t, status: "skipped" as const } : t,
-      ),
-    );
   }
 
   // ---- NOW indicator position ----
@@ -290,7 +274,7 @@ export default function SchedulePage() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — only for day view when no tasks */}
       {!loading && allTasks.length === 0 && (
         <Card className="px-6 py-12">
           <EmptyState
@@ -322,7 +306,7 @@ export default function SchedulePage() {
       )}
 
       {/* ---- WEEK VIEW ---- */}
-      {!loading && allTasks.length > 0 && viewMode === "week" && (
+      {!loading && viewMode === "week" && (
         <WeekGrid
           allTasks={allTasks}
           selectedDate={selectedDate}
@@ -335,7 +319,7 @@ export default function SchedulePage() {
       )}
 
       {/* ---- MONTH VIEW ---- */}
-      {!loading && allTasks.length > 0 && viewMode === "month" && (
+      {!loading && viewMode === "month" && (
         <MonthGrid
           allTasks={allTasks}
           selectedDate={selectedDate}
@@ -378,6 +362,7 @@ function DayGrid({
   onRate,
   onCancelRating,
 }: DayGridProps) {
+  const router = useRouter();
   return (
     <div className="relative flex rounded-xl border border-border bg-surface-card overflow-hidden">
       {/* Hour labels */}
@@ -475,6 +460,15 @@ function DayGrid({
                 {/* Action buttons */}
                 {isActionable && !isBlocked && !showRating && (
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/workspace/${task.task_id}`);
+                      }}
+                      className="text-[10px] text-terra-600 hover:text-terra-700 dark:text-terra-400 dark:hover:text-terra-300 underline"
+                    >
+                      Workspace
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

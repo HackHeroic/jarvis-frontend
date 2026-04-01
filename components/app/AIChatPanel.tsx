@@ -8,6 +8,7 @@ import clsx from "clsx";
 import { chatStream } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { IS_DEMO_MODE, getIntentColor } from "@/lib/constants";
+import { useJarvis } from "@/lib/context/JarvisContext";
 import { USER_ID } from "@/lib/constants";
 import type { PearlInsight, ChatResponse } from "@/lib/types";
 
@@ -61,6 +62,7 @@ interface AIChatPanelProps {
 export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
   const router = useRouter();
   const isDemoMode = IS_DEMO_MODE;
+  const { conversationId, setConversationId } = useJarvis();
 
   // Lightweight local state — no shared localStorage with main chat
   const [messages, setMessages] = useState<PanelMessage[]>([]);
@@ -130,6 +132,7 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
         user_prompt: userText,
         user_id: USER_ID,
         model_mode: "4b",
+        conversation_id: conversationId || undefined,
       },
       {
         onMessageToken: (token: string) => {
@@ -146,6 +149,9 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
           });
         },
         onComplete: (response: ChatResponse) => {
+          if (response.conversation_id) {
+            setConversationId(response.conversation_id);
+          }
           setMessages((prev) => {
             const updated = [...prev];
             const last = updated[updated.length - 1];
@@ -277,7 +283,7 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
                     <Badge color={color}>{intent.replace(/_/g, " ")}</Badge>
                   )}
                   <p className="text-xs leading-relaxed text-secondary mt-0.5 line-clamp-3">
-                    {msg.content}
+                    {msg.content || (msg.response?.message) || "Processing..."}
                   </p>
                 </div>
               </div>
@@ -292,7 +298,7 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
               This needs the full workspace &mdash; open in Chat?
             </p>
             <button
-              onClick={() => router.push("/chat")}
+              onClick={() => router.push(conversationId ? `/chat?session=${conversationId}` : "/chat")}
               className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-terra hover:underline"
             >
               Open in Chat <ArrowRight size={12} />
@@ -305,7 +311,7 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
           messages[messages.length - 1]?.role === "assistant" &&
           !heavyIntent && (
             <button
-              onClick={() => router.push("/chat")}
+              onClick={() => router.push(conversationId ? `/chat?session=${conversationId}` : "/chat")}
               className="flex items-center gap-1 text-[11px] font-medium text-terra hover:underline px-1"
             >
               Continue in Chat <ArrowRight size={12} />

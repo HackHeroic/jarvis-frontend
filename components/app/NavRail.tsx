@@ -14,10 +14,12 @@ import {
   Moon,
   Sun,
   Trash2,
+  MessageSquareOff,
   Search,
   Plus,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
+import { archiveAllSessions } from "@/lib/api";
 import { useThemeContext } from "@/lib/providers";
 import { Tooltip } from "@/components/ui/Tooltip";
 import clsx from "clsx";
@@ -66,11 +68,26 @@ export default function NavRail() {
     }
   };
 
+  const deleteAllChats = async () => {
+    if (!window.confirm("Delete all chat conversations? This cannot be undone.")) return;
+    try {
+      await archiveAllSessions();
+      localStorage.removeItem("jarvis-conversation-id");
+      localStorage.removeItem("jarvis-chat-messages");
+      setMenuOpen(false);
+      window.location.reload();
+    } catch (err) {
+      console.error("Failed to delete chats:", err);
+      alert("Could not delete chats. Please try again.");
+    }
+  };
+
   // ---- Command palette ----
   const cmdActions = [
     { id: "new-chat", label: "New Chat", icon: Plus, href: "/chat", action: () => { localStorage.removeItem("jarvis-conversation-id"); localStorage.removeItem("jarvis-chat-messages"); router.push("/chat"); } },
     ...NAV_ITEMS.map((item) => ({ id: item.id, label: `Go to ${item.label}`, icon: iconMap[item.icon] || House, href: item.href, action: () => router.push(item.href) })),
     { id: "toggle-theme", label: theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode", icon: theme === "dark" ? Sun : Moon, href: "", action: handleToggleTheme },
+    { id: "delete-all-chats", label: "Delete All Chats", icon: MessageSquareOff, href: "", action: deleteAllChats },
     { id: "clear-data", label: "Clear All Data", icon: Trash2, href: "", action: clearAllData },
   ];
 
@@ -181,6 +198,13 @@ export default function NavRail() {
             >
               {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
               <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+            </button>
+            <button
+              onClick={deleteAllChats}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-secondary hover:bg-surface-muted hover:text-primary transition-colors"
+            >
+              <MessageSquareOff size={14} />
+              <span>Delete all chats</span>
             </button>
             <button
               onClick={clearAllData}
