@@ -12,6 +12,7 @@ import type {
   TaskWorkspace,
   Session,
   SessionMessage,
+  MemoryRecord,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -244,27 +245,6 @@ export async function confirmScheduleStream(
 }
 
 // ---------------------------------------------------------------------------
-// Accept Schedule (finalize draft)
-// ---------------------------------------------------------------------------
-
-export async function acceptSchedule(request: {
-  user_id: string;
-  tasks: Array<Record<string, unknown>>;
-  goal_metadata?: Record<string, unknown>;
-}): Promise<{ status: string; task_count: number }> {
-  const res = await fetch(`${API_BASE}/api/v1/chat/accept-schedule`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Accept schedule failed (${res.status}): ${text}`);
-  }
-  return res.json();
-}
-
-// ---------------------------------------------------------------------------
 // Task Lifecycle
 // ---------------------------------------------------------------------------
 
@@ -391,6 +371,20 @@ export async function archiveSession(
   if (!res.ok) throw new Error(`Failed to archive session: ${res.status}`);
 }
 
+export async function archiveAllSessions(
+  userId: string = USER_ID,
+): Promise<number> {
+  if (IS_DEMO_MODE) return 0;
+  const params = new URLSearchParams({ user_id: userId });
+  const res = await fetch(
+    `${API_BASE}/api/v1/sessions/?${params}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) throw new Error(`Failed to archive all sessions: ${res.status}`);
+  const data = await res.json();
+  return data.archived_count ?? 0;
+}
+
 export async function renameSession(
   sessionId: string,
   title: string,
@@ -489,6 +483,34 @@ export async function acceptDraft(
     },
   );
   if (!res.ok) throw new Error(`Failed to accept draft: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Accept a schedule directly by persisting tasks — used when no draft_id is available
+ * (e.g., confirm-schedule flow returns schedule without creating a DraftStore entry).
+ */
+export async function acceptScheduleDirect(
+  tasks: unknown[],
+  schedule?: Record<string, unknown> | null,
+  horizonStart?: string,
+  goalMetadata?: unknown,
+): Promise<{ status: string; task_count: number }> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/chat/accept-schedule`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: USER_ID,
+        tasks,
+        goal_metadata: goalMetadata,
+        schedule,
+        horizon_start: horizonStart,
+      }),
+    },
+  );
+  if (!res.ok) throw new Error(`Failed to accept schedule: ${res.status}`);
   return res.json();
 }
 
@@ -633,4 +655,39 @@ export async function rejectCalendar(id: string): Promise<void> {
     { method: 'POST' },
   );
   if (!res.ok) throw new Error(`Calendar rejection failed: ${res.status}`);
+}
+
+// ---------------------------------------------------------------------------
+// Memory Management
+// ---------------------------------------------------------------------------
+
+export async function listMemories(): Promise<MemoryRecord[]> {
+  const res = await fetch(`${API_BASE}/api/v1/memories/?user_id=${USER_ID}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.memories || [];
+}
+
+export async function deleteMemory(memoryId: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/memories/${encodeURIComponent(memoryId)}?user_id=${USER_ID}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok) throw new Error(`Failed to delete memory: ${res.status}`);
+}
+
+export async function confirmMemory(memoryId: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/memories/${encodeURIComponent(memoryId)}/confirm?user_id=${USER_ID}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) throw new Error(`Failed to confirm memory: ${res.status}`);
+}
+
+export async function dismissMemory(memoryId: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/memories/${encodeURIComponent(memoryId)}/dismiss?user_id=${USER_ID}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) throw new Error(`Failed to dismiss memory: ${res.status}`);
 }

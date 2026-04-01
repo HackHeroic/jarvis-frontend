@@ -104,6 +104,37 @@ export interface ScheduleResponse {
   goal_metadata?: Record<string, unknown>;
 }
 
+export interface SchedulePayload {
+  schedule: Record<string, TaskSchedule>;
+  horizon_start: string;
+  horizon_minutes?: number;
+  horizon_end?: string;
+  daily_cap_minutes?: number;
+  draft_id?: string;
+  status?: 'draft' | 'final';
+  schedule_status?: string;
+  applied_constraints?: AppliedConstraint[];
+  conflict_summary?: string;
+  thinking_process?: string;
+  goal_metadata?: Record<string, unknown>;
+}
+
+export interface AppliedConstraint {
+  name: string;
+  start_min: number;
+  end_min: number;
+  availability: string;
+  source: string;
+}
+
+export interface GoalSummary {
+  goal_id: string;
+  total: number;
+  completed: number;
+  progress_pct: number;
+  tasks: { title: string; status: string }[];
+}
+
 // ---------------------------------------------------------------------------
 // PEARL Insights
 // ---------------------------------------------------------------------------
@@ -151,7 +182,7 @@ export interface ActionItemProposal {
 export interface ChatResponse {
   intent: IntentType;
   message: string;
-  schedule?: ScheduleResponse;
+  schedule?: SchedulePayload;
   execution_graph?: ExecutionGraph;
   ingestion_result?: Record<string, unknown>;
   action_proposals?: ActionItemProposal[];
@@ -183,7 +214,7 @@ export interface ChatRequest {
   model_mode?: 'auto' | '4b' | '27b';
   confirm_before_schedule?: boolean;
   draft_schedule?: {
-    schedule?: ScheduleResponse;
+    schedule?: SchedulePayload;
     execution_graph?: ExecutionGraph;
     horizon_start?: string;
   };

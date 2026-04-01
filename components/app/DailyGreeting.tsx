@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { DEMO_USER } from "@/lib/constants";
-import { Tooltip } from "@/components/ui/Tooltip";
+
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -36,7 +36,7 @@ export default function DailyGreeting({ taskCount, estimatedMinutes }: DailyGree
           {getGreeting()}, {DEMO_USER.name}
         </h1>
         <p className="mt-1 text-sm text-secondary">
-          {dayName} &middot; {formatDate(today)} &middot; {taskCount} tasks &middot;{" "}
+          {formatDate(today)} &middot; {taskCount} tasks &middot;{" "}
           ~{estimatedMinutes} min estimated
         </p>
       </div>
@@ -44,31 +44,29 @@ export default function DailyGreeting({ taskCount, estimatedMinutes }: DailyGree
       <div className="flex gap-1 rounded-button bg-surface-muted p-0.5">
         {(["Today", "Week", "Month"] as const).map((label) => {
           const isActive = label === "Today";
-          const isDisabled = label !== "Today";
+          const viewMap: Record<string, string> = {
+            Today: "/schedule",
+            Week: "/schedule?view=week",
+            Month: "/schedule?view=month",
+          };
 
-          const btn = (
+          return (
             <button
               key={label}
-              disabled={isDisabled}
+              onClick={() => {
+                if (label === "Today") return;
+                window.location.href = viewMap[label];
+              }}
               className={clsx(
                 "rounded-button px-3 py-1.5 text-xs font-medium transition-colors",
                 isActive
                   ? "bg-terra text-white"
-                  : "text-muted cursor-not-allowed opacity-50"
+                  : "text-secondary hover:text-primary hover:bg-surface-subtle cursor-pointer"
               )}
             >
               {label}
             </button>
           );
-
-          if (isDisabled) {
-            return (
-              <Tooltip key={label} content="Coming soon">
-                {btn}
-              </Tooltip>
-            );
-          }
-          return btn;
         })}
       </div>
     </div>
