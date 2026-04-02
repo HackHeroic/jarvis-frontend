@@ -85,7 +85,7 @@ const DEMO_TASKS: ScheduleTask[] = [
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { tasks: contextTasks, tasksLoading, draftResponse } = useJarvis();
+  const { tasks: contextTasks, draftResponse } = useJarvis();
   const tasks = contextTasks.length > 0 ? contextTasks : DEMO_TASKS;
   const isLive = contextTasks.length > 0;
   const activeDraftId = draftResponse?.draft_id || draftResponse?.schedule?.draft_id || null;

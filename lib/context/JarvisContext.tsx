@@ -117,7 +117,8 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
         return;
       }
       // Strip _savedAt before setting as ChatResponse
-      const { _savedAt: _, ...response } = parsed;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { _savedAt, ...response } = parsed;
       setDraftResponse(response as ChatResponse);
     } catch { /* ignore parse errors */ }
   }, []);
