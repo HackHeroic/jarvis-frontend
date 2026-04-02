@@ -27,7 +27,6 @@ interface DailyGreetingProps {
 
 export default function DailyGreeting({ taskCount, estimatedMinutes }: DailyGreetingProps) {
   const today = new Date();
-  const dayName = today.toLocaleDateString("en-US", { weekday: "long" });
 
   return (
     <div className="flex items-start justify-between">

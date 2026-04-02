@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Paperclip,
@@ -37,7 +37,15 @@ interface FileAttachment {
 // Chat Page
 // ---------------------------------------------------------------------------
 
-export default function ChatPage() {
+export default function ChatPageWrapper() {
+  return (
+    <Suspense>
+      <ChatPage />
+    </Suspense>
+  );
+}
+
+function ChatPage() {
   const {
     messages,
     streamState,
