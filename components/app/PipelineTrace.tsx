@@ -1,10 +1,10 @@
 "use client";
 
 import { Check, Loader2 } from "lucide-react";
-import type { PhaseEvent } from "@/lib/types";
+import type { PhaseEventData } from "@/lib/types";
 
 interface PipelineTraceProps {
-  phases: PhaseEvent[];
+  phases: PhaseEventData[];
   currentPhase: string;
   activeModel: string | null;
   isStreaming: boolean;
@@ -55,8 +55,8 @@ export function PipelineTrace({
     <div className="mb-2 space-y-0.5">
       {completedPhases.map((phase, i) => {
         const nextTimestamp =
-          i < phases.length - 1 ? phases[i + 1].timestamp : Date.now();
-        const duration = formatDuration(phase.timestamp, nextTimestamp);
+          i < phases.length - 1 ? (phases[i + 1].timestamp ?? Date.now()) : Date.now();
+        const duration = formatDuration(phase.timestamp ?? Date.now(), nextTimestamp);
         const label = PHASE_LABELS[phase.phase] ?? phase.phase;
 
         return (

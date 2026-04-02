@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { DEMO_USER } from "@/lib/constants";
 
+
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -21,6 +22,7 @@ function formatDate(date: Date): string {
 interface DailyGreetingProps {
   taskCount: number;
   estimatedMinutes: number;
+  focusMinutes?: number;
 }
 
 export default function DailyGreeting({ taskCount, estimatedMinutes }: DailyGreetingProps) {
@@ -34,25 +36,38 @@ export default function DailyGreeting({ taskCount, estimatedMinutes }: DailyGree
           {getGreeting()}, {DEMO_USER.name}
         </h1>
         <p className="mt-1 text-sm text-secondary">
-          {dayName} &middot; {formatDate(today)} &middot; {taskCount} tasks &middot;{" "}
+          {formatDate(today)} &middot; {taskCount} tasks &middot;{" "}
           ~{estimatedMinutes} min estimated
         </p>
       </div>
 
       <div className="flex gap-1 rounded-button bg-surface-muted p-0.5">
-        {(["Today", "Week", "Month"] as const).map((label) => (
-          <button
-            key={label}
-            className={clsx(
-              "rounded-button px-3 py-1.5 text-xs font-medium transition-colors",
-              label === "Today"
-                ? "bg-terra text-white"
-                : "text-secondary hover:text-primary"
-            )}
-          >
-            {label}
-          </button>
-        ))}
+        {(["Today", "Week", "Month"] as const).map((label) => {
+          const isActive = label === "Today";
+          const viewMap: Record<string, string> = {
+            Today: "/schedule",
+            Week: "/schedule?view=week",
+            Month: "/schedule?view=month",
+          };
+
+          return (
+            <button
+              key={label}
+              onClick={() => {
+                if (label === "Today") return;
+                window.location.href = viewMap[label];
+              }}
+              className={clsx(
+                "rounded-button px-3 py-1.5 text-xs font-medium transition-colors",
+                isActive
+                  ? "bg-terra text-white"
+                  : "text-secondary hover:text-primary hover:bg-surface-subtle cursor-pointer"
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

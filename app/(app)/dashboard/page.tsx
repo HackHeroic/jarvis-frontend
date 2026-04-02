@@ -1,9 +1,19 @@
 "use client";
 
+import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useJarvis } from "@/lib/context/JarvisContext";
 import DailyGreeting from "@/components/app/DailyGreeting";
 import StatsStrip from "@/components/app/StatsStrip";
 import ScheduleTimeline from "@/components/app/ScheduleTimeline";
-import type { ScheduleTask } from "@/lib/types";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { ArrowRight, Sparkles, Send } from "lucide-react";
+import type { ScheduleTask, PearlInsight } from "@/lib/types";
+
+// ---------------------------------------------------------------------------
+// Demo fallback data
+// ---------------------------------------------------------------------------
 
 const today = new Date();
 function timeToday(hour: number, minute: number): Date {
@@ -69,27 +79,192 @@ const DEMO_TASKS: ScheduleTask[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Dashboard Page
+// ---------------------------------------------------------------------------
+
 export default function DashboardPage() {
-  const tasksCompleted = DEMO_TASKS.filter((t) => t.status === "completed").length;
-  const tasksTotal = DEMO_TASKS.length;
-  const estimatedMinutes = DEMO_TASKS.reduce((sum, t) => sum + t.duration_minutes, 0);
-  // Focus minutes = completed task durations + progress on active task
-  const focusMinutes =
-    DEMO_TASKS.filter((t) => t.status === "completed").reduce(
-      (sum, t) => sum + t.duration_minutes,
-      0
-    ) + 12; // 12 min into active task
+  const router = useRouter();
+  const { tasks: contextTasks, tasksLoading, draftResponse } = useJarvis();
+  const tasks = contextTasks.length > 0 ? contextTasks : DEMO_TASKS;
+  const isLive = contextTasks.length > 0;
+  const activeDraftId = draftResponse?.draft_id || draftResponse?.schedule?.draft_id || null;
+  const [pearlInsights, setPearlInsights] = useState<PearlInsight[]>([]);
+  const [brainDump, setBrainDump] = useState("");
+
+  // ---- Load PEARL insights from localStorage ----
+  useEffect(() => {
+    try {
+      const chatRaw = localStorage.getItem("jarvis-last-chat-response");
+      if (chatRaw) {
+        const parsed = JSON.parse(chatRaw);
+        if (parsed.pearl_insights && parsed.pearl_insights.length > 0) {
+          setPearlInsights(parsed.pearl_insights);
+        } else if (parsed.memories && parsed.memories.length > 0) {
+          // Fall back to memory patterns
+          setPearlInsights(
+            parsed.memories
+              .filter((m: Record<string, unknown>) => m.content)
+              .slice(0, 3)
+              .map((m: Record<string, unknown>) => ({
+                insight: m.content as string,
+                confidence: (m.confidence as number) || 0.5,
+              })),
+          );
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // ---- Compute stats ----
+  const stats = useMemo(() => {
+    const completed = tasks.filter((t) => t.status === "completed");
+    const inProgress = tasks.find((t) => t.status === "in_progress");
+    const progressMin = inProgress
+      ? Math.min(
+          inProgress.duration_minutes,
+          Math.round(
+            (Date.now() - inProgress.start_time.getTime()) / 60_000,
+          ),
+        )
+      : 0;
+    const focusMinutes =
+      completed.reduce((s, t) => s + t.duration_minutes, 0) +
+      Math.max(0, progressMin);
+
+    return {
+      tasksCompleted: completed.length,
+      tasksTotal: tasks.length,
+      focusMinutes,
+      estimatedMinutes: tasks.reduce((s, t) => s + t.duration_minutes, 0),
+      // Streak: count from localStorage or default
+      streakDays: (() => {
+        if (typeof window === 'undefined') return 7;
+        try {
+          const s = localStorage.getItem("jarvis-streak-days");
+          return s ? parseInt(s, 10) : 7;
+        } catch {
+          return 7;
+        }
+      })(),
+      patternsLearned: (() => {
+        if (typeof window === 'undefined') return 0;
+        try {
+          const m = localStorage.getItem("jarvis-last-chat-response");
+          if (m) {
+            const parsed = JSON.parse(m);
+            return (parsed.memories?.length as number) || 0;
+          }
+        } catch {
+          // ignore
+        }
+        return 0;
+      })(),
+    };
+  }, [tasks]);
+
+  // ---- Brain dump submit ----
+  function handleBrainDump() {
+    if (!brainDump.trim()) return;
+    const encoded = encodeURIComponent(brainDump.trim());
+    router.push(`/chat?prompt=${encoded}`);
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 px-6 py-8">
-      <DailyGreeting taskCount={tasksTotal} estimatedMinutes={estimatedMinutes} />
-      <StatsStrip
-        tasksCompleted={tasksCompleted}
-        tasksTotal={tasksTotal}
-        focusMinutes={focusMinutes}
-        streakDays={7}
+      {/* Greeting */}
+      <DailyGreeting
+        taskCount={stats.tasksTotal}
+        estimatedMinutes={stats.estimatedMinutes}
+        focusMinutes={stats.focusMinutes}
       />
-      <ScheduleTimeline tasks={DEMO_TASKS} />
+
+      {/* Stats */}
+      <StatsStrip
+        tasksCompleted={stats.tasksCompleted}
+        tasksTotal={stats.tasksTotal}
+        focusMinutes={stats.focusMinutes}
+        streakDays={stats.streakDays}
+        patternsLearned={stats.patternsLearned}
+      />
+
+      {/* Active Draft Banner */}
+      {activeDraftId && (
+        <Card className="flex items-center justify-between border-l-[3px] border-terra px-5 py-4">
+          <div>
+            <p className="text-sm font-semibold text-primary">
+              You have a pending schedule
+            </p>
+            <p className="mt-0.5 text-xs text-secondary">
+              Review and confirm your tasks before they go live.
+            </p>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => router.push("/chat")}
+          >
+            Review
+            <ArrowRight size={14} className="ml-1" />
+          </Button>
+        </Card>
+      )}
+
+      {/* PEARL Insights */}
+      {pearlInsights.length > 0 && (
+        <Card className="border-l-[3px] border-sage px-5 py-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Sparkles size={14} className="text-sage" />
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-sage">
+              Jarvis Noticed
+            </h3>
+          </div>
+          <ul className="space-y-1.5">
+            {pearlInsights.map((p, i) => (
+              <li key={i} className="text-sm text-primary">
+                {p.insight}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {/* Schedule Timeline */}
+      <ScheduleTimeline tasks={tasks} />
+
+      {/* Quick Brain Dump */}
+      <Card className="px-5 py-4">
+        <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-secondary">
+          Quick brain dump
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={brainDump}
+            onChange={(e) => setBrainDump(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleBrainDump()}
+            placeholder="What's on your plate?"
+            className="flex-1 rounded-button border border-border bg-transparent px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors focus:border-terra"
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleBrainDump}
+            disabled={!brainDump.trim()}
+          >
+            <Send size={14} />
+          </Button>
+        </div>
+      </Card>
+
+      {/* Live indicator */}
+      {isLive && (
+        <p className="text-center text-[10px] text-muted">
+          Connected to Jarvis Engine
+        </p>
+      )}
     </div>
   );
 }

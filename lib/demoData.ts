@@ -102,23 +102,27 @@ Status: OPTIMAL.
     ],
   },
   schedule: {
-    dl_1: { start_min: 540, end_min: 565, title: "Study CNNs", tmt_score: 85 },
-    dl_2: { start_min: 570, end_min: 595, title: "Study backpropagation", tmt_score: 92 },
-    calc_1: { start_min: 630, end_min: 655, title: "Review integration", tmt_score: 72 },
-    dl_3: { start_min: 660, end_min: 685, title: "Study optimization", tmt_score: 78 },
-    dl_4: { start_min: 810, end_min: 835, title: "Implement CNN forward pass", tmt_score: 88 },
-    dl_5: { start_min: 840, end_min: 865, title: "DL mock contest", tmt_score: 80 },
+    schedule: {
+      dl_1: { start_min: 540, end_min: 565, title: "Study CNNs", tmt_score: 85 },
+      dl_2: { start_min: 570, end_min: 595, title: "Study backpropagation", tmt_score: 92 },
+      calc_1: { start_min: 630, end_min: 655, title: "Review integration", tmt_score: 72 },
+      dl_3: { start_min: 660, end_min: 685, title: "Study optimization", tmt_score: 78 },
+      dl_4: { start_min: 810, end_min: 835, title: "Implement CNN forward pass", tmt_score: 88 },
+      dl_5: { start_min: 840, end_min: 865, title: "DL mock contest", tmt_score: 80 },
+    },
+    horizon_start: new Date().toISOString(),
+    schedule_status: "OPTIMAL",
   },
   memories: [
-    { memory_type: "goal", content: "DL contest on Friday", confidence: 0.95 },
-    { memory_type: "goal", content: "Calculus exam on Monday", confidence: 0.95 },
-    { memory_type: "fact", content: "Studying CNNs, backpropagation, optimization", confidence: 0.8 },
+    { id: "m1", memory_type: "goal", content: "DL contest on Friday", confidence: 0.95 },
+    { id: "m2", memory_type: "goal", content: "Calculus exam on Monday", confidence: 0.95 },
+    { id: "m3", memory_type: "fact", content: "Studying CNNs, backpropagation, optimization", confidence: 0.8 },
   ],
   generation_metrics: {
     model: "qwen-27b",
-    tokens_per_second: 14.2,
+    tok_per_sec: 14.2,
     total_tokens: 1847,
-    total_time_ms: 13007,
+    total_time_s: 13.007,
     ttft_ms: 312,
   },
   pearl_insights: [
@@ -209,21 +213,25 @@ Status: OPTIMAL.
     ],
   },
   schedule: {
-    dij_1: { start_min: 540, end_min: 560, title: "Graph basics", tmt_score: 70 },
-    dij_2: { start_min: 565, end_min: 590, title: "Dijkstra core algorithm", tmt_score: 85 },
-    dij_3: { start_min: 630, end_min: 655, title: "Priority queue optimization", tmt_score: 82 },
-    dij_4: { start_min: 660, end_min: 685, title: "Implement in Python", tmt_score: 90 },
-    dij_5: { start_min: 720, end_min: 740, title: "Edge cases & negative weights", tmt_score: 75 },
+    schedule: {
+      dij_1: { start_min: 540, end_min: 560, title: "Graph basics", tmt_score: 70 },
+      dij_2: { start_min: 565, end_min: 590, title: "Dijkstra core algorithm", tmt_score: 85 },
+      dij_3: { start_min: 630, end_min: 655, title: "Priority queue optimization", tmt_score: 82 },
+      dij_4: { start_min: 660, end_min: 685, title: "Implement in Python", tmt_score: 90 },
+      dij_5: { start_min: 720, end_min: 740, title: "Edge cases & negative weights", tmt_score: 75 },
+    },
+    horizon_start: new Date().toISOString(),
+    schedule_status: "OPTIMAL",
   },
   memories: [
-    { memory_type: "fact", content: "User is learning graph algorithms", confidence: 0.85 },
-    { memory_type: "goal", content: "Learn Dijkstra's algorithm", confidence: 0.95 },
+    { id: "m4", memory_type: "fact", content: "User is learning graph algorithms", confidence: 0.85 },
+    { id: "m5", memory_type: "goal", content: "Learn Dijkstra's algorithm", confidence: 0.95 },
   ],
   generation_metrics: {
     model: "qwen-27b",
-    tokens_per_second: 15.1,
+    tok_per_sec: 15.1,
     total_tokens: 1523,
-    total_time_ms: 10086,
+    total_time_s: 10.086,
     ttft_ms: 287,
   },
 };
@@ -255,23 +263,27 @@ Status: OPTIMAL.
   schedule_status: "draft",
   draft_id: "demo-draft-003",
   schedule: {
-    dl_1: { start_min: 840, end_min: 865, title: "Study CNNs", tmt_score: 85, constraint_applied: "No work before 2 PM" },
-    dl_2: { start_min: 925, end_min: 950, title: "Study backpropagation", tmt_score: 92, constraint_applied: "No work before 2 PM" },
-    calc_1: { start_min: 1010, end_min: 1035, title: "Review integration", tmt_score: 72, constraint_applied: "No work before 2 PM" },
-    dl_3: { start_min: 1095, end_min: 1120, title: "Study optimization", tmt_score: 78, constraint_applied: "No work before 2 PM" },
-    dl_4: { start_min: 1155, end_min: 1180, title: "Implement CNN", tmt_score: 88 },
-    dl_5: { start_min: 1215, end_min: 1240, title: "DL mock contest", tmt_score: 80 },
+    schedule: {
+      dl_1: { start_min: 840, end_min: 865, title: "Study CNNs", tmt_score: 85, constraint_applied: "No work before 2 PM" },
+      dl_2: { start_min: 925, end_min: 950, title: "Study backpropagation", tmt_score: 92, constraint_applied: "No work before 2 PM" },
+      calc_1: { start_min: 1010, end_min: 1035, title: "Review integration", tmt_score: 72, constraint_applied: "No work before 2 PM" },
+      dl_3: { start_min: 1095, end_min: 1120, title: "Study optimization", tmt_score: 78, constraint_applied: "No work before 2 PM" },
+      dl_4: { start_min: 1155, end_min: 1180, title: "Implement CNN", tmt_score: 88 },
+      dl_5: { start_min: 1215, end_min: 1240, title: "DL mock contest", tmt_score: 80 },
+    },
+    horizon_start: new Date().toISOString(),
+    schedule_status: "OPTIMAL",
   },
   memories: [
-    { memory_type: "constraint", content: "No work before 2 PM", confidence: 0.95 },
-    { memory_type: "constraint", content: "1-hour breaks between study sessions", confidence: 0.95 },
-    { memory_type: "behavioral_pattern", content: "Completes 92% of tasks after 2 PM", confidence: 0.92 },
+    { id: "m6", memory_type: "constraint", content: "No work before 2 PM", confidence: 0.95 },
+    { id: "m7", memory_type: "constraint", content: "1-hour breaks between study sessions", confidence: 0.95 },
+    { id: "m8", memory_type: "behavioral_pattern", content: "Completes 92% of tasks after 2 PM", confidence: 0.92 },
   ],
   generation_metrics: {
     model: "qwen-27b",
-    tokens_per_second: 13.8,
+    tok_per_sec: 13.8,
     total_tokens: 1241,
-    total_time_ms: 8993,
+    total_time_s: 8.993,
     ttft_ms: 298,
   },
   pearl_insights: [
@@ -310,17 +322,124 @@ Top matches: dl_1 (CNNs, sim=0.82), dl_2 (backprop, sim=0.79), dl_4 (implement, 
     "Show me the extracted topics",
   ],
   memories: [
-    { memory_type: "fact", content: "Uploaded practice problems for DL contest", confidence: 0.8 },
-    { memory_type: "fact", content: "PDF contains 10 problems on CNNs and backpropagation", confidence: 0.9 },
+    { id: "m9", memory_type: "fact", content: "Uploaded practice problems for DL contest", confidence: 0.8 },
+    { id: "m10", memory_type: "fact", content: "PDF contains 10 problems on CNNs and backpropagation", confidence: 0.9 },
   ],
   generation_metrics: {
     model: "qwen-4b",
-    tokens_per_second: 42.7,
+    tok_per_sec: 42.7,
     total_tokens: 856,
-    total_time_ms: 2005,
+    total_time_s: 2.005,
     ttft_ms: 145,
   },
 };
+
+// --- Demo Schedule Tasks (for /schedule page) ---
+
+/** Returns today's date as YYYY-MM-DD so demo times are always "today". */
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function getDemoScheduleTasks(): Record<string, unknown>[] {
+  const day = todayISO();
+  return [
+    // Sleep block
+    {
+      task_id: "block_sleep",
+      title: "Sleep",
+      start_time: `${day}T00:00:00`,
+      end_time: `${day}T08:00:00`,
+      duration_minutes: 480,
+      status: "completed",
+      goal_id: null,
+      constraint_applied: "sleep",
+    },
+    // Completed: DSA prep 1
+    {
+      task_id: "task_dsa_1",
+      title: "DSA prep — binary search problems",
+      start_time: `${day}T09:00:00`,
+      end_time: `${day}T09:25:00`,
+      duration_minutes: 25,
+      status: "completed",
+      goal_id: "goal_dsa",
+    },
+    // Completed: DSA prep 2
+    {
+      task_id: "task_dsa_2",
+      title: "DSA prep — graph traversal (BFS/DFS)",
+      start_time: `${day}T09:30:00`,
+      end_time: `${day}T09:55:00`,
+      duration_minutes: 25,
+      status: "completed",
+      goal_id: "goal_dsa",
+    },
+    // In progress: Deep learning
+    {
+      task_id: "task_dl_1",
+      title: "Deep learning — attention mechanisms",
+      start_time: `${day}T10:00:00`,
+      end_time: `${day}T10:25:00`,
+      duration_minutes: 25,
+      status: "in_progress",
+      goal_id: "goal_dl",
+    },
+    // Lunch block
+    {
+      task_id: "block_lunch",
+      title: "Lunch",
+      start_time: `${day}T12:00:00`,
+      end_time: `${day}T13:00:00`,
+      duration_minutes: 60,
+      status: "pending",
+      goal_id: null,
+      constraint_applied: "lunch",
+    },
+    // Pending: Essay writing 1
+    {
+      task_id: "task_essay_1",
+      title: "Essay writing — outline and thesis",
+      start_time: `${day}T13:30:00`,
+      end_time: `${day}T13:55:00`,
+      duration_minutes: 25,
+      status: "pending",
+      goal_id: "goal_essay",
+    },
+    // Pending: Essay writing 2
+    {
+      task_id: "task_essay_2",
+      title: "Essay writing — first draft body paragraphs",
+      start_time: `${day}T14:00:00`,
+      end_time: `${day}T14:25:00`,
+      duration_minutes: 25,
+      status: "pending",
+      goal_id: "goal_essay",
+    },
+    // Volleyball block
+    {
+      task_id: "block_volleyball",
+      title: "Volleyball",
+      start_time: `${day}T16:00:00`,
+      end_time: `${day}T17:30:00`,
+      duration_minutes: 90,
+      status: "pending",
+      goal_id: null,
+      constraint_applied: "volleyball",
+    },
+    // Pending: Review lecture notes
+    {
+      task_id: "task_review_1",
+      title: "Review lecture notes — probability & stats",
+      start_time: `${day}T18:00:00`,
+      end_time: `${day}T18:25:00`,
+      duration_minutes: 25,
+      status: "pending",
+      goal_id: "goal_review",
+    },
+  ];
+}
 
 // --- Demo Response Router ---
 
@@ -346,9 +465,9 @@ export function getDemoResponse(prompt: string): ChatResponse {
       "Hey! I'm Jarvis, your AI productivity engine. Here's what I can help you with:\n\n- **Plan your week** around deadlines and goals\n- **Teach you something** by breaking it into micro-tasks\n- **Add habits and constraints** to your schedule\n- **Upload documents** and link them to your study plan\n\nTry telling me about an upcoming exam, a topic you want to learn, or a habit you want to build!",
     generation_metrics: {
       model: "Gemini 2.5 Flash",
-      tokens_per_second: 58.3,
+      tok_per_sec: 58.3,
       total_tokens: 124,
-      total_time_ms: 2127,
+      total_time_s: 2.127,
       ttft_ms: 98,
     },
   };
