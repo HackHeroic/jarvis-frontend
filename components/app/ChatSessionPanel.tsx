@@ -158,7 +158,7 @@ export function ChatSessionPanel({
     const willPin = !pinnedIds.has(sessionId);
     setPinnedIds((prev) => {
       const next = new Set(prev);
-      willPin ? next.add(sessionId) : next.delete(sessionId);
+      if (willPin) { next.add(sessionId); } else { next.delete(sessionId); }
       return next;
     });
     setMenuOpenId(null);
@@ -168,7 +168,7 @@ export function ChatSessionPanel({
       // Revert on failure
       setPinnedIds((prev) => {
         const next = new Set(prev);
-        willPin ? next.delete(sessionId) : next.add(sessionId);
+        if (willPin) { next.delete(sessionId); } else { next.add(sessionId); }
         return next;
       });
     });
