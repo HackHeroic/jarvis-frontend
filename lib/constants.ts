@@ -34,6 +34,19 @@ export const PHASE_NAMES: Record<string, string> = {
   responding:            "Crafting your response...",
   synthesizing:          "Adding the finishing touches...",
   complete:              "Voila!",
+  // v2 LangGraph orchestrator phases
+  loading_context:       "Recalling what I know about you...",
+  planning:              "Cooking up your schedule...",
+  habits_fetched:        "Rounding up your habits...",
+  habits_translated:     "Weaving habits into the timeline...",
+  memory_bridging:       "Turning your patterns into math...",
+  researching:           "Digging around the web...",
+  coaching:              "Checking how you're doing...",
+  ingesting:             "Munching on your document...",
+  learning:              "Jotting down what I learned...",
+  validating:            "Making sure I understand the goal...",
+  schedule_done:         "Schedule locked in!",
+  confirming:            "Getting your thumbs up...",
 };
 
 export function getPhaseDisplayName(phase: string): string {
