@@ -17,7 +17,11 @@ import type {
   PhaseEventData,
   ChatResponse,
   PreviewTask,
+  ToolUseEvent,
+  MemoryExtractedEvent,
+  PatternDetectedEvent,
 } from "../types";
+import { useDevMode } from "./useDevMode";
 import { INITIAL_STREAM_STATE } from "../types";
 import {
   saveChatMessages,
@@ -64,6 +68,8 @@ export type UseJarvisChatReturn = {
   isReplanning: boolean;
   modelMode: ModelMode;
   setModelMode: (mode: ModelMode) => void;
+  devMode: boolean;
+  toggleDevMode: () => void;
 };
 
 export function useJarvisChat(): UseJarvisChatReturn {
@@ -116,11 +122,15 @@ export function useJarvisChat(): UseJarvisChatReturn {
     }
   }, [messages]);
 
+  const [devMode, toggleDevMode] = useDevMode();
+
   const abortRef = useRef<AbortController | null>(null);
   const streamingMsg = useRef<JarvisMessage | null>(null);
   const reasoningStartTime = useRef<number | null>(null);
   const reasoningDurationRef = useRef<number | null>(null);
   const phaseHistoryRef = useRef<PhaseEventData[]>([]);
+  const toolUsesRef = useRef<ToolUseEvent[]>([]);
+  const memoriesExtractedRef = useRef<MemoryExtractedEvent[]>([]);
 
   const abort = useCallback(() => {
     abortRef.current?.abort();
@@ -177,6 +187,8 @@ export function useJarvisChat(): UseJarvisChatReturn {
       setIsStreaming(true);
       reasoningDurationRef.current = null;
       phaseHistoryRef.current = [];
+      toolUsesRef.current = [];
+      memoriesExtractedRef.current = [];
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -283,6 +295,28 @@ export function useJarvisChat(): UseJarvisChatReturn {
               const updated = { ...streamingMsg.current! };
               return [...m.slice(0, -1), updated];
             });
+          },
+
+          onToolUse: (event) => {
+            toolUsesRef.current = [...toolUsesRef.current, { ...event, timestamp: Date.now() }];
+            if (streamingMsg.current) {
+              streamingMsg.current.toolUses = [...toolUsesRef.current];
+              setMessages((m) => [...m.slice(0, -1), { ...streamingMsg.current! }]);
+            }
+          },
+
+          onMemoryExtracted: (event) => {
+            memoriesExtractedRef.current = [...memoriesExtractedRef.current, { ...event, timestamp: Date.now() }];
+            if (streamingMsg.current) {
+              streamingMsg.current.memoriesExtracted = [...memoriesExtractedRef.current];
+              setMessages((m) => [...m.slice(0, -1), { ...streamingMsg.current! }]);
+            }
+          },
+
+          onPatternDetected: (event) => {
+            if (event.confidence >= 0.7 && event.occurrence_count >= 3) {
+              setStreamState((s) => ({ ...s, latestPattern: { ...event, timestamp: Date.now() } }));
+            }
           },
 
           onComplete: (response: ChatResponse) => {
@@ -735,5 +769,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
     isReplanning,
     modelMode,
     setModelMode,
+    devMode,
+    toggleDevMode,
   };
 }

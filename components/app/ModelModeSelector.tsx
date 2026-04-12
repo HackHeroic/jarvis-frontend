@@ -2,7 +2,19 @@
 
 import { useEffect, useState } from "react";
 import clsx from "clsx";
+import { Settings } from "lucide-react";
 import { getModelStatus, type ModelStatus } from "@/lib/api";
+
+/**
+ * Model mode selector — shows dynamic model names from backend.
+ *
+ * Wire values ("auto" | "4b" | "27b") are kept for backend compatibility:
+ *   "auto" = Jarvis picks (local primary + cloud fallback)
+ *   "27b"  = Force local primary (whatever is loaded in LM Studio)
+ *   "4b"   = Force cloud (Gemini)
+ *
+ * Display labels come from GET /api/v1/models/status and show actual model names.
+ */
 
 export type ModelMode = "auto" | "4b" | "27b";
 
@@ -10,6 +22,8 @@ interface ModelModeSelectorProps {
   value: ModelMode;
   onChange: (mode: ModelMode) => void;
   disabled?: boolean;
+  devMode?: boolean;
+  onToggleDevMode?: () => void;
 }
 
 /** Extract a short display name from a full model ID like "openai/google/gemma-4-26b-a4b" */
@@ -27,6 +41,8 @@ export function ModelModeSelector({
   value,
   onChange,
   disabled,
+  devMode,
+  onToggleDevMode,
 }: ModelModeSelectorProps) {
   const [status, setStatus] = useState<ModelStatus | null>(null);
 
@@ -75,25 +91,43 @@ export function ModelModeSelector({
   }
 
   return (
-    <div className="flex items-center bg-surface-muted rounded-lg p-0.5">
-      {modes.map((mode) => (
+    <div className="flex items-center gap-1.5">
+      <div className="flex items-center bg-surface-muted rounded-lg p-0.5">
+        {modes.map((mode) => (
+          <button
+            key={mode.value}
+            type="button"
+            title={mode.tooltip}
+            disabled={disabled}
+            onClick={() => onChange(mode.value)}
+            className={clsx(
+              "px-3 py-1 text-xs font-medium rounded-md transition-all",
+              value === mode.value
+                ? "bg-surface-card text-primary shadow-sm"
+                : "text-muted hover:text-secondary",
+              disabled && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            {mode.label}
+          </button>
+        ))}
+      </div>
+      {onToggleDevMode && (
         <button
-          key={mode.value}
           type="button"
-          title={mode.tooltip}
-          disabled={disabled}
-          onClick={() => onChange(mode.value)}
+          title={devMode ? "Developer mode ON" : "Developer mode OFF"}
+          onClick={onToggleDevMode}
           className={clsx(
-            "px-3 py-1 text-xs font-medium rounded-md transition-all",
-            value === mode.value
-              ? "bg-surface-card text-primary shadow-sm"
-              : "text-muted hover:text-secondary",
-            disabled && "opacity-50 cursor-not-allowed"
+            "p-1.5 rounded-md transition-all",
+            devMode
+              ? "text-gold bg-gold/10"
+              : "text-muted/40 hover:text-muted"
           )}
         >
-          {mode.label}
+          <Settings size={14} />
+          {devMode && <span className="ml-1 text-[9px] font-medium">DEV</span>}
         </button>
-      ))}
+      )}
     </div>
   );
 }

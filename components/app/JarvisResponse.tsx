@@ -9,7 +9,7 @@ import 'katex/dist/katex.min.css';
 import { ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 
-import { PhaseProgress } from './PhaseProgress';
+import { IntelligentTrace } from './IntelligentTrace';
 import { IntentBadge } from './IntentBadge';
 import { MetricsBar } from './MetricsBar';
 import { ClarificationChips } from './ClarificationChips';
@@ -34,6 +34,7 @@ import type {
 
 interface JarvisResponseProps {
   message: JarvisMessage;
+  devMode?: boolean;
   onClarificationSelect?: (option: string) => void;
   onReplan?: () => void;
   isReplanning?: boolean;
@@ -213,6 +214,7 @@ function DraftScheduleSection({ schedule }: { schedule: ChatResponse['schedule']
 
 export function JarvisResponse({
   message,
+  devMode,
   onClarificationSelect,
   onReplan,
   isReplanning,
@@ -261,14 +263,15 @@ export function JarvisResponse({
 
   return (
     <div className="space-y-1">
-      {/* 1. Phase Progress */}
-      {phaseHistory && phaseHistory.length > 0 && (
-        <PhaseProgress
-          phases={phaseHistory}
-          currentPhase={isStreaming ? phaseHistory[phaseHistory.length - 1]?.phase : 'complete'}
-          isStreaming={!!isStreaming}
-        />
-      )}
+      {/* 1. Intelligent Trace */}
+      <IntelligentTrace
+        phases={message.phaseHistory || []}
+        currentPhase={message.isStreaming ? "streaming" : "complete"}
+        isStreaming={message.isStreaming || false}
+        devMode={devMode}
+        toolUses={message.toolUses || []}
+        memoriesExtracted={message.memoriesExtracted || []}
+      />
 
       {/* 2. Intent Badge */}
       {intent && !isStreaming && <IntentBadge intent={intent} />}
