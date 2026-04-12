@@ -19,6 +19,7 @@ import { approveCalendar, rejectCalendar, listMemories, deleteMemory, confirmMem
 import { PromptSelector } from "@/components/app/PromptSelector";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ModelModeSelector } from "@/components/app/ModelModeSelector";
+import { LearningToast } from "@/components/app/LearningToast";
 import { ChatSessionPanel } from "@/components/app/ChatSessionPanel";
 import MemoryPanel from "@/components/app/MemoryPanel";
 import type { MemoryRecord } from "@/lib/types";
@@ -443,6 +444,12 @@ function ChatPage() {
           </div>
         </div>
       </div>
+
+      {/* PEARL Learning Toast */}
+      <LearningToast
+        pattern={streamState.latestPattern ?? null}
+        onDismiss={() => {}}
+      />
 
       {/* Memory Panel */}
       <MemoryPanel
