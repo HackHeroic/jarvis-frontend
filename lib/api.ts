@@ -5,6 +5,11 @@
  */
 
 import { API_BASE, IS_DEMO_MODE, USER_ID, DEMO_LATENCY } from './constants';
+
+// Toggle between v1 (/chat/stream) and v2 (/chat/v2/stream — LangGraph orchestrator)
+const CHAT_STREAM_PATH = process.env.NEXT_PUBLIC_USE_V2 === 'true'
+  ? '/api/v1/chat/v2/stream'
+  : '/api/v1/chat/stream';
 import type {
   ChatResponse,
   ChatRequest,
@@ -183,7 +188,7 @@ export async function chatStream(
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api/v1/chat/stream`, {
+    res = await fetch(`${API_BASE}${CHAT_STREAM_PATH}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
