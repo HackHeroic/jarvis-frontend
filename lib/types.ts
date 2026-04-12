@@ -282,6 +282,8 @@ export interface PhaseEventData {
   message?: string;
   data?: Record<string, unknown>;
   timestamp?: number;
+  verb?: string;        // spinner verb from backend
+  detail?: Record<string, unknown>;  // enriched phase detail
   [key: string]: unknown;
 }
 
@@ -302,6 +304,11 @@ export interface JarvisStreamState {
   // Model info — which model is active for current phase
   activeModel: string | null;
   modelMode: string | null;
+  toolUses: ToolUseEvent[];
+  memoriesExtracted: MemoryExtractedEvent[];
+  patternsDetected: PatternDetectedEvent[];
+  devMode: boolean;
+  latestPattern: PatternDetectedEvent | null;
 }
 
 export const INITIAL_STREAM_STATE: JarvisStreamState = {
@@ -315,6 +322,11 @@ export const INITIAL_STREAM_STATE: JarvisStreamState = {
   currentPhaseData: null,
   activeModel: null,
   modelMode: null,
+  toolUses: [],
+  memoriesExtracted: [],
+  patternsDetected: [],
+  devMode: false,
+  latestPattern: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -337,6 +349,9 @@ export interface JarvisMessage {
   conversation_id?: string;
   message_id?: string;
   timestamp: number;
+  toolUses?: ToolUseEvent[];
+  memoriesExtracted?: MemoryExtractedEvent[];
+  patternsDetected?: PatternDetectedEvent[];
 }
 
 export interface ChatResponseSessionFields {
@@ -432,6 +447,34 @@ export interface SessionMessage {
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Tool Use / Learning Events (v2 intelligent trace)
+// ---------------------------------------------------------------------------
+
+export interface ToolUseEvent {
+  module: string;
+  tool: string;
+  status: "started" | "done" | "error";
+  detail?: Record<string, unknown>;
+  timestamp?: number;
+}
+
+export interface MemoryExtractedEvent {
+  type: string;
+  content: string;
+  confidence: number;
+  timestamp?: number;
+}
+
+export interface PatternDetectedEvent {
+  type: string;
+  content: string;
+  confidence: number;
+  occurrence_count: number;
+  action: string;
+  timestamp?: number;
 }
 
 // ---------------------------------------------------------------------------

@@ -18,6 +18,9 @@ import type {
   Session,
   SessionMessage,
   MemoryRecord,
+  ToolUseEvent,
+  MemoryExtractedEvent,
+  PatternDetectedEvent,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -45,6 +48,9 @@ export interface StreamHandlers {
   onMessageToken?: (token: string) => void;
   onComplete?: (response: ChatResponse) => void;
   onError?: (err: Error) => void;
+  onToolUse?: (event: ToolUseEvent) => void;
+  onMemoryExtracted?: (event: MemoryExtractedEvent) => void;
+  onPatternDetected?: (event: PatternDetectedEvent) => void;
 }
 
 export interface StreamOptions {
@@ -93,6 +99,12 @@ async function consumeSSE(
               handlers.onComplete?.(data as ChatResponse);
             } else if (currentEvent === 'error') {
               handlers.onError?.(new Error(data.error || errorLabel));
+            } else if (currentEvent === 'tool_use') {
+              handlers.onToolUse?.(data as ToolUseEvent);
+            } else if (currentEvent === 'memory_extracted') {
+              handlers.onMemoryExtracted?.(data as MemoryExtractedEvent);
+            } else if (currentEvent === 'pattern_detected') {
+              handlers.onPatternDetected?.(data as PatternDetectedEvent);
             }
           } catch {
             // malformed data line — skip
