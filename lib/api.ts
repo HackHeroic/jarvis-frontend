@@ -696,3 +696,40 @@ export async function dismissMemory(memoryId: string): Promise<void> {
   );
   if (!res.ok) throw new Error(`Failed to dismiss memory: ${res.status}`);
 }
+
+// ---------------------------------------------------------------------------
+// Model Status
+// ---------------------------------------------------------------------------
+
+export interface ModelStatus {
+  primary_model: string;
+  fast_model: string;
+  cloud_model: string;
+  gemini_primary: boolean;
+  local_available: boolean;
+}
+
+export async function getModelStatus(): Promise<ModelStatus> {
+  if (IS_DEMO_MODE) {
+    return {
+      primary_model: 'demo-model',
+      fast_model: 'demo-model',
+      cloud_model: 'gemini/gemini-2.5-flash',
+      gemini_primary: false,
+      local_available: true,
+    };
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/models/status`);
+    if (!res.ok) throw new Error(`${res.status}`);
+    return res.json();
+  } catch {
+    return {
+      primary_model: '',
+      fast_model: '',
+      cloud_model: 'gemini/gemini-2.5-flash',
+      gemini_primary: true,
+      local_available: false,
+    };
+  }
+}
