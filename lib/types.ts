@@ -220,8 +220,8 @@ export interface ChatRequest {
   };
   day_start_hour?: number;
   deadline_override?: string;
-  min_deep_work_minutes?: number;
-  max_deep_work_minutes?: number;
+  min_daily_deep_work_minutes?: number;
+  max_daily_deep_work_minutes?: number;
 }
 
 // ---------------------------------------------------------------------------
