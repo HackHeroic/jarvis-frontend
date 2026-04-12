@@ -211,6 +211,7 @@ export interface ChatRequest {
   file_base64?: string;
   media_type?: string;
   file_name?: string;
+  /** Model routing mode: 'auto' (Jarvis picks), '27b' (force local primary), '4b' (force cloud). Wire values — display labels come from /api/v1/models/status. */
   model_mode?: 'auto' | '4b' | '27b';
   confirm_before_schedule?: boolean;
   draft_schedule?: {

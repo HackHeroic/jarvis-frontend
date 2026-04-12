@@ -131,6 +131,7 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
       {
         user_prompt: userText,
         user_id: USER_ID,
+        // Force cloud model for lightweight sidebar chat — "4b" is a wire value meaning "force cloud"
         model_mode: "4b",
         conversation_id: conversationId || undefined,
       },

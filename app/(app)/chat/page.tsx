@@ -62,6 +62,8 @@ function ChatPage() {
     confirmTasks,
     acceptDraft,
     rejectDraft,
+    devMode,
+    toggleDevMode,
   } = useJarvisChat();
 
   const searchParams = useSearchParams();
@@ -264,6 +266,8 @@ function ChatPage() {
               value={modelMode}
               onChange={setModelMode}
               disabled={isStreaming}
+              devMode={devMode}
+              onToggleDevMode={toggleDevMode}
             />
             <button
               type="button"
@@ -332,6 +336,7 @@ function ChatPage() {
                     >
                       <JarvisResponse
                         message={msg}
+                        devMode={devMode}
                         onClarificationSelect={(text) => sendMessage(text)}
                         onReplan={() => triggerReplan()}
                         isReplanning={isReplanning}
