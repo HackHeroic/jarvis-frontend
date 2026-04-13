@@ -115,3 +115,19 @@ export function getIntentColor(intent: string): string {
 }
 
 export const DEMO_LATENCY = 800;
+
+// ---------------------------------------------------------------------------
+// Anti-guilt task status display (psychology framework)
+// ---------------------------------------------------------------------------
+
+export const TASK_STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
+  pending: { label: "Pending", color: "muted" },
+  completed: { label: "Completed", color: "sage" },
+  pacing_pushed: { label: "Adjusted — no stress", color: "sage" },
+  skipped: { label: "Rescheduled", color: "muted" },
+  // NEVER use: "Overdue", "Failed", "Missed", "Late"
+};
+
+export function getTaskStatusDisplay(status: string): { label: string; color: string } {
+  return TASK_STATUS_DISPLAY[status] || { label: status.replace(/_/g, " "), color: "muted" };
+}
