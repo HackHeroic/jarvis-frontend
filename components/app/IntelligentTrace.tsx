@@ -36,6 +36,13 @@ function renderDetail(pe: PhaseEventData): string | null {
   if (d.task_count != null) parts.push(`${d.task_count} tasks`);
   if (d.memories_extracted != null) parts.push(`${d.memories_extracted} memories extracted`);
   if (d.patterns_detected != null) parts.push(`${d.patterns_detected} patterns`);
+  if (d.tmt_applied) parts.push("TMT applied");
+  if (d.tasks_boosted != null) parts.push(`${d.tasks_boosted} tasks deadline-boosted`);
+  if (d.formula === "canonical_steel_konig") parts.push("Steel & König 2006");
+  if (d.quality_trend) parts.push(`trend: ${d.quality_trend}`);
+  if (d.streak != null) parts.push(`streak: ${d.streak}d`);
+  if (Array.isArray(d.bandura_sources) && d.bandura_sources.length > 0)
+    parts.push(`Bandura: ${d.bandura_sources.join("+")}`);
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
