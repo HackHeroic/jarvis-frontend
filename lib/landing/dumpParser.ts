@@ -13,11 +13,8 @@ export type ParsedBlock = {
 };
 
 const STUDY = "#D4775A";
-const GYM = "#4A7B6B";
 const MEET = "#6B7FB5";
 const HABIT = "#E09D5C";
-
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function pickStudySlots(count: number): string[] {
   const slots = ["9:00", "11:00", "14:00", "16:00", "19:00", "Tue 10:00", "Wed 14:00", "Thu 11:00", "Fri 9:00"];

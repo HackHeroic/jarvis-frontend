@@ -1,6 +1,5 @@
 "use client";
 
-import { CSSProperties } from "react";
 import clsx from "clsx";
 
 type Size = "sm" | "md" | "lg" | "xl";
