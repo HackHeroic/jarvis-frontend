@@ -12,7 +12,7 @@ const SENTENCES: Array<{ text: React.ReactNode }> = [
 
 export default function Capabilities() {
   return (
-    <section className="relative bg-[#1C1A17] py-32">
+    <section id="why" className="relative bg-[#1C1A17] py-32">
       <div className="max-w-[720px] mx-auto px-6 md:px-12">
         <motion.p
           initial={{ opacity: 0, y: 12 }}

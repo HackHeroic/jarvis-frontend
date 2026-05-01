@@ -86,7 +86,7 @@ export default function EngineScience() {
   const iter = useIterationCounter();
 
   return (
-    <section className="relative bg-[#1C1A17] py-24">
+    <section id="how-it-works" className="relative bg-[#1C1A17] py-24">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         <div
           className="relative rounded-[14px] overflow-hidden"

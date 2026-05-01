@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import JarvisLogo from "./JarvisLogo";
 
 export default function LandingNav() {
   const [scrolled, setScrolled] = useState(false);
@@ -20,37 +21,34 @@ export default function LandingNav() {
           : "bg-transparent"
       }`}
     >
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-[#D4775A] flex items-center justify-center text-[#1C1A17] font-extrabold text-sm">
-          J
-        </div>
-        <span className="text-[#FAF8F4] font-semibold text-lg">Jarvis</span>
-      </div>
+      <Link href="/" aria-label="Jarvis home">
+        <JarvisLogo size="md" wordmark={true} animated />
+      </Link>
 
-      <div className="flex items-center gap-6">
-        <a
-          href="#features"
-          className="hidden md:block text-[#FAF8F4]/60 hover:text-[#FAF8F4] text-sm transition-colors"
-        >
-          Features
-        </a>
+      <div className="flex items-center gap-7 font-mono text-[11px] tracking-[1px]">
         <a
           href="#how-it-works"
-          className="hidden md:block text-[#FAF8F4]/60 hover:text-[#FAF8F4] text-sm transition-colors"
+          className="hidden md:inline text-[#FAF8F4]/55 hover:text-[#FAF8F4] transition-colors"
         >
-          How it works
+          how
+        </a>
+        <a
+          href="#why"
+          className="hidden md:inline text-[#FAF8F4]/55 hover:text-[#FAF8F4] transition-colors"
+        >
+          why
         </a>
         <a
           href="#pricing"
-          className="hidden md:block text-[#FAF8F4]/60 hover:text-[#FAF8F4] text-sm transition-colors"
+          className="hidden md:inline text-[#FAF8F4]/55 hover:text-[#FAF8F4] transition-colors"
         >
-          Pricing
+          pricing
         </a>
         <Link
           href="/dashboard"
-          className="bg-[#D4775A] text-[#1C1A17] font-semibold text-sm px-4 py-2 rounded-lg hover:bg-[#D4775A]/90 transition-colors"
+          className="text-[#D4775A] hover:text-[#E09D5C] transition-colors"
         >
-          Get Started
+          begin →
         </Link>
       </div>
     </nav>

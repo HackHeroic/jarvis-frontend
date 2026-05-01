@@ -1,15 +1,15 @@
+import JarvisLogo from "./JarvisLogo";
+
 export default function Footer() {
   return (
-    <footer className="bg-[#0F0D0A] py-12">
-      <div className="max-w-7xl mx-auto px-6 md:px-12 flex flex-col items-center gap-4">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-[#D4775A] flex items-center justify-center text-[#1C1A17] font-extrabold text-xs">
-            J
-          </div>
-          <span className="text-[#FAF8F4] font-semibold text-sm">Jarvis</span>
-        </div>
-        <p className="text-[#FAF8F4]/30 text-xs">
-          Built with 🧠 by Madhav
+    <footer className="bg-[#0F0D0A] py-14">
+      <div className="max-w-5xl mx-auto px-6 md:px-12 flex flex-col items-center gap-5">
+        <JarvisLogo size="sm" wordmark={true} animated />
+        <p className="text-[#FAF8F4]/45 text-[13px] font-light italic">
+          Built by a student. Designed for one.
+        </p>
+        <p className="font-mono text-[10px] tracking-[1.5px] text-[#FAF8F4]/30 uppercase">
+          © 2026 jarvis &nbsp;·&nbsp; privacy &nbsp;·&nbsp; terms &nbsp;·&nbsp; contact
         </p>
       </div>
     </footer>
