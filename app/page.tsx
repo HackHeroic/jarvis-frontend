@@ -13,17 +13,29 @@ import Footer from "@/components/landing/Footer";
 
 export default function Home() {
   return (
-    <div className="bg-[#1C1A17]">
+    <div className="bg-[#1C1A17] relative">
+      {/* page-wide film grain — fixed layer over everything except the nav */}
+      <div className="landing-grain" aria-hidden="true" />
+
       <LandingNav />
       <HeroLivingPlan />
+      <div className="section-divider" />
       <ProblemNotice />
+      <div className="section-divider" />
       <ThreeLevels />
+      <div className="section-divider" />
       <EngineScience />
+      <div className="section-divider" />
       <AmbientIntelligence />
+      <div className="section-divider" />
       <Capabilities />
+      <div className="section-divider" />
       <BrainDumpDemo />
+      <div className="section-divider" />
       <Compounding />
+      <div className="section-divider" />
       <VisionClose />
+      <div className="section-divider" />
       <Pricing />
       <Footer />
     </div>

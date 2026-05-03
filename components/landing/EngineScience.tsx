@@ -72,8 +72,11 @@ const STAGES = [
 ];
 
 function useIterationCounter() {
-  const [n, setN] = useState<number>(() => Math.floor(Date.now() / 1000) % 1_000_000);
+  // Start at 0 on both server and client to avoid hydration mismatch.
+  // Real (time-seeded, non-repeating) value is set on mount in the effect below.
+  const [n, setN] = useState<number>(0);
   useEffect(() => {
+    setN(Math.floor(Date.now() / 1000) % 1_000_000);
     const id = setInterval(() => {
       setN((p) => p + Math.floor(Math.random() * 7) + 1);
     }, 1200);
