@@ -189,6 +189,118 @@ export default function HeroLivingPlan() {
         />
       </div>
 
+      {/* universe echo: sparse star field (15 deterministic dots) */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+        {Array.from({ length: 15 }).map((_, i) => {
+          const x = (i * 23.7) % 100;
+          const y = (i * 37.3) % 100;
+          const sz = i % 3 === 0 ? 2 : 1;
+          const delay = (i * 0.31) % 4;
+          const dur = 3.2 + ((i * 0.27) % 2.4);
+          const tone = i % 4 === 0 ? "#E09D5C" : i % 5 === 0 ? "#FAF8F4" : "#D4775A";
+          return (
+            <span
+              key={i}
+              style={{
+                position: "absolute",
+                left: `${x}%`,
+                top: `${y}%`,
+                width: sz,
+                height: sz,
+                borderRadius: "50%",
+                background: tone,
+                boxShadow: `0 0 ${sz * 3}px ${tone}`,
+                opacity: 0.35,
+                animation: `hero-star ${dur}s ease-in-out ${delay}s infinite`,
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {/* universe echo: faint perspective grid hint at the bottom */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 bottom-0 pointer-events-none overflow-hidden hidden md:block"
+        style={{
+          height: "40%",
+          perspective: 800,
+          opacity: 0.3,
+          maskImage:
+            "linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)",
+          WebkitMaskImage:
+            "linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            transform: "rotateX(64deg) translateY(28%) translateZ(-200px)",
+            transformOrigin: "50% 100%",
+            backgroundImage:
+              "linear-gradient(0deg, rgba(212,119,90,0.22) 1px, transparent 1px), linear-gradient(90deg, rgba(212,119,90,0.22) 1px, transparent 1px)",
+            backgroundSize: "70px 70px",
+            animation: "hero-grid-move 28s linear infinite",
+          }}
+        />
+      </div>
+
+      {/* universe echo: a single very dim wireframe dodecahedron drifting behind the orb */}
+      <div
+        aria-hidden
+        className="absolute pointer-events-none hidden lg:block"
+        style={{
+          right: "8%",
+          top: "44%",
+          transform: "translateY(-50%)",
+          opacity: 0.08,
+          animation: "hero-dodec-spin 40s linear infinite, hero-dodec-float 14s ease-in-out infinite",
+        }}
+      >
+        <svg width={420} height={420} viewBox="0 0 420 420">
+          {(() => {
+            const pts: string[] = [];
+            const r = 200;
+            const cx = 210;
+            const cy = 210;
+            for (let i = 0; i < 10; i++) {
+              const a = (i * Math.PI * 2) / 10;
+              const rr = i % 2 === 0 ? r : r * 0.62;
+              pts.push(`${cx + Math.cos(a) * rr},${cy + Math.sin(a) * rr}`);
+            }
+            return (
+              <>
+                <polygon
+                  points={pts.join(" ")}
+                  fill="none"
+                  stroke="#D4775A"
+                  strokeWidth={0.8}
+                  strokeLinejoin="round"
+                />
+                <circle cx={cx} cy={cy} r={r * 0.35} fill="none" stroke="#D4775A" strokeWidth={0.6} opacity={0.7} />
+                <circle cx={cx} cy={cy} r={r * 0.55} fill="none" stroke="#D4775A" strokeWidth={0.5} opacity={0.5} />
+                {pts.map((p, i) => {
+                  const [x, y] = p.split(",").map(Number);
+                  return (
+                    <line
+                      key={i}
+                      x1={cx}
+                      y1={cy}
+                      x2={x}
+                      y2={y}
+                      stroke="#D4775A"
+                      strokeWidth={0.3}
+                      opacity={0.4}
+                    />
+                  );
+                })}
+              </>
+            );
+          })()}
+        </svg>
+      </div>
+
       {/* faint vignette to focus the eye */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -408,6 +520,22 @@ export default function HeroLivingPlan() {
           0%, 100% { transform: translate(0, 0) scale(1); }
           33% { transform: translate(-5%, 3%) scale(1.02); }
           66% { transform: translate(3%, -2%) scale(0.98); }
+        }
+        @keyframes hero-star {
+          0%, 100% { opacity: 0.18; transform: scale(0.85); }
+          50%      { opacity: 0.55; transform: scale(1.15); }
+        }
+        @keyframes hero-grid-move {
+          from { background-position: 0 0; }
+          to   { background-position: 0 70px; }
+        }
+        @keyframes hero-dodec-spin {
+          from { transform: translateY(-50%) rotate(0deg); }
+          to   { transform: translateY(-50%) rotate(360deg); }
+        }
+        @keyframes hero-dodec-float {
+          0%, 100% { translate: 0 0; }
+          50%      { translate: 0 -16px; }
         }
       `}</style>
     </section>
