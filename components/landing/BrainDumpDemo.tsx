@@ -5,7 +5,24 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { parseDump, type ParsedBlock } from "@/lib/landing/dumpParser";
 
-const PREFILL = "Prepare for ML competition by Friday. Gym 3x. Call mom Sunday.";
+const FALLBACK_PREFILL = "Prepare for ML competition by Friday. Gym 3x. Call mom Sunday.";
+
+function prefillForHour(hour: number): string {
+  if (hour >= 5 && hour < 12) {
+    // morning
+    return "Make today count. Deep work, gym 3x, call mom Sunday.";
+  }
+  if (hour >= 12 && hour < 17) {
+    // afternoon
+    return "Salvage the afternoon. Finish ML deck, gym tonight, prep for Monday.";
+  }
+  if (hour >= 17 && hour < 22) {
+    // evening
+    return "Set up tomorrow morning. Run, then deep work on thesis. Call mom Sunday.";
+  }
+  // night
+  return "Tomorrow: ship the demo. Deep work, light lunch, gym after. Sleep first.";
+}
 
 // Type the prefill character-by-character once the section is in view.
 function useTypewriter(target: string, start: boolean, perChar = 32) {
@@ -37,7 +54,13 @@ export default function BrainDumpDemo() {
   const sectionRef = useRef<HTMLElement>(null);
   const inView = useInView(sectionRef, { once: true, amount: 0.3 });
 
-  const { text: typed, done: typedDone } = useTypewriter(PREFILL, inView);
+  // time-aware prefill picked after mount to avoid SSR mismatch
+  const [prefill, setPrefill] = useState<string>(FALLBACK_PREFILL);
+  useEffect(() => {
+    setPrefill(prefillForHour(new Date().getHours()));
+  }, []);
+
+  const { text: typed, done: typedDone } = useTypewriter(prefill, inView);
   const [text, setText] = useState(""); // user-controlled (after typing finishes)
   const [userTouched, setUserTouched] = useState(false);
   const [blocks, setBlocks] = useState<ParsedBlock[]>([]);
@@ -45,7 +68,7 @@ export default function BrainDumpDemo() {
 
   // After typing completes, hand off to user-editable state and reveal blocks one-by-one.
   useEffect(() => {
-    if (typedDone && !userTouched) setText(PREFILL);
+    if (typedDone && !userTouched) setText(prefill);
   }, [typedDone, userTouched]);
 
   // Parse on text change with a small debounce.
@@ -72,8 +95,8 @@ export default function BrainDumpDemo() {
   }, [blocks, revealCount]);
 
   const seedHref = useMemo(
-    () => `/dashboard?seed=${encodeURIComponent(text || PREFILL)}`,
-    [text]
+    () => `/dashboard?seed=${encodeURIComponent(text || prefill)}`,
+    [text, prefill]
   );
 
   const isBuilding = revealCount < blocks.length;

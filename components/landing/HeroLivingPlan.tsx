@@ -17,12 +17,56 @@ const SIGNALS = [
   { id: "slk", from: "Slack · #ml-team", body: "Deadline → Wed", color: "#4A7B6B" },
 ];
 
-const BASE_BLOCKS = [
-  { time: "9:00", label: "Deep work · CNNs", color: "#D4775A" },
-  { time: "11:30", label: "Gym (45m)", color: "#4A7B6B" },
-  { time: "13:00", label: "Lunch w/ Mira", color: "#6B7FB5" },
-  { time: "15:00", label: "Backprop study", color: "#D4775A" },
-];
+type TimeBlock = { time: string; label: string; color: string };
+
+/**
+ * Generate a 4-block mini-schedule starting from the next round hour after now.
+ * Different label sets for morning / afternoon / evening / night.
+ * Pure on `hour` so component stays referentially-transparent post-mount.
+ */
+function buildBlocksFor(hour: number): TimeBlock[] {
+  const fmt = (h: number, m = 0) => {
+    const hh = ((h % 24) + 24) % 24;
+    return `${hh}:${m.toString().padStart(2, "0")}`;
+  };
+  // bucket
+  if (hour >= 5 && hour < 12) {
+    // morning
+    const start = Math.max(hour + 1, 9);
+    return [
+      { time: fmt(start), label: "Deep work · CNNs", color: "#D4775A" },
+      { time: fmt(start + 2, 30), label: "Gym (45m)", color: "#4A7B6B" },
+      { time: fmt(start + 4), label: "Lunch w/ Mira", color: "#6B7FB5" },
+      { time: fmt(start + 6), label: "Backprop study", color: "#D4775A" },
+    ];
+  }
+  if (hour >= 12 && hour < 17) {
+    // afternoon — salvage what's left
+    const start = hour + 1;
+    return [
+      { time: fmt(start), label: "Deep work · finalize ML deck", color: "#D4775A" },
+      { time: fmt(start + 1, 30), label: "Quick walk (15m)", color: "#4A7B6B" },
+      { time: fmt(start + 2), label: "Office hours · prof", color: "#6B7FB5" },
+      { time: fmt(start + 4), label: "Reading · backprop", color: "#D4775A" },
+    ];
+  }
+  if (hour >= 17 && hour < 22) {
+    // evening — set up tomorrow morning
+    return [
+      { time: "Tomorrow 7:00", label: "Run + shower", color: "#4A7B6B" },
+      { time: "Tomorrow 9:00", label: "Deep work · thesis", color: "#D4775A" },
+      { time: "Tomorrow 11:30", label: "Coffee w/ Mira", color: "#6B7FB5" },
+      { time: "Tomorrow 14:00", label: "Demo prep", color: "#D4775A" },
+    ];
+  }
+  // night
+  return [
+    { time: "Tomorrow 9:00", label: "Ship the demo", color: "#D4775A" },
+    { time: "Tomorrow 12:00", label: "Lunch · light", color: "#4A7B6B" },
+    { time: "Tomorrow 14:30", label: "Easy admin · post-lunch", color: "#6B7FB5" },
+    { time: "Tomorrow 16:00", label: "Second wind · review", color: "#D4775A" },
+  ];
+}
 
 /**
  * 3D-feel copper orb composed of stacked layers:
@@ -197,6 +241,18 @@ export default function HeroLivingPlan() {
   const [activeSignal, setActiveSignal] = useState(0);
   const [draft, setDraft] = useState("");
   const placeholder = useSmoothPlaceholder(PROMPTS);
+
+  // Time-aware schedule — populated after mount to avoid SSR hydration mismatch.
+  // Default to a reasonable static set so the schedule is never empty.
+  const [blocks, setBlocks] = useState<TimeBlock[]>([
+    { time: "9:00", label: "Deep work · CNNs", color: "#D4775A" },
+    { time: "11:30", label: "Gym (45m)", color: "#4A7B6B" },
+    { time: "13:00", label: "Lunch w/ Mira", color: "#6B7FB5" },
+    { time: "15:00", label: "Backprop study", color: "#D4775A" },
+  ]);
+  useEffect(() => {
+    setBlocks(buildBlocksFor(new Date().getHours()));
+  }, []);
 
   // mouse-tracking aurora parallax (-1 to +1 in each axis)
   const [mp, setMp] = useState({ x: 0, y: 0 });
@@ -479,7 +535,7 @@ export default function HeroLivingPlan() {
             transition={{ duration: 0.6, delay: 0.7 }}
             className="text-[#FAF8F4]/45 text-[13px] font-light italic"
           >
-            Tell me what&apos;s on your mind.
+            I&apos;m not waiting for you to start.
           </motion.p>
         </div>
 
@@ -618,8 +674,8 @@ export default function HeroLivingPlan() {
                 live
               </span>
             </div>
-            {BASE_BLOCKS.map((b, i) => {
-              const isMoved = i === activeSignal % BASE_BLOCKS.length;
+            {blocks.map((b, i) => {
+              const isMoved = i === activeSignal % blocks.length;
               return (
                 <motion.div
                   key={b.label}

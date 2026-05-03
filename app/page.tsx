@@ -14,6 +14,8 @@ import BootSequence from "@/components/landing/BootSequence";
 import SystemFeed from "@/components/landing/SystemFeed";
 import CursorCompanion from "@/components/landing/CursorCompanion";
 import EasterEggs from "@/components/landing/EasterEggs";
+import SectionSeam from "@/components/landing/SectionSeam";
+import LandingMinimap from "@/components/landing/LandingMinimap";
 
 export default function Home() {
   return (
@@ -33,25 +35,28 @@ export default function Home() {
       {/* keyboard easter eggs (j ack toast, ? help overlay, / focus hero input) */}
       <EasterEggs />
 
+      {/* skip-the-tour minimap (right edge, desktop only) */}
+      <LandingMinimap />
+
       <LandingNav />
-      <HeroLivingPlan />
-      <div className="section-divider" />
-      <ProblemNotice />
-      <div className="section-divider" />
-      <ThreeLevels />
-      <div className="section-divider" />
+      <div id="hero"><HeroLivingPlan /></div>
+      <SectionSeam />
+      <div id="problem"><ProblemNotice /></div>
+      <SectionSeam />
+      <div id="tiers"><ThreeLevels /></div>
+      <SectionSeam />
       <EngineScience />
-      <div className="section-divider" />
-      <AmbientIntelligence />
-      <div className="section-divider" />
+      <SectionSeam />
+      <div id="ambient"><AmbientIntelligence /></div>
+      <SectionSeam />
       <Capabilities />
-      <div className="section-divider" />
-      <BrainDumpDemo />
-      <div className="section-divider" />
-      <Compounding />
-      <div className="section-divider" />
-      <VisionClose />
-      <div className="section-divider" />
+      <SectionSeam />
+      <div id="demo"><BrainDumpDemo /></div>
+      <SectionSeam />
+      <div id="compound"><Compounding /></div>
+      <SectionSeam />
+      <div id="vision"><VisionClose /></div>
+      <SectionSeam />
       <Pricing />
       <Footer />
     </div>
