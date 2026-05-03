@@ -256,7 +256,7 @@ export default function ThreeLevels() {
           transition={{ duration: 0.6, delay: 0.5 }}
           className="text-[#FAF8F4]/55 text-[14px] italic font-light text-center mt-28"
         >
-          Same words on the calendar. Different relationship to your day.
+          You&apos;re not late. You just don&apos;t have me yet.
         </motion.p>
       </div>
 

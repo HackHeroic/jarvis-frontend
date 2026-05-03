@@ -203,13 +203,26 @@ export default function Compounding() {
           ))}
         </div>
 
+        {/* signature closing line */}
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 0.85, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8, delay: 0.6 }}
+          className="text-[#FAF8F4] text-[16px] md:text-[18px] font-light italic text-center mt-20 max-w-xl mx-auto leading-relaxed"
+        >
+          In a year, I&apos;ll be{" "}
+          <span className="not-italic text-[#D4775A] font-medium">the version of you</span>{" "}
+          that doesn&apos;t drop the ball.
+        </motion.p>
+
         {/* faint footnote */}
         <motion.p
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 0.4 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.8 }}
-          className="text-[#FAF8F4]/40 text-[11px] font-mono tracking-[2px] uppercase text-center mt-16"
+          transition={{ duration: 0.6, delay: 1.2 }}
+          className="text-[#FAF8F4]/40 text-[11px] font-mono tracking-[2px] uppercase text-center mt-10"
         >
           <motion.span style={{ opacity: month3Glow }}>● </motion.span>
           compounding · architecture + data + psychology + ambient

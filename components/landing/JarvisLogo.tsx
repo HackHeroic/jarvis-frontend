@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { useEffect, useState } from "react";
 
 type Size = "sm" | "md" | "lg" | "xl";
 
@@ -23,11 +24,57 @@ interface JarvisLogoProps {
   wordmark?: boolean;
   animated?: boolean;
   className?: string;
+  /** When true, the signal-dot orbit speed reacts to page scroll velocity. */
+  reactToScroll?: boolean;
+}
+
+/**
+ * Hook: returns a smoothed scroll-velocity factor in roughly [0, 1].
+ *  0 = idle / not scrolling, 1 = fast scroll. Decays over ~600ms after stop.
+ */
+function useScrollVelocity(active: boolean) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (!active || typeof window === "undefined") return;
+    let lastY = window.scrollY;
+    let lastT = performance.now();
+    let target = 0;
+    let smoothed = 0;
+    let raf = 0;
+
+    const onScroll = () => {
+      const now = performance.now();
+      const dt = Math.max(1, now - lastT);
+      const dy = Math.abs(window.scrollY - lastY);
+      const speed = dy / dt; // px/ms
+      target = Math.min(1, speed / 2.4); // 2.4 px/ms ≈ "fast"
+      lastY = window.scrollY;
+      lastT = now;
+    };
+
+    const tick = () => {
+      // ease toward target, decay quickly when target is 0
+      smoothed += (target - smoothed) * 0.18;
+      target *= 0.92; // natural decay
+      setV(smoothed);
+      raf = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    raf = requestAnimationFrame(tick);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [active]);
+  return v;
 }
 
 /**
  * Loop-and-signal mark in palette gradient. Optional lowercase "jarvis" wordmark.
- * The signal dot orbits the loop on a 4s loop when animated.
+ * The signal dot orbits the loop on a 4s loop when animated. When reactToScroll
+ * is true, the orbit speeds up while the user is scrolling fast (down to ~1.5s)
+ * and slows back to its idle period when the user stops.
  * Honors prefers-reduced-motion via the surrounding @media in globals.css.
  */
 export default function JarvisLogo({
@@ -35,10 +82,15 @@ export default function JarvisLogo({
   wordmark = false,
   animated = true,
   className,
+  reactToScroll = false,
 }: JarvisLogoProps) {
   const px = SIZE_PX[size];
   const gradId = `jarvis-grad-${size}`;
-  const orbitDur = size === "xl" ? "6s" : "4s";
+  const baseDur = size === "xl" ? 6 : 4;
+  const v = useScrollVelocity(reactToScroll && animated);
+  // map velocity 0→1 to multiplier 1→0.4 (faster orbit when scrolling fast)
+  const mult = 1 - v * 0.6;
+  const orbitDur = `${(baseDur * mult).toFixed(2)}s`;
 
   return (
     <span

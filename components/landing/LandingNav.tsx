@@ -22,7 +22,7 @@ export default function LandingNav() {
       }`}
     >
       <Link href="/" aria-label="Jarvis home">
-        <JarvisLogo size="md" wordmark={true} animated />
+        <JarvisLogo size="md" wordmark={true} animated reactToScroll />
       </Link>
 
       <div className="flex items-center gap-7 font-mono text-[11px] tracking-[1px]">
