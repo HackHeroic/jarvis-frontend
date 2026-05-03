@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 const PROMPTS = [
@@ -157,27 +157,87 @@ function JarvisOrb({ className = "" }: { className?: string }) {
   );
 }
 
+// Smooth typing placeholder — types current target then deletes when cycling.
+function useSmoothPlaceholder(targets: string[], hold = 2400, perChar = 36) {
+  const [text, setText] = useState("");
+  const [idx, setIdx] = useState(0);
+  const [phase, setPhase] = useState<"typing" | "hold" | "deleting">("typing");
+  const targetRef = useRef("");
+  targetRef.current = targets[idx] ?? "";
+
+  useEffect(() => {
+    if (phase === "typing") {
+      if (text.length < targetRef.current.length) {
+        const t = setTimeout(() => setText(targetRef.current.slice(0, text.length + 1)), perChar);
+        return () => clearTimeout(t);
+      }
+      const t = setTimeout(() => setPhase("hold"), hold);
+      return () => clearTimeout(t);
+    }
+    if (phase === "hold") {
+      const t = setTimeout(() => setPhase("deleting"), 200);
+      return () => clearTimeout(t);
+    }
+    if (phase === "deleting") {
+      if (text.length > 0) {
+        const t = setTimeout(() => setText(text.slice(0, -1)), perChar / 2);
+        return () => clearTimeout(t);
+      }
+      setIdx((i) => (i + 1) % targets.length);
+      setPhase("typing");
+      return;
+    }
+  }, [text, phase, hold, perChar, targets.length]);
+
+  return text;
+}
+
 export default function HeroLivingPlan() {
+  const sectionRef = useRef<HTMLElement>(null);
   const [activeSignal, setActiveSignal] = useState(0);
-  const [promptIdx, setPromptIdx] = useState(0);
   const [draft, setDraft] = useState("");
+  const placeholder = useSmoothPlaceholder(PROMPTS);
+
+  // mouse-tracking aurora parallax (-1 to +1 in each axis)
+  const [mp, setMp] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!sectionRef.current) return;
+      const r = sectionRef.current.getBoundingClientRect();
+      const x = ((e.clientX - r.left) / r.width) * 2 - 1;
+      const y = ((e.clientY - r.top) / r.height) * 2 - 1;
+      setMp({ x, y });
+    };
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => setActiveSignal((p) => (p + 1) % SIGNALS.length), 6000);
     return () => clearInterval(id);
   }, []);
 
+  // Particle handoff — each time the active signal changes, fire a single
+  // particle from the active signal card → orb → schedule. Tracked by a
+  // monotonically increasing key so motion replays on each change.
+  const [handoffKey, setHandoffKey] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setPromptIdx((p) => (p + 1) % PROMPTS.length), 4000);
-    return () => clearInterval(id);
-  }, []);
+    setHandoffKey((k) => k + 1);
+  }, [activeSignal]);
+
+  // Headline split into words for the staggered reveal
+  const HEAD_LINE_1 = ["I", "think", "about", "your", "day", "before", "you", "do."];
+  const HEAD_LINE_2 = ["Then", "I", "handle", "it", "before", "you", "ask."];
 
   return (
-    <section className="relative min-h-screen flex items-center bg-[#1C1A17] overflow-hidden">
-      {/* aurora background */}
+    <section
+      ref={sectionRef}
+      className="relative min-h-screen flex items-center bg-[#1C1A17] overflow-hidden"
+    >
+      {/* aurora background — subtly tracks cursor with parallax */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
         <div
-          className="absolute inset-0 opacity-40"
+          className="absolute inset-0 opacity-40 transition-transform duration-[800ms] ease-out"
           style={{
             background: [
               "radial-gradient(ellipse 700px 500px at 18% 50%, rgba(212,119,90,0.22) 0%, transparent 70%)",
@@ -185,6 +245,7 @@ export default function HeroLivingPlan() {
               "radial-gradient(ellipse 500px 380px at 60% 85%, rgba(74,123,107,0.16) 0%, transparent 70%)",
             ].join(", "),
             animation: "aurora-drift 18s ease-in-out infinite",
+            transform: `translate(${mp.x * 18}px, ${mp.y * 12}px)`,
           }}
         />
       </div>
@@ -330,17 +391,42 @@ export default function HeroLivingPlan() {
             jarvis · running
           </motion.p>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, ease: "easeOut", delay: 0.1 }}
-            className="text-[#FAF8F4] text-[44px] md:text-[60px] font-light leading-[1.04] tracking-[-1.4px] mb-6"
-          >
-            I think about your day{" "}
-            <em className="not-italic text-[#D4775A] font-medium">before</em> you do.
-            <br />
-            <span className="text-[#FAF8F4]/85">Then I handle it before you ask.</span>
-          </motion.h1>
+          <h1 className="text-[#FAF8F4] text-[44px] md:text-[60px] font-light leading-[1.04] tracking-[-1.4px] mb-6">
+            <span className="block">
+              {HEAD_LINE_1.map((w, i) => (
+                <motion.span
+                  key={`l1-${i}`}
+                  initial={{ opacity: 0, y: 14, filter: "blur(8px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.7, delay: 0.15 + i * 0.06, ease: "easeOut" }}
+                  className="inline-block mr-[0.28em]"
+                  style={
+                    w === "before"
+                      ? {
+                          color: "#D4775A",
+                          fontWeight: 500,
+                        }
+                      : undefined
+                  }
+                >
+                  {w}
+                </motion.span>
+              ))}
+            </span>
+            <span className="block text-[#FAF8F4]/85">
+              {HEAD_LINE_2.map((w, i) => (
+                <motion.span
+                  key={`l2-${i}`}
+                  initial={{ opacity: 0, y: 14, filter: "blur(8px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.7, delay: 0.85 + i * 0.06, ease: "easeOut" }}
+                  className="inline-block mr-[0.28em]"
+                >
+                  {w}
+                </motion.span>
+              ))}
+            </span>
+          </h1>
 
           <motion.p
             initial={{ opacity: 0, y: 12 }}
@@ -370,7 +456,7 @@ export default function HeroLivingPlan() {
               type="text"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={PROMPTS[promptIdx]}
+              placeholder={placeholder + (placeholder.length > 0 ? "▍" : "")}
               className="relative w-full bg-[#1A1815] border border-white/10 rounded-xl px-5 py-4 pr-14 text-[#FAF8F4] text-[15px] font-light focus:outline-none focus:border-[#D4775A]/60 focus:ring-2 focus:ring-[#D4775A]/20 transition-all placeholder:text-[#FAF8F4]/30"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && draft.trim()) {
@@ -403,6 +489,74 @@ export default function HeroLivingPlan() {
           <div className="absolute right-[-40px] top-1/2 -translate-y-1/2 w-[420px] h-[420px]">
             <JarvisOrb className="w-full h-full" />
           </div>
+
+          {/* Particle handoff — fires from active signal card → orb → schedule */}
+          <motion.span
+            key={`handoff-in-${handoffKey}`}
+            aria-hidden
+            className="absolute pointer-events-none rounded-full"
+            initial={{
+              left: "12%",
+              top: ["18%", "54%", "84%"][activeSignal],
+              opacity: 0,
+              scale: 0.6,
+            }}
+            animate={{
+              left: ["12%", "55%"],
+              top: [["18%", "54%", "84%"][activeSignal], "50%"],
+              opacity: [0, 1, 0.85],
+              scale: [0.6, 1.1, 0.9],
+            }}
+            transition={{ duration: 0.9, ease: "easeOut" }}
+            style={{
+              width: 7,
+              height: 7,
+              background: SIGNALS[activeSignal].color,
+              boxShadow: `0 0 14px ${SIGNALS[activeSignal].color}`,
+              zIndex: 5,
+            }}
+          />
+          <motion.span
+            key={`handoff-out-${handoffKey}`}
+            aria-hidden
+            className="absolute pointer-events-none rounded-full"
+            initial={{ left: "55%", top: "50%", opacity: 0, scale: 0.6 }}
+            animate={{
+              left: ["55%", "78%"],
+              top: ["50%", "92%"],
+              opacity: [0, 0.95, 0],
+              scale: [0.6, 1, 0.7],
+            }}
+            transition={{ duration: 0.9, ease: "easeIn", delay: 0.6 }}
+            style={{
+              width: 6,
+              height: 6,
+              background: "#E09D5C",
+              boxShadow: "0 0 12px #E09D5C",
+              zIndex: 5,
+            }}
+          />
+
+          {/* Orb pulse on signal change */}
+          <motion.span
+            key={`orb-pulse-${handoffKey}`}
+            aria-hidden
+            className="absolute pointer-events-none rounded-full"
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: [0, 0.55, 0], scale: [0.6, 1.25, 1.4] }}
+            transition={{ duration: 1.2, ease: "easeOut", delay: 0.7 }}
+            style={{
+              right: 0,
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: 280,
+              height: 280,
+              background:
+                "radial-gradient(circle, rgba(212,119,90,0.45), transparent 60%)",
+              filter: "blur(8px)",
+              zIndex: 1,
+            }}
+          />
 
           {/* Floating signal cards orbit around the orb */}
           {SIGNALS.map((s, i) => {

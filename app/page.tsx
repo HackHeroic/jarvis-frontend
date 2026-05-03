@@ -13,6 +13,7 @@ import Footer from "@/components/landing/Footer";
 import BootSequence from "@/components/landing/BootSequence";
 import SystemFeed from "@/components/landing/SystemFeed";
 import CursorCompanion from "@/components/landing/CursorCompanion";
+import EasterEggs from "@/components/landing/EasterEggs";
 
 export default function Home() {
   return (
@@ -28,6 +29,9 @@ export default function Home() {
 
       {/* cursor companion (desktop only, no reduced-motion) */}
       <CursorCompanion />
+
+      {/* keyboard easter eggs (j ack toast, ? help overlay, / focus hero input) */}
+      <EasterEggs />
 
       <LandingNav />
       <HeroLivingPlan />
