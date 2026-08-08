@@ -198,6 +198,7 @@ export interface ChatResponse {
   draft_id?: string;
   schedule_status?: 'draft' | 'accepted' | 'rejected';
   pearl_insights?: PearlInsight[];
+  saved_constraints?: string[];
 }
 
 // ---------------------------------------------------------------------------

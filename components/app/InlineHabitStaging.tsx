@@ -1,48 +1,33 @@
 'use client';
 
-import { useState } from 'react';
-
 interface InlineHabitStagingProps {
-  habit: string;
-  onSave?: () => void;
-  onIgnore?: () => void;
+  /** Constraints the backend confirmed it persisted this turn. */
+  habits: string[];
 }
 
-export function InlineHabitStaging({ habit, onSave, onIgnore }: InlineHabitStagingProps) {
-  const [dismissed, setDismissed] = useState(false);
-
-  if (dismissed) return null;
+/**
+ * Confirmation chip for behavioral constraints.
+ *
+ * Renders only what the backend reports as actually saved
+ * (ChatResponse.saved_constraints) — the earlier version showed the response
+ * prose with a "Save as Constraint" button that was never wired to anything.
+ */
+export function InlineHabitStaging({ habits }: InlineHabitStagingProps) {
+  if (!habits.length) return null;
 
   return (
-    <div className="mt-3 p-3 rounded-card border border-gold/30 bg-gold/5">
-      <p className="text-xs text-secondary mb-2">
-        <span className="font-semibold text-gold">New habit detected:</span>{' '}
-        {habit}
+    <div className="mt-3 p-3 rounded-card border border-sage/30 bg-sage/5">
+      <p className="text-xs text-secondary mb-1">
+        <span className="font-semibold text-sage">
+          Constraint{habits.length > 1 ? 's' : ''} saved
+        </span>{' '}
+        — future schedules will respect {habits.length > 1 ? 'these' : 'this'}:
       </p>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            onSave?.();
-            setDismissed(true);
-          }}
-          className="px-3 py-1 text-xs rounded-button bg-sage/15 text-sage border border-sage/30
-            hover:bg-sage/25 transition-colors font-medium"
-        >
-          Save as Constraint
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onIgnore?.();
-            setDismissed(true);
-          }}
-          className="px-3 py-1 text-xs rounded-button text-muted border border-border
-            hover:bg-surface-subtle transition-colors"
-        >
-          Ignore
-        </button>
-      </div>
+      <ul className="text-xs text-primary list-disc pl-4 space-y-0.5">
+        {habits.map((h) => (
+          <li key={h}>{h}</li>
+        ))}
+      </ul>
     </div>
   );
 }
