@@ -6,10 +6,8 @@
 
 import { API_BASE, IS_DEMO_MODE, USER_ID, DEMO_LATENCY } from './constants';
 
-// Toggle between v1 (/chat/stream) and v2 (/chat/v2/stream — LangGraph orchestrator)
-const CHAT_STREAM_PATH = process.env.NEXT_PUBLIC_USE_V2 === 'true'
-  ? '/api/v1/chat/v2/stream'
-  : '/api/v1/chat/stream';
+// The only chat path: v2 (LangGraph orchestrator). v1 (/chat/stream) is deprecated.
+const CHAT_STREAM_PATH = '/api/v1/chat/v2/stream';
 import type {
   ChatResponse,
   ChatRequest,
