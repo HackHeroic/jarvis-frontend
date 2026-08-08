@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getDueHabits, completeHabit } from "@/lib/api";
+import { getDueHabits, completeHabit, getBehavioralConstraints, type BehavioralConstraint } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/app/EmptyState";
@@ -161,6 +161,7 @@ function HabitCard({
 
 export default function HabitsPage() {
   const [habits, setHabits] = useState<HabitRecord[]>([]);
+  const [constraints, setConstraints] = useState<BehavioralConstraint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -180,6 +181,7 @@ export default function HabitsPage() {
 
   useEffect(() => {
     fetchHabits();
+    getBehavioralConstraints().then(setConstraints).catch(() => setConstraints([]));
   }, [fetchHabits]);
 
   async function handleComplete(id: string, quality: number) {
@@ -197,6 +199,27 @@ export default function HabitsPage() {
           Review habits due today. Jarvis detects patterns in your behavior and surfaces them here.
         </p>
       </div>
+
+      {/* Behavioral constraints — saved from chat, applied to every schedule */}
+      {constraints.length > 0 && (
+        <div className="rounded-card border border-border bg-surface p-4">
+          <h2 className="text-sm font-semibold text-primary">Active constraints</h2>
+          <p className="mt-0.5 text-xs text-secondary">
+            Saved from your conversations — every schedule respects these.
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {constraints.map((c) => (
+              <li key={c.id} className="flex items-baseline gap-2 text-sm text-primary">
+                <span className="text-sage text-xs">&#x25CF;</span>
+                <span>{c.raw_text}</span>
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted">
+                  {c.constraint_type}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Loading */}
       {loading && (
