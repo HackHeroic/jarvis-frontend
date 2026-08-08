@@ -626,6 +626,23 @@ export async function getDueHabits(): Promise<Record<string, unknown>[]> {
   return data.due_trackers ?? data;
 }
 
+export interface BehavioralConstraint {
+  id: string;
+  raw_text: string;
+  constraint_type: string;
+  created_at: string;
+}
+
+export async function getBehavioralConstraints(): Promise<BehavioralConstraint[]> {
+  if (IS_DEMO_MODE) return [];
+  const res = await fetch(
+    `${API_BASE}/api/v1/habits/constraints?user_id=${encodeURIComponent(USER_ID)}`,
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.constraints ?? [];
+}
+
 export async function completeHabit(
   id: string,
   quality: number,

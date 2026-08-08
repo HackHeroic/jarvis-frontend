@@ -247,8 +247,8 @@ export function JarvisResponse({
   const generationMetrics = response?.generation_metrics;
   const thinkingProcess = response?.thinking_process;
 
-  // Detect habits from behavioral constraint intent
-  const isHabitResponse = intent === 'BEHAVIORAL_CONSTRAINT';
+  // Constraints the backend actually persisted this turn (store_constraint node)
+  const savedConstraints = response?.saved_constraints ?? [];
 
   // Detect infeasible schedule
   const isInfeasible =
@@ -311,11 +311,9 @@ export function JarvisResponse({
         </div>
       )}
 
-      {/* 5. Inline Habit Staging */}
-      {!isStreaming && isHabitResponse && cleanContent && (
-        <InlineHabitStaging
-          habit={cleanContent.slice(0, 120)}
-        />
+      {/* 5. Saved behavioral constraints — real persisted values, not response prose */}
+      {!isStreaming && savedConstraints.length > 0 && (
+        <InlineHabitStaging habits={savedConstraints} />
       )}
 
       {/* 6. Task Decomposition Preview — skip when DraftReview will render (avoids duplicate) */}
