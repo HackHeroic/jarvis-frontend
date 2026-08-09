@@ -34,3 +34,24 @@ export function getSpinnerVerb(phase: string): string {
   const pool = PHASE_VERBS[phase] ?? PHASE_VERBS["responding"]!;
   return pool[Math.floor(Math.random() * pool.length)]!;
 }
+
+/**
+ * Deterministic verb for COMPLETED phase lines — stable across re-renders.
+ * Seeded by phase + timestamp so the word a phase finished with never changes.
+ */
+export function getStableVerb(phase: string, seed: number): string {
+  const pool = PHASE_VERBS[phase] ?? PHASE_VERBS["responding"]!;
+  return pool[Math.abs(seed) % pool.length]!;
+}
+
+/**
+ * Cycling sequence for the ACTIVE phase line: walks the phase's own pool with
+ * an occasional wildcard spliced in (the 80/20 rule), so the same line reads
+ * "Stark-industrializing… → Orchestrating… → Tetris-ing…" while running.
+ */
+export function getVerbCycle(phase: string): string[] {
+  const pool = [...(PHASE_VERBS[phase] ?? PHASE_VERBS["responding"]!)];
+  const wildcard = WILDCARD_VERBS[Math.floor(Math.random() * WILDCARD_VERBS.length)]!;
+  pool.splice(Math.min(2, pool.length), 0, wildcard);
+  return pool;
+}

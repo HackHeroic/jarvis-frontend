@@ -338,6 +338,46 @@ function SchedulePageInner() {
 // DAY GRID
 // ===========================================================================
 
+/**
+ * Assign overlapping tasks to side-by-side lanes so same-slot blocks render
+ * next to each other instead of stacking text on top of each other.
+ */
+function assignLanes(
+  tasks: ScheduleTask[],
+): Map<string, { lane: number; lanes: number }> {
+  const sorted = [...tasks]
+    .map((t) => {
+      const start = getMinuteOfDay(t.start_time);
+      return { id: t.task_id, start, end: start + t.duration_minutes };
+    })
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const result = new Map<string, { lane: number; lanes: number }>();
+  let cluster: { id: string; start: number; end: number; lane: number }[] = [];
+  let laneEnds: number[] = [];
+
+  const flush = () => {
+    const lanes = laneEnds.length || 1;
+    for (const c of cluster) result.set(c.id, { lane: c.lane, lanes });
+    cluster = [];
+    laneEnds = [];
+  };
+
+  for (const t of sorted) {
+    if (cluster.length > 0 && laneEnds.every((end) => end <= t.start)) flush();
+    let lane = laneEnds.findIndex((end) => end <= t.start);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(t.end);
+    } else {
+      laneEnds[lane] = t.end;
+    }
+    cluster.push({ ...t, lane });
+  }
+  flush();
+  return result;
+}
+
 interface DayGridProps {
   tasks: ScheduleTask[];
   now: Date;
@@ -407,7 +447,10 @@ function DayGrid({
         )}
 
         {/* Task blocks */}
-        {tasks.map((task) => {
+        {(() => {
+          const lanesById = assignLanes(tasks);
+          return tasks.map((task) => {
+          const laneInfo = lanesById.get(task.task_id) ?? { lane: 0, lanes: 1 };
           const startMin = getMinuteOfDay(task.start_time);
           const top = Math.max(0, (startMin - GRID_START_MINUTES) * PX_PER_MINUTE);
           const height = Math.max(task.duration_minutes * PX_PER_MINUTE, 28);
@@ -420,7 +463,7 @@ function DayGrid({
             <div
               key={task.task_id}
               className={clsx(
-                "absolute left-2 right-2 z-10 rounded-lg px-3 py-1.5 transition-all overflow-hidden",
+                "absolute z-10 rounded-lg px-3 py-1.5 transition-all overflow-hidden",
                 isBlocked
                   ? "border-2 border-dashed border-muted bg-surface-muted/50 cursor-default"
                   : "border-l-[3px] cursor-pointer hover:shadow-md",
@@ -428,6 +471,8 @@ function DayGrid({
               )}
               style={{
                 top,
+                left: `calc(${(laneInfo.lane / laneInfo.lanes) * 100}% + 8px)`,
+                width: `calc(${100 / laneInfo.lanes}% - ${laneInfo.lanes > 1 ? 12 : 16}px)`,
                 height: showRating ? "auto" : height,
                 minHeight: height,
                 borderLeftColor: isBlocked ? undefined : task.color,
@@ -513,7 +558,8 @@ function DayGrid({
               )}
             </div>
           );
-        })}
+          });
+        })()}
       </div>
     </div>
   );
