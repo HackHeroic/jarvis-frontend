@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { getPhaseDisplayName } from "@/lib/constants";
-import { getSpinnerVerb } from "@/lib/spinnerVerbs";
+import { getStableVerb, getVerbCycle } from "@/lib/spinnerVerbs";
 import type { PhaseEventData, ToolUseEvent, MemoryExtractedEvent } from "@/lib/types";
 
 interface IntelligentTraceProps {
@@ -20,7 +21,23 @@ function formatDuration(ms: number): string {
 }
 
 function getVerb(pe: PhaseEventData): string {
-  return (pe.verb as string) || (pe.data?.verb as string) || getSpinnerVerb(pe.phase);
+  return (
+    (pe.verb as string) ||
+    (pe.data?.verb as string) ||
+    getStableVerb(pe.phase, Math.floor(pe.timestamp ?? 0))
+  );
+}
+
+/** Active-phase spinner: cycles through the phase's verb pool in place. */
+function CyclingVerb({ phase }: { phase: string }) {
+  const cycle = useMemo(() => getVerbCycle(phase), [phase]);
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    setI(0);
+    const t = setInterval(() => setI((n) => n + 1), 1800);
+    return () => clearInterval(t);
+  }, [phase]);
+  return <span className="font-medium">{cycle[i % cycle.length]}</span>;
 }
 
 function renderDetail(pe: PhaseEventData): string | null {
@@ -107,7 +124,11 @@ export function IntelligentTrace({
   return (
     <div className="mb-2 space-y-0.5">
       {completedPhases.map((pe, i) => {
-        const nextTs = i < phases.length - 1 ? phases[i + 1]!.timestamp : Date.now();
+        // Duration precedence: backend-reported, else gap to the next phase.
+        // The live-clock fallback is only valid mid-stream — recomputing it on
+        // later re-renders showed "time since the message" (hours) as duration.
+        const nextTs =
+          i < phases.length - 1 ? phases[i + 1]!.timestamp : isStreaming ? Date.now() : null;
         const durationMs =
           (pe.data?.duration_ms as number) ??
           (pe.timestamp && nextTs ? nextTs - pe.timestamp : null);
@@ -150,7 +171,7 @@ export function IntelligentTrace({
             <span className="relative inline-flex rounded-full h-2 w-2 bg-terra" />
           </span>
           <span className="text-terra">
-            <span className="font-medium">{getVerb(activePhase)}</span>...
+            <CyclingVerb phase={activePhase.phase} />...
           </span>
         </div>
       )}
