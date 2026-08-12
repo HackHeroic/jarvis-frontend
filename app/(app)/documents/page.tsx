@@ -113,6 +113,7 @@ export default function DocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<IngestionDocument | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -290,7 +291,12 @@ export default function DocumentsPage() {
       {!loading && documents.length > 0 && (
         <div className="space-y-2">
           {documents.map((doc) => (
-            <Card key={doc.id} className="flex items-center gap-3 px-4 py-3">
+            <Card
+              key={doc.id}
+              className="cursor-pointer px-4 py-3 transition-colors hover:border-border-strong"
+              onClick={() => setExpandedId(expandedId === doc.id ? null : doc.id)}
+            >
+            <div className="flex items-center gap-3">
               {/* Icon */}
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-subtle">
                 {doc.media_type?.includes("image") ? (
@@ -321,12 +327,44 @@ export default function DocumentsPage() {
               {/* Delete */}
               <button
                 type="button"
-                onClick={() => setDeleteTarget(doc)}
+                onClick={(e) => { e.stopPropagation(); setDeleteTarget(doc); }}
                 className="shrink-0 rounded-button p-2 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
                 title="Delete document"
               >
                 <Trash2 size={16} />
               </button>
+            </div>
+
+            {/* Expanded detail — everything Jarvis stored about this document */}
+            {expandedId === doc.id && (
+              <div className="mt-3 border-t border-border pt-3 text-xs space-y-2">
+                {doc.document_topics.length > 0 && (
+                  <div>
+                    <p className="font-medium text-secondary mb-1">Topics extracted</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {doc.document_topics.map((t, i) => (
+                        <Badge key={i} color="sage">{t}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <p className="font-medium text-secondary mb-1">Linked tasks</p>
+                  {doc.linked_task_ids.length > 0 ? (
+                    <ul className="list-disc pl-4 text-primary space-y-0.5">
+                      {doc.linked_task_ids.map((t) => <li key={t}>{t}</li>)}
+                    </ul>
+                  ) : (
+                    <p className="text-muted">None yet — links form when task titles match this content.</p>
+                  )}
+                </div>
+                <p className="text-muted">
+                  {doc.chunk_count} chunk{doc.chunk_count !== 1 ? "s" : ""} in the knowledge base
+                  &middot; source {doc.source_id.slice(0, 8)}
+                  &middot; the original file isn&apos;t stored — only its extracted knowledge (privacy by design).
+                </p>
+              </div>
+            )}
             </Card>
           ))}
         </div>

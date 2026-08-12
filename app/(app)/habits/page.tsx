@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getDueHabits, completeHabit, getBehavioralConstraints, type BehavioralConstraint } from "@/lib/api";
+import { getDueHabits, completeHabit, getBehavioralConstraints, deleteBehavioralConstraint, type BehavioralConstraint } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/app/EmptyState";
@@ -209,12 +209,24 @@ export default function HabitsPage() {
           </p>
           <ul className="mt-2 space-y-1.5">
             {constraints.map((c) => (
-              <li key={c.id} className="flex items-baseline gap-2 text-sm text-primary">
+              <li key={c.id} className="group flex items-center gap-2 text-sm text-primary">
                 <span className="text-sage text-xs">&#x25CF;</span>
                 <span>{c.raw_text}</span>
                 <span className="ml-auto text-[10px] uppercase tracking-wide text-muted">
                   {c.constraint_type}
                 </span>
+                <button
+                  type="button"
+                  title="Remove constraint"
+                  onClick={async () => {
+                    await deleteBehavioralConstraint(c.id);
+                    setConstraints((prev) => prev.filter((x) => x.id !== c.id));
+                  }}
+                  className="rounded-button p-1 text-muted opacity-0 transition-all
+                    group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-500"
+                >
+                  &#x2715;
+                </button>
               </li>
             ))}
           </ul>
