@@ -34,6 +34,9 @@
   --text-primary: #FAF8F4;
   --text-secondary: #9C9488;
   --text-muted: #6B6560;
+
+  /* ink is near-black; unreadable on dark cards (media-type badges) */
+  --color-ink: #D8D2C8;
 }
 
 @layer base {
