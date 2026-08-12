@@ -12,7 +12,7 @@ const colorClasses: Record<BadgeColor, string> = {
   sage: "bg-sage/15 text-sage",
   dusk: "bg-dusk/15 text-dusk",
   gold: "bg-gold/15 text-gold",
-  ink: "bg-ink/15 text-ink",
+  ink: "bg-surface-muted text-secondary",
 };
 
 export function Badge({ color = "terra", children }: BadgeProps) {
