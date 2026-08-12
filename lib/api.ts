@@ -633,6 +633,14 @@ export interface BehavioralConstraint {
   created_at: string;
 }
 
+export async function deleteBehavioralConstraint(id: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/habits/constraints/${encodeURIComponent(id)}?user_id=${encodeURIComponent(USER_ID)}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) throw new Error(`Failed to delete constraint: ${res.status}`);
+}
+
 export async function getBehavioralConstraints(): Promise<BehavioralConstraint[]> {
   if (IS_DEMO_MODE) return [];
   const res = await fetch(
