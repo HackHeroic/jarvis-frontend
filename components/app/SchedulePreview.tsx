@@ -56,7 +56,7 @@ function TimelineBlock({ entry }: { entry: TimelineEntry }) {
   return (
     <div className="flex gap-3 items-stretch">
       {/* Time column */}
-      <div className="w-[72px] shrink-0 text-right pt-2">
+      <div className="w-[58px] shrink-0 pt-2 text-right sm:w-[72px]">
         <span className="text-[11px] font-mono text-muted">
           {formatTime12h(entry.startTime)}
         </span>
@@ -148,7 +148,7 @@ function BreakGap({ minutes }: { minutes: number }) {
 
   return (
     <div className="flex gap-3 items-stretch">
-      <div className="w-[72px]" />
+      <div className="w-[58px] sm:w-[72px]" />
       <div className="flex flex-col items-center w-3">
         <div className="flex-1 w-px border-l border-dashed border-border" />
       </div>
@@ -238,7 +238,7 @@ export function SchedulePreview({
         {/* End time marker */}
         {entries.length > 0 && (
           <div className="flex gap-3 items-center">
-            <div className="w-[72px] text-right">
+            <div className="w-[58px] text-right sm:w-[72px]">
               <span className="text-[11px] font-mono text-muted">
                 {formatTime12h(entries[entries.length - 1].endTime)}
               </span>
@@ -253,7 +253,7 @@ export function SchedulePreview({
 
       {/* Applied constraints */}
       {schedule.applied_constraints && schedule.applied_constraints.length > 0 && (
-        <div className="px-4 py-2 rounded-lg bg-sage-50 dark:bg-sage-900/20 text-xs text-sage-700 dark:text-sage-300 mt-2">
+        <div className="mt-2 rounded-lg bg-sage/10 px-4 py-2 text-xs text-sage">
           <span className="font-medium">Schedule shaped by your preferences:</span>
           <ul className="mt-1 space-y-0.5 list-disc list-inside">
             {schedule.applied_constraints.map((c, i) => (

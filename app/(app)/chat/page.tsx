@@ -229,7 +229,7 @@ function ChatPage() {
   const isEmpty = messages.length === 0;
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-w-0">
       <ChatSessionPanel
         currentSessionId={conversationId}
         onSelectSession={(id) => loadConversation(id)}
@@ -251,17 +251,17 @@ function ChatPage() {
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0 h-full">
         {/* Top bar */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-2 shrink-0">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border py-2 pl-[62px] pr-3 sm:pr-6 lg:pl-6">
           <span className="text-sm font-medium text-primary">Chat</span>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
             <button
               type="button"
               onClick={handleNewChat}
               disabled={isStreaming || messages.length === 0}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-secondary transition-colors hover:bg-surface-muted hover:text-primary disabled:opacity-40 disabled:pointer-events-none"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-secondary transition-colors hover:bg-surface-muted hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:px-2.5"
             >
               <SquarePen size={14} />
-              <span>New Chat</span>
+              <span className="hidden sm:inline">New Chat</span>
             </button>
             <ModelModeSelector
               value={modelMode}
@@ -294,7 +294,7 @@ function ChatPage() {
         {/* Messages area */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-4 min-h-0"
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6"
         >
           {isEmpty ? (
             <div className="flex flex-col items-center justify-center h-full">
@@ -312,13 +312,13 @@ function ChatPage() {
                   return (
                     <div key={msg.id} className="flex justify-end">
                       <div
-                        className="bg-terra text-white px-4 py-2.5 text-sm max-w-[80%]"
+                        className="max-w-[88%] break-words bg-terra px-4 py-2.5 text-sm text-white sm:max-w-[80%]"
                         style={{ borderRadius: "14px 14px 4px 14px" }}
                       >
                         {msg.fileName && (
                           <div className="flex items-center gap-1.5 mb-1.5 text-white/80 text-xs">
                             <FileText size={12} />
-                            <span className="truncate max-w-[160px]">
+                            <span className="max-w-[160px] truncate">
                               {msg.fileName}
                             </span>
                           </div>
@@ -333,7 +333,7 @@ function ChatPage() {
                 return (
                   <div key={msg.id} className="flex justify-start">
                     <div
-                      className="text-primary px-1 py-1 text-sm max-w-[85%]"
+                      className="min-w-0 max-w-full px-1 py-1 text-sm text-primary sm:max-w-[85%]"
                     >
                       <JarvisResponse
                         message={msg}
@@ -360,14 +360,14 @@ function ChatPage() {
         </div>
 
         {/* Input area */}
-        <div className="border-t border-border px-6 py-3 shrink-0">
+        <div className="shrink-0 border-t border-border px-3 py-3 sm:px-6">
           <div className="max-w-2xl mx-auto">
             {/* Attachment badge */}
             {attachment && (
               <div className="flex items-center gap-2 mb-2 px-1">
                 <div className="flex items-center gap-1.5 bg-terra/10 border border-terra/20 rounded-lg px-3 py-1.5 text-xs text-terra">
                   <FileText size={12} />
-                  <span className="truncate max-w-[200px]">
+                  <span className="max-w-[140px] truncate sm:max-w-[200px]">
                     {attachment.fileName}
                   </span>
                   <button
@@ -410,7 +410,7 @@ function ChatPage() {
                 onKeyDown={handleKeyDown}
                 rows={1}
                 placeholder="Tell Jarvis what's on your mind..."
-                className="flex-1 resize-none bg-surface-muted border border-border rounded-xl px-4 py-2.5 text-sm text-primary placeholder:text-muted focus:outline-none focus:border-terra/50 transition-colors"
+                className="min-w-0 flex-1 resize-none rounded-xl border border-border bg-surface-muted px-3.5 py-2.5 text-sm text-primary transition-colors placeholder:text-muted focus:border-terra/50 focus:outline-none sm:px-4"
                 style={{ maxHeight: "120px" }}
               />
 

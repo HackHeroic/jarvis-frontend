@@ -17,6 +17,7 @@ import {
   MessageSquareOff,
   Search,
   Plus,
+  X,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { archiveAllSessions } from "@/lib/api";
@@ -55,6 +56,11 @@ export default function NavRail() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [menuOpen]);
+
+  // Close the account sheet whenever the route changes
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   const handleToggleTheme = () => {
     toggleTheme();
@@ -130,129 +136,235 @@ export default function NavRail() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [cmdOpen, closeCmd]);
 
-  return (
-    <nav
-      aria-label="Main navigation"
-      className="flex w-14 flex-col items-center bg-ink py-4"
-    >
-      {/* Logo */}
-      <Link
-        href="/"
-        className="mb-6 flex h-9 w-9 items-center justify-center rounded-[10px] bg-terra text-sm font-extrabold text-ink"
-      >
-        J
-      </Link>
+  const isActiveHref = (href: string) =>
+    pathname === href || pathname.startsWith(href + "/");
 
-      {/* Nav items */}
-      <div className="flex flex-1 flex-col items-center gap-1.5">
+  const accountMenuItems = (
+    <>
+      <button
+        onClick={handleToggleTheme}
+        className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 text-sm text-secondary transition-colors hover:bg-surface-muted hover:text-primary md:py-1.5 md:text-xs"
+      >
+        {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+        <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+      </button>
+      <button
+        onClick={deleteAllChats}
+        className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 text-sm text-secondary transition-colors hover:bg-surface-muted hover:text-primary md:py-1.5 md:text-xs"
+      >
+        <MessageSquareOff size={15} />
+        <span>Delete all chats</span>
+      </button>
+      <button
+        onClick={clearAllData}
+        className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 text-sm text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10 md:py-1.5 md:text-xs"
+      >
+        <Trash2 size={15} />
+        <span>Clear all data</span>
+      </button>
+    </>
+  );
+
+  return (
+    <>
+      {/* ------------------------------------------------------------------ */}
+      {/* Desktop / tablet: vertical rail                                     */}
+      {/* ------------------------------------------------------------------ */}
+      <nav
+        aria-label="Main navigation"
+        className="hidden w-14 shrink-0 flex-col items-center bg-ink py-4 md:flex"
+      >
+        {/* Logo */}
+        <Link
+          href="/"
+          className="mb-6 flex h-9 w-9 items-center justify-center rounded-[10px] bg-terra text-sm font-extrabold text-ink"
+        >
+          J
+        </Link>
+
+        {/* Nav items */}
+        <div className="flex flex-1 flex-col items-center gap-1.5">
+          {NAV_ITEMS.map((item) => {
+            const Icon = iconMap[item.icon];
+            const isActive = isActiveHref(item.href);
+
+            return (
+              <Tooltip key={item.id} content={item.label} side="right">
+                <Link
+                  href={item.href}
+                  aria-label={item.label}
+                  aria-current={isActive ? "page" : undefined}
+                  className={clsx(
+                    "flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-150",
+                    isActive
+                      ? "bg-white/[0.12] text-white"
+                      : "text-white opacity-50 hover:opacity-80 hover:bg-white/[0.08]"
+                  )}
+                >
+                  {Icon && <Icon size={18} />}
+                </Link>
+              </Tooltip>
+            );
+          })}
+        </div>
+
+        {/* Bottom section */}
+        <div className="relative flex flex-col items-center gap-3" ref={menuRef}>
+          <Tooltip content="Command Palette (⌘K)" side="right">
+            <button
+              onClick={openCmd}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/30 transition-colors hover:text-white/50 hover:border-white/20"
+              aria-label="Command palette"
+            >
+              <Command size={16} />
+            </button>
+          </Tooltip>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-terra text-[11px] font-bold text-ink transition-transform hover:scale-110"
+            aria-label="User menu"
+            aria-expanded={menuOpen}
+          >
+            MM
+          </button>
+
+          {/* Popover menu */}
+          {menuOpen && (
+            <div className="absolute bottom-full left-full z-50 mb-1 ml-1 w-44 rounded-lg border border-border bg-surface-card p-2 shadow-lg">
+              <p className="px-2 py-1.5 text-xs font-semibold text-primary">Madhav</p>
+              <div className="my-1 h-px bg-border" />
+              {accountMenuItems}
+            </div>
+          )}
+        </div>
+      </nav>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Mobile: bottom tab bar                                              */}
+      {/* ------------------------------------------------------------------ */}
+      <nav
+        aria-label="Main navigation"
+        className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-white/10 bg-ink pb-safe md:hidden"
+        style={{ height: "calc(var(--bottom-nav-h) + var(--safe-bottom))" }}
+      >
         {NAV_ITEMS.map((item) => {
           const Icon = iconMap[item.icon];
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          const isActive = isActiveHref(item.href);
 
           return (
-            <Tooltip key={item.id} content={item.label} side="right">
-              <Link
-                href={item.href}
-                aria-label={item.label}
-                className={clsx(
-                  "flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-150",
-                  isActive
-                    ? "bg-white/[0.12] text-white"
-                    : "text-white opacity-50 hover:opacity-80 hover:bg-white/[0.08]"
-                )}
-              >
-                {Icon && <Icon size={18} />}
-              </Link>
-            </Tooltip>
+            <Link
+              key={item.id}
+              href={item.href}
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
+              className={clsx(
+                "flex min-w-0 flex-1 flex-col items-center justify-center gap-1 pt-1 transition-colors",
+                isActive ? "text-terra" : "text-white/45 active:text-white/80"
+              )}
+            >
+              {Icon && <Icon size={20} strokeWidth={isActive ? 2.4 : 2} />}
+              <span className="max-w-full truncate px-0.5 text-[10px] font-medium leading-none">
+                {item.shortLabel ?? item.label}
+              </span>
+            </Link>
           );
         })}
-      </div>
 
-      {/* Bottom section */}
-      <div className="relative flex flex-col items-center gap-3" ref={menuRef}>
-        <Tooltip content="Command Palette (⌘K)" side="right">
-          <button
-            onClick={openCmd}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/30 transition-colors hover:text-white/50 hover:border-white/20"
-            aria-label="Command palette"
-          >
-            <Command size={16} />
-          </button>
-        </Tooltip>
+        {/* Account / settings */}
         <button
-          onClick={() => setMenuOpen((v) => !v)}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-terra text-[11px] font-bold text-ink transition-transform hover:scale-110"
-          aria-label="User menu"
+          onClick={() => setMenuOpen(true)}
+          className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 pt-1 text-white/45 transition-colors active:text-white/80"
+          aria-label="Account and settings"
         >
-          MM
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-terra text-[9px] font-bold text-ink">
+            MM
+          </span>
+          <span className="text-[10px] font-medium leading-none">More</span>
         </button>
+      </nav>
 
-        {/* Popover menu */}
-        {menuOpen && (
-          <div className="absolute bottom-full left-full mb-1 ml-1 w-44 rounded-lg border border-border bg-surface-card p-2 shadow-lg z-50">
-            <p className="px-2 py-1.5 text-xs font-semibold text-primary">Madhav</p>
+      {/* Mobile account sheet */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-[60] md:hidden">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-border bg-surface-card p-3 pb-safe shadow-2xl">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
+            <div className="mb-1 flex items-center justify-between px-2">
+              <p className="text-sm font-semibold text-primary">Madhav</p>
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="tap-target -mr-2 flex items-center justify-center rounded-lg text-secondary transition-colors hover:text-primary"
+                aria-label="Close menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
             <div className="my-1 h-px bg-border" />
             <button
-              onClick={handleToggleTheme}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-secondary hover:bg-surface-muted hover:text-primary transition-colors"
+              onClick={() => {
+                setMenuOpen(false);
+                openCmd();
+              }}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 text-sm text-secondary transition-colors hover:bg-surface-muted hover:text-primary"
             >
-              {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-              <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+              <Command size={15} />
+              <span>Command palette</span>
             </button>
-            <button
-              onClick={deleteAllChats}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-secondary hover:bg-surface-muted hover:text-primary transition-colors"
-            >
-              <MessageSquareOff size={14} />
-              <span>Delete all chats</span>
-            </button>
-            <button
-              onClick={clearAllData}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-            >
-              <Trash2 size={14} />
-              <span>Clear all data</span>
-            </button>
+            {accountMenuItems}
+            <div className="h-2" />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Command Palette Modal */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Command palette (shared)                                            */}
+      {/* ------------------------------------------------------------------ */}
       {cmdOpen && (
         <>
           <div
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm"
             onClick={closeCmd}
             aria-hidden="true"
           />
-          <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] pointer-events-none">
+          <div className="pointer-events-none fixed inset-0 z-[70] flex items-start justify-center px-4 pt-[12vh] sm:pt-[20vh]">
             <div
-              className="pointer-events-auto w-full max-w-md rounded-xl border border-border bg-surface-card shadow-2xl overflow-hidden"
+              className="pointer-events-auto w-full max-w-md overflow-hidden rounded-xl border border-border bg-surface-card shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Search input */}
-              <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-                <Search size={16} className="text-muted shrink-0" />
+              <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+                <Search size={16} className="shrink-0 text-muted" />
                 <input
                   ref={cmdInputRef}
                   type="text"
                   value={cmdQuery}
                   onChange={(e) => setCmdQuery(e.target.value)}
                   placeholder="Type a command..."
-                  className="flex-1 bg-transparent text-sm text-primary placeholder:text-muted outline-none"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-primary outline-none placeholder:text-muted"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && filteredActions.length > 0) {
                       runAction(filteredActions[0].action);
                     }
                   }}
                 />
-                <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] text-muted font-mono">
+                <kbd className="hidden shrink-0 items-center gap-0.5 rounded border border-border bg-surface-muted px-1.5 py-0.5 font-mono text-[10px] text-muted sm:inline-flex">
                   ESC
                 </kbd>
+                <button
+                  onClick={closeCmd}
+                  className="shrink-0 rounded p-1 text-muted transition-colors hover:text-primary sm:hidden"
+                  aria-label="Close command palette"
+                >
+                  <X size={16} />
+                </button>
               </div>
 
               {/* Actions list */}
-              <div className="max-h-[300px] overflow-y-auto py-1">
+              <div className="max-h-[50vh] overflow-y-auto py-1 sm:max-h-[300px]">
                 {filteredActions.length === 0 && (
                   <div className="px-4 py-6 text-center text-xs text-muted">
                     No matching commands
@@ -264,10 +376,10 @@ export default function NavRail() {
                     <button
                       key={action.id}
                       onClick={() => runAction(action.action)}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-secondary hover:bg-surface-muted hover:text-primary transition-colors"
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-secondary transition-colors hover:bg-surface-muted hover:text-primary sm:py-2.5"
                     >
                       {Icon && <Icon size={16} className="shrink-0 text-muted" />}
-                      <span>{action.label}</span>
+                      <span className="truncate">{action.label}</span>
                     </button>
                   );
                 })}
@@ -276,6 +388,6 @@ export default function NavRail() {
           </div>
         </>
       )}
-    </nav>
+    </>
   );
 }

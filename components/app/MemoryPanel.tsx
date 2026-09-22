@@ -114,18 +114,18 @@ export default function MemoryPanel({
       {/* Panel */}
       <div
         className={clsx(
-          "fixed right-0 top-0 z-50 flex h-full w-[320px] flex-col bg-surface-card border-l border-border shadow-xl transition-transform duration-250 ease-out",
+          "fixed right-0 top-0 z-50 flex h-full w-[min(88vw,320px)] flex-col border-l border-border bg-surface-card shadow-xl transition-transform duration-250 ease-out",
           isOpen ? "translate-x-0" : "translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="sheet-pt flex shrink-0 items-center justify-between border-b border-border px-4 pb-3">
           <h2 className="text-sm font-semibold text-primary">
             Jarvis&apos;s Memory
           </h2>
           <button
             onClick={onClose}
-            className="flex h-6 w-6 items-center justify-center rounded text-secondary hover:text-primary transition-colors"
+            className="tap-target flex items-center justify-center rounded text-secondary transition-colors hover:text-primary lg:h-6 lg:w-6"
             aria-label="Close memory panel"
           >
             <X size={16} />

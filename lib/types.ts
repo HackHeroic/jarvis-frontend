@@ -486,6 +486,8 @@ export interface PatternDetectedEvent {
 export interface NavItem {
   id: string;
   label: string;
+  /** Shorter form for the mobile tab bar, where a full label would truncate. */
+  shortLabel?: string;
   icon: string;
   href: string;
 }

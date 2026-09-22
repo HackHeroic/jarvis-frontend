@@ -256,7 +256,7 @@ export default function WorkspacePage() {
   // ---- Loading state ----
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-8">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="flex items-center gap-3 mb-6">
           <div className="h-8 w-8 rounded-lg bg-surface-muted animate-pulse" />
           <div className="h-6 w-48 rounded-lg bg-surface-muted animate-pulse" />
@@ -273,7 +273,7 @@ export default function WorkspacePage() {
   // ---- Error state ----
   if (error && !workspace) {
     return (
-      <div className="mx-auto max-w-3xl px-6 py-8">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
         <Card className="flex flex-col items-center gap-4 px-6 py-12 text-center">
           <AlertTriangle size={40} className="text-gold" />
           <h2 className="text-lg font-semibold text-primary">Could not load workspace</h2>
@@ -288,7 +288,7 @@ export default function WorkspacePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8 space-y-5">
+    <div className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:space-y-5 sm:px-6 sm:py-8">
       {/* Header */}
       <div>
         <button

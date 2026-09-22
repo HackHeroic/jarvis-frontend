@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { useRouter } from "next/navigation";
 import { DEMO_USER } from "@/lib/constants";
 
 
@@ -25,37 +26,48 @@ interface DailyGreetingProps {
   focusMinutes?: number;
 }
 
+const VIEW_HREFS: Record<string, string> = {
+  Today: "/schedule",
+  Week: "/schedule?view=week",
+  Month: "/schedule?view=month",
+};
+
 export default function DailyGreeting({ taskCount, estimatedMinutes }: DailyGreetingProps) {
+  const router = useRouter();
   const today = new Date();
 
   return (
-    <div className="flex items-start justify-between">
-      <div>
-        <h1 className="text-[22px] font-bold text-primary">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <div className="min-w-0">
+        <h1 className="text-xl font-bold leading-tight text-primary sm:text-[22px]">
           {getGreeting()}, {DEMO_USER.name}
         </h1>
-        <p className="mt-1 text-sm text-secondary">
-          {formatDate(today)} &middot; {taskCount} tasks &middot;{" "}
-          ~{estimatedMinutes} min estimated
+        {/* The three facts wrap as whole phrases instead of breaking mid-clause */}
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-secondary sm:text-sm">
+          <span className="whitespace-nowrap">{formatDate(today)}</span>
+          <span aria-hidden="true" className="text-muted">
+            &middot;
+          </span>
+          <span className="whitespace-nowrap">{taskCount} tasks</span>
+          <span aria-hidden="true" className="text-muted">
+            &middot;
+          </span>
+          <span className="whitespace-nowrap">~{estimatedMinutes} min estimated</span>
         </p>
       </div>
 
-      <div className="flex gap-1 rounded-button bg-surface-muted p-0.5">
+      <div className="flex shrink-0 gap-1 self-start rounded-button bg-surface-muted p-0.5">
         {(["Today", "Week", "Month"] as const).map((label) => {
           const isActive = label === "Today";
-          const viewMap: Record<string, string> = {
-            Today: "/schedule",
-            Week: "/schedule?view=week",
-            Month: "/schedule?view=month",
-          };
 
           return (
             <button
               key={label}
               onClick={() => {
                 if (label === "Today") return;
-                window.location.href = viewMap[label];
+                router.push(VIEW_HREFS[label]);
               }}
+              aria-current={isActive ? "page" : undefined}
               className={clsx(
                 "rounded-button px-3 py-1.5 text-xs font-medium transition-colors",
                 isActive

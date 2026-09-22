@@ -199,7 +199,7 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8 space-y-5">
+    <div className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:space-y-5 sm:px-6 sm:py-8">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-primary">Documents</h1>

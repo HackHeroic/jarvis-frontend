@@ -36,6 +36,9 @@ const GRID_END_MINUTES = GRID_END_HOUR * 60;
 /** Total grid height */
 const GRID_HEIGHT = (GRID_END_MINUTES - GRID_START_MINUTES) * PX_PER_MINUTE;
 
+/** Width of the hour-label gutter. Fits "12 AM" at the smallest label size. */
+const HOUR_GUTTER = 52;
+
 /** Hours array for labels */
 const HOURS = Array.from(
   { length: GRID_END_HOUR - GRID_START_HOUR },
@@ -214,20 +217,20 @@ function SchedulePageInner() {
   // ===========================================================================
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8 space-y-5">
+    <div className="mx-auto max-w-5xl space-y-4 px-4 py-6 sm:space-y-5 sm:px-6 sm:py-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Calendar size={20} className="text-terra" />
-          <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <Calendar size={20} className="shrink-0 text-terra" />
+          <div className="min-w-0">
             <h1 className="text-xl font-bold text-primary">Schedule</h1>
-            <p className="text-sm text-secondary">{headerLabel}</p>
+            <p className="truncate text-sm text-secondary">{headerLabel}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 sm:justify-end">
           {/* View toggle */}
-          <div className="flex rounded-lg border border-border overflow-hidden">
+          <div className="flex shrink-0 overflow-hidden rounded-lg border border-border">
             {(["day", "week", "month"] as const).map((mode) => (
               <button
                 key={mode}
@@ -247,7 +250,8 @@ function SchedulePageInner() {
           {/* Nav arrows */}
           <button
             onClick={navigatePrev}
-            className="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-secondary"
+            aria-label="Previous"
+            className="tap-target flex items-center justify-center rounded-lg p-1.5 text-secondary transition-colors hover:bg-surface-muted"
           >
             <ChevronLeft size={18} />
           </button>
@@ -259,7 +263,8 @@ function SchedulePageInner() {
           </button>
           <button
             onClick={navigateNext}
-            className="p-1.5 rounded-lg hover:bg-surface-muted transition-colors text-secondary"
+            aria-label="Next"
+            className="tap-target flex items-center justify-center rounded-lg p-1.5 text-secondary transition-colors hover:bg-surface-muted"
           >
             <ChevronRight size={18} />
           </button>
@@ -405,15 +410,25 @@ function DayGrid({
   const router = useRouter();
   return (
     <div className="relative flex rounded-xl border border-border bg-surface-card overflow-hidden">
-      {/* Hour labels */}
-      <div className="w-16 shrink-0 border-r border-border">
+      {/* Hour labels — width is driven by HOUR_GUTTER so the absolutely
+          positioned labels always line up with the gutter they sit in */}
+      <div
+        className="shrink-0 border-r border-border"
+        style={{ width: HOUR_GUTTER }}
+      >
         {HOURS.map((hour) => {
           const top = (hour * 60 - GRID_START_MINUTES) * PX_PER_MINUTE;
           return (
             <div
               key={hour}
-              className="absolute text-[11px] font-medium text-muted tabular-nums"
-              style={{ top, left: 0, width: 64, textAlign: "right", paddingRight: 12 }}
+              className="absolute text-[10px] font-medium text-muted tabular-nums sm:text-[11px]"
+              style={{
+                top,
+                left: 0,
+                width: HOUR_GUTTER,
+                textAlign: "right",
+                paddingRight: 8,
+              }}
             >
               {formatHourLabel(hour)}
             </div>
@@ -510,7 +525,7 @@ function DayGrid({
                         e.stopPropagation();
                         router.push(`/workspace/${task.task_id}`);
                       }}
-                      className="text-[10px] text-terra-600 hover:text-terra-700 dark:text-terra-400 dark:hover:text-terra-300 underline"
+                      className="text-[10px] text-terra underline transition-opacity hover:opacity-70"
                     >
                       Workspace
                     </button>
@@ -581,7 +596,8 @@ function WeekGrid({ allTasks, selectedDate, now, onSelectDay }: WeekGridProps) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   return (
-    <div className="grid grid-cols-7 gap-1 rounded-xl border border-border bg-surface-card p-2">
+    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+      <div className="grid min-w-[640px] grid-cols-7 gap-1 rounded-xl border border-border bg-surface-card p-2">
       {days.map((day) => {
         const isToday = isSameDay(day, now);
         const tasksForDay = allTasks.filter((t) => isSameDay(t.start_time, day));
@@ -641,6 +657,7 @@ function WeekGrid({ allTasks, selectedDate, now, onSelectDay }: WeekGridProps) {
           </button>
         );
       })}
+      </div>
     </div>
   );
 }
