@@ -46,12 +46,12 @@ export function SM2QualityRating({ onRate, taskTitle }: SM2QualityRatingProps) {
             onClick={() => onRate(index)}
             title={label}
             className={clsx(
-              'flex-1 py-2 rounded-lg text-[11px] font-medium text-white transition-all active:scale-95',
+              'min-w-0 flex-1 rounded-lg px-0.5 py-2 text-[11px] font-medium text-white transition-all active:scale-95',
               QUALITY_COLORS[index],
             )}
           >
             <span className="block text-sm font-bold leading-none mb-0.5">{index}</span>
-            <span className="block text-[9px] opacity-80 leading-none">{label}</span>
+            <span className="block truncate text-[9px] leading-none opacity-80">{label}</span>
           </button>
         ))}
       </div>

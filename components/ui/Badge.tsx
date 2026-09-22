@@ -19,7 +19,7 @@ export function Badge({ color = "terra", children }: BadgeProps) {
   return (
     <span
       className={clsx(
-        "inline-block rounded-pill px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        "inline-block whitespace-nowrap rounded-pill px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
         colorClasses[color],
       )}
     >

@@ -88,16 +88,16 @@ function HabitCard({
 
   if (done) {
     return (
-      <Card className="flex items-center gap-3 px-5 py-4 opacity-60">
+      <Card className="flex items-center gap-3 px-4 py-4 opacity-60 sm:px-5">
         <CheckCircle2 size={20} className="text-sage" />
-        <span className="text-sm font-medium text-primary line-through">{habit.name}</span>
-        <span className="ml-auto text-xs text-sage font-medium">Completed</span>
+        <span className="min-w-0 flex-1 break-words text-sm font-medium text-primary line-through">{habit.name}</span>
+        <span className="ml-auto shrink-0 text-xs font-medium text-sage">Completed</span>
       </Card>
     );
   }
 
   return (
-    <Card className="px-5 py-4">
+    <Card className="px-4 py-4 sm:px-5">
       <div className="flex items-start gap-3">
         {/* Icon */}
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-terra/10">
@@ -129,6 +129,7 @@ function HabitCard({
           <Button
             variant="outline"
             size="sm"
+            className="shrink-0"
             onClick={() => setShowRating(true)}
             disabled={completing}
           >
@@ -191,7 +192,7 @@ export default function HabitsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8 space-y-5">
+    <div className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:space-y-5 sm:px-6 sm:py-8">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-primary">Habits</h1>

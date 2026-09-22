@@ -4,11 +4,11 @@ import { API_BASE, IS_DEMO_MODE, USER_ID } from "./types";
 export { API_BASE, IS_DEMO_MODE, USER_ID };
 
 export const NAV_ITEMS: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", icon: "House", href: "/dashboard" },
+  { id: "dashboard", label: "Dashboard", shortLabel: "Home", icon: "House", href: "/dashboard" },
   { id: "chat", label: "Chat", icon: "MessageSquare", href: "/chat" },
   { id: "schedule", label: "Schedule", icon: "Calendar", href: "/schedule" },
   // Workspace is accessed per-task via /workspace/[taskId], not directly navigable
-  { id: "documents", label: "Documents", icon: "FileText", href: "/documents" },
+  { id: "documents", label: "Documents", shortLabel: "Docs", icon: "FileText", href: "/documents" },
   { id: "habits", label: "Habits", icon: "Target", href: "/habits" },
 ];
 

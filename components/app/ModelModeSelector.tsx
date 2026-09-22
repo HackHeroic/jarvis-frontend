@@ -91,8 +91,8 @@ export function ModelModeSelector({
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="flex items-center bg-surface-muted rounded-lg p-0.5">
+    <div className="flex min-w-0 items-center gap-1.5">
+      <div className="flex min-w-0 items-center rounded-lg bg-surface-muted p-0.5">
         {modes.map((mode) => (
           <button
             key={mode.value}
@@ -101,7 +101,7 @@ export function ModelModeSelector({
             disabled={disabled}
             onClick={() => onChange(mode.value)}
             className={clsx(
-              "px-3 py-1 text-xs font-medium rounded-md transition-all",
+              "min-w-0 truncate rounded-md px-2 py-1 text-xs font-medium transition-all sm:px-3",
               value === mode.value
                 ? "bg-surface-card text-primary shadow-sm"
                 : "text-muted hover:text-secondary",
@@ -118,7 +118,7 @@ export function ModelModeSelector({
           title={devMode ? "Developer mode ON" : "Developer mode OFF"}
           onClick={onToggleDevMode}
           className={clsx(
-            "p-1.5 rounded-md transition-all",
+            "shrink-0 rounded-md p-1.5 transition-all",
             devMode
               ? "text-gold bg-gold/10"
               : "text-muted/40 hover:text-muted"

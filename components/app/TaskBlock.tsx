@@ -29,16 +29,16 @@ export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlock
     : 0;
 
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-2 sm:gap-3">
       {/* Time label */}
-      <div className="w-[52px] shrink-0 pt-2.5 text-right text-xs text-muted">
+      <div className="w-[56px] shrink-0 whitespace-nowrap pt-2.5 text-right text-[11px] tabular-nums text-muted sm:text-xs">
         {formatTime(task.start_time)}
       </div>
 
       {/* Task card */}
       <div
         className={clsx(
-          "flex-1 rounded-[10px] border-l-[3px] px-3.5 py-2.5 transition-all",
+          "min-w-0 flex-1 rounded-[10px] border-l-[3px] px-3 py-2.5 transition-all sm:px-3.5",
           isCompleted && "border-sage bg-sage/[0.08] opacity-60",
           isSkipped && "border-muted bg-surface-muted opacity-40",
           isActive && "border-terra bg-terra/[0.06] shadow-md",
@@ -51,16 +51,16 @@ export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlock
         }
       >
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-2">
               {isCompleted && (
-                <div className="flex h-4 w-4 items-center justify-center rounded-full bg-sage text-white">
+                <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-sage text-white">
                   <Check size={10} strokeWidth={3} />
                 </div>
               )}
               <span
                 className={clsx(
-                  "text-sm font-medium text-primary",
+                  "min-w-0 break-words text-sm font-medium text-primary",
                   isCompleted && "line-through opacity-70",
                   isSkipped && "line-through opacity-50"
                 )}
@@ -87,18 +87,24 @@ export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlock
 
           {/* Right side badge/button */}
           {isActive && (
-            <div className="flex flex-col items-end gap-1.5">
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
               <Badge color="terra">IN PROGRESS</Badge>
-              <Button size="sm" variant="primary">
+              {/* The whole row already opens the workspace — the button is
+                  redundant on a phone and only forces the card wider */}
+              <Button size="sm" variant="primary" className="hidden sm:inline-flex">
                 Open Workspace
               </Button>
             </div>
           )}
           {!isActive && !isCompleted && !isSkipped && (
-            <Badge color="ink">PENDING</Badge>
+            <div className="shrink-0">
+              <Badge color="ink">PENDING</Badge>
+            </div>
           )}
           {isCompleted && (
-            <Badge color="sage">DONE</Badge>
+            <div className="shrink-0">
+              <Badge color="sage">DONE</Badge>
+            </div>
           )}
         </div>
 

@@ -21,6 +21,11 @@
   --text-primary: #2C2924;
   --text-secondary: #6B6560;
   --text-muted: #9C9488;
+
+  /* App shell metrics — the mobile tab bar reserves space for page content */
+  --bottom-nav-h: 60px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 
 [data-theme="dark"] {
@@ -38,12 +43,41 @@
 }
 
 @layer base {
+  html {
+    /* Stop iOS inflating text when the phone is rotated to landscape */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-surface-canvas font-sans;
     color: var(--text-primary);
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Nothing should be able to push the page sideways on a phone */
+  html,
+  body {
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+  }
+
+  /* Kill the 300ms tap delay and the grey flash on tap */
+  button,
+  a,
+  [role="button"],
+  summary {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   :focus-visible {
@@ -58,5 +92,146 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+@layer utilities {
+  /* 100dvh with a 100vh fallback — keeps the app shell clear of the mobile
+     browser's collapsing URL bar instead of hiding content behind it */
+  .h-app {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .min-h-app {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   App shell classes.
+   Written as plain CSS after the Tailwind directives, and carrying their own
+   breakpoints, so they never depend on utility-layer ordering to win.
+   --------------------------------------------------------------------------- */
+
+/* Landscape notches cut into the left and right edges */
+.px-safe-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Clears the mobile tab bar so the last card is never trapped under it */
+.pb-nav {
+  padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom));
+}
+
+@media (min-width: 768px) {
+  .pb-nav {
+    padding-bottom: 0;
+  }
+}
+
+/* Minimum comfortable touch target on touch-first viewports
+   (Apple HIG / WCAG 2.5.5 Target Size) */
+@media (max-width: 1023px) {
+  .tap-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Home-indicator clearance for anything pinned to the bottom edge */
+.pb-safe {
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Sheet chrome: 12px of padding plus whatever the notch/home bar needs */
+.sheet-pt {
+  padding-top: calc(0.75rem + var(--safe-top));
+}
+
+.sheet-pb {
+  padding-bottom: calc(0.75rem + var(--safe-bottom));
+}
+
+@media (min-width: 1024px) {
+  .sheet-pt {
+    padding-top: 0.75rem;
+  }
+
+  .sheet-pb {
+    padding-bottom: 0.75rem;
+  }
+}
+
+/* Toasts stack above the mobile tab bar, and in the corner on desktop */
+.toast-position {
+  position: fixed;
+  left: 1rem;
+  right: 1rem;
+  bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 0.75rem);
+}
+
+@media (min-width: 768px) {
+  .toast-position {
+    left: auto;
+    right: 1rem;
+    bottom: 1rem;
+    max-width: 24rem;
+  }
+}
+
+/* Floating "open Jarvis" button: sits above the mobile tab bar.
+   Deliberately sets no `transform` — the desktop centring is done with
+   Tailwind's `lg:-translate-y-1/2` so it composes with `hover:scale-110`
+   instead of being overwritten by it. */
+.fab-position {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 1rem);
+}
+
+@media (min-width: 768px) {
+  /* No tab bar at this width, so sit near the bottom edge instead */
+  .fab-position {
+    bottom: 1.5rem;
+  }
+}
+
+/* Extra clearance so the page never comes to rest with a control underneath
+   the floating button. Declared after .pb-nav so it wins when both apply. */
+.pb-fab {
+  padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 4.5rem);
+}
+
+@media (min-width: 768px) {
+  .pb-fab {
+    padding-bottom: 4.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .pb-fab {
+    padding-bottom: 0;
+  }
+}
+
+/* iOS Safari zooms the whole page when a control with font-size < 16px gains
+   focus. Written outside @layer so it beats Tailwind's text-* utilities. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
   }
 }

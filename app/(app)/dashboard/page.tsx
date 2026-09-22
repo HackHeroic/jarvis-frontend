@@ -173,7 +173,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 px-6 py-8">
+    <div className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:space-y-5 sm:px-6 sm:py-8">
       {/* Greeting */}
       <DailyGreeting
         taskCount={stats.tasksTotal}
@@ -192,8 +192,8 @@ export default function DashboardPage() {
 
       {/* Active Draft Banner */}
       {activeDraftId && (
-        <Card className="flex items-center justify-between border-l-[3px] border-terra px-5 py-4">
-          <div>
+        <Card className="flex items-center justify-between gap-3 border-l-[3px] border-terra px-4 py-4 sm:px-5">
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-primary">
               You have a pending schedule
             </p>
@@ -204,6 +204,7 @@ export default function DashboardPage() {
           <Button
             variant="primary"
             size="sm"
+            className="shrink-0"
             onClick={() => router.push("/chat")}
           >
             Review
@@ -214,7 +215,7 @@ export default function DashboardPage() {
 
       {/* PEARL Insights */}
       {pearlInsights.length > 0 && (
-        <Card className="border-l-[3px] border-sage px-5 py-4">
+        <Card className="border-l-[3px] border-sage px-4 py-4 sm:px-5">
           <div className="mb-2 flex items-center gap-2">
             <Sparkles size={14} className="text-sage" />
             <h3 className="text-xs font-semibold uppercase tracking-wider text-sage">
@@ -235,7 +236,7 @@ export default function DashboardPage() {
       <ScheduleTimeline tasks={tasks} />
 
       {/* Quick Brain Dump */}
-      <Card className="px-5 py-4">
+      <Card className="px-4 py-4 sm:px-5">
         <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-secondary">
           Quick brain dump
         </label>
@@ -246,13 +247,15 @@ export default function DashboardPage() {
             onChange={(e) => setBrainDump(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleBrainDump()}
             placeholder="What's on your plate?"
-            className="flex-1 rounded-button border border-border bg-transparent px-3 py-2 text-sm text-primary placeholder:text-muted outline-none transition-colors focus:border-terra"
+            className="min-w-0 flex-1 rounded-button border border-border bg-transparent px-3 py-2 text-sm text-primary outline-none transition-colors placeholder:text-muted focus:border-terra"
           />
           <Button
             variant="primary"
             size="sm"
+            className="shrink-0 px-4"
             onClick={handleBrainDump}
             disabled={!brainDump.trim()}
+            aria-label="Send brain dump"
           >
             <Send size={14} />
           </Button>

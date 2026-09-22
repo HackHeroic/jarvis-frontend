@@ -43,7 +43,7 @@ export function PromptSelector({ onSelect }: PromptSelectorProps) {
               setUsedIds((prev) => new Set(prev).add(prompt.id));
               onSelect(prompt.prompt);
             }}
-            className={`border rounded-xl px-4 py-3 max-w-[200px] text-left transition-colors bg-surface-card ${
+            className={`w-full rounded-xl border bg-surface-card px-4 py-3 text-left transition-colors sm:max-w-[200px] ${
               isBlocked
                 ? "opacity-50 cursor-not-allowed border-border"
                 : `hover:bg-surface-subtle ${colorClass}`

@@ -233,9 +233,9 @@ export function ChatSessionPanel({
 
   // ---- Panel content (shared between desktop + mobile) ----
   const panelContent = (
-    <div className="flex flex-col h-full w-full bg-surface-muted/50 backdrop-blur-sm">
+    <div className="flex h-full w-full flex-col bg-surface-card shadow-2xl lg:bg-surface-muted/50 lg:shadow-none lg:backdrop-blur-sm">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+      <div className="sheet-pt flex shrink-0 items-center justify-between border-b border-border px-4 pb-3">
         <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">
           Conversations
         </span>
@@ -243,7 +243,7 @@ export function ChatSessionPanel({
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden p-1 rounded text-muted hover:text-primary transition-colors"
+            className="tap-target flex items-center justify-center rounded text-muted transition-colors hover:text-primary lg:hidden"
             aria-label="Close sidebar"
           >
             <X size={16} />
@@ -503,7 +503,7 @@ export function ChatSessionPanel({
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-16 z-40 p-2 rounded-lg bg-surface-card border border-border text-muted hover:text-primary shadow-sm transition-colors"
+        className="tap-target fixed left-3 top-3 z-40 flex items-center justify-center rounded-lg border border-border bg-surface-card text-muted shadow-sm transition-colors hover:text-primary lg:hidden"
         aria-label="Open sessions"
       >
         <Menu size={18} />
@@ -521,7 +521,7 @@ export function ChatSessionPanel({
       {/* Mobile drawer — z-50 so it covers the NavRail */}
       <div
         className={clsx(
-          "lg:hidden fixed inset-y-0 left-0 z-50 w-[260px] transition-transform duration-200",
+          "fixed inset-y-0 left-0 z-50 w-[min(80vw,280px)] transition-transform duration-200 lg:hidden",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -544,7 +544,7 @@ export function ChatSessionPanel({
         <button
           type="button"
           onClick={() => setCollapsed(false)}
-          className="hidden lg:flex fixed top-3 left-16 z-20 p-2 rounded-lg bg-surface-card border border-border text-muted hover:text-primary shadow-sm transition-colors"
+          className="fixed left-16 top-3 z-20 hidden rounded-lg border border-border bg-surface-card p-2 text-muted shadow-sm transition-colors hover:text-primary lg:flex"
           aria-label="Expand sessions panel"
         >
           <Menu size={16} />

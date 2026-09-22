@@ -1,6 +1,5 @@
 import { ClipboardList, Timer, Flame, Brain } from "lucide-react";
 import { Card } from "@/components/ui/Card";
-import { ProgressRing } from "@/components/ui/ProgressRing";
 import { Tooltip } from "@/components/ui/Tooltip";
 
 interface StatsStripProps {
@@ -10,6 +9,12 @@ interface StatsStripProps {
   streakDays: number;
   patternsLearned?: number;
 }
+
+const CARD = "flex w-full items-center gap-2.5 px-3 py-3 sm:gap-3 sm:px-4";
+const ICON =
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9";
+const VALUE = "truncate text-base font-semibold sm:text-lg";
+const LABEL = "text-[11px] leading-tight text-secondary sm:text-xs";
 
 export default function StatsStrip({
   tasksCompleted,
@@ -29,52 +34,72 @@ export default function StatsStrip({
   };
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {/* Tasks */}
-      <Card className="flex items-center gap-3 px-4 py-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-dusk/10 text-dusk">
-          <ClipboardList size={18} />
+    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+      {/* Tasks — progress reads as a bar under the row rather than a ring
+          beside it, which left no room for the label at four-up widths */}
+      <Card className="px-3 py-3 sm:px-4">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className={`${ICON} bg-dusk/10 text-dusk`}>
+            <ClipboardList size={18} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className={`${VALUE} text-dusk`}>
+              {tasksCompleted}/{tasksTotal}
+            </p>
+            <p className={LABEL}>Tasks done</p>
+          </div>
         </div>
-        <div className="flex-1">
-          <p className="text-lg font-semibold text-dusk">
-            {tasksCompleted}/{tasksTotal}
-          </p>
-          <p className="text-xs text-secondary">Tasks done</p>
+        <div
+          className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-dusk/15"
+          role="progressbar"
+          aria-valuenow={taskPercent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Tasks completed"
+        >
+          <div
+            className="h-full rounded-full bg-dusk transition-all duration-500"
+            style={{ width: `${taskPercent}%` }}
+          />
         </div>
-        <ProgressRing value={taskPercent} size={40} strokeWidth={3} color="var(--color-dusk)" />
       </Card>
 
       {/* Focus */}
-      <Card className="flex items-center gap-3 px-4 py-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sage/10 text-sage">
+      <Card className={CARD}>
+        <div className={`${ICON} bg-sage/10 text-sage`}>
           <Timer size={18} />
         </div>
-        <div>
-          <p className="text-lg font-semibold text-sage">{formatTime(focusMinutes)}</p>
-          <p className="text-xs text-secondary">Focus today</p>
+        <div className="min-w-0">
+          <p className={`${VALUE} text-sage`}>{formatTime(focusMinutes)}</p>
+          <p className={LABEL}>Focus today</p>
         </div>
       </Card>
 
       {/* Streak */}
-      <Card className="flex items-center gap-3 px-4 py-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gold/10 text-gold">
+      <Card className={CARD}>
+        <div className={`${ICON} bg-gold/10 text-gold`}>
           <Flame size={18} />
         </div>
-        <div>
-          <p className="text-lg font-semibold text-gold">{streakDays} days</p>
-          <p className="text-xs text-secondary">Streak</p>
+        <div className="min-w-0">
+          <p className={`${VALUE} text-gold`}>
+            {streakDays} {streakDays === 1 ? "day" : "days"}
+          </p>
+          <p className={LABEL}>Streak</p>
         </div>
       </Card>
 
       {/* Patterns Learned */}
-      <Tooltip content="Jarvis observes how you work and adapts your schedule.">
-        <Card className="flex w-full items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-terra/10 text-terra">
+      <Tooltip
+        content="Jarvis observes how you work and adapts your schedule."
+        className="w-full"
+      >
+        <Card className={CARD}>
+          <div className={`${ICON} bg-terra/10 text-terra`}>
             <Brain size={18} />
           </div>
-          <div>
-            <p className="text-lg font-semibold text-terra">{patternsLearned}</p>
-            <p className="text-xs text-secondary">Patterns</p>
+          <div className="min-w-0">
+            <p className={`${VALUE} text-terra`}>{patternsLearned}</p>
+            <p className={LABEL}>Patterns</p>
           </div>
         </Card>
       </Tooltip>

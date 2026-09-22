@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import TaskBlock from "@/components/app/TaskBlock";
@@ -35,7 +36,7 @@ export default function ScheduleTimeline({ tasks }: ScheduleTimelineProps) {
 
   if (tasks.length === 0) {
     return (
-      <Card className="px-5 py-8">
+      <Card className="px-4 py-8 sm:px-5">
         <EmptyState
           icon="📋"
           headline="No tasks scheduled"
@@ -57,18 +58,19 @@ export default function ScheduleTimeline({ tasks }: ScheduleTimelineProps) {
   }
 
   return (
-    <Card className="px-5 py-4">
+    <Card className="px-3.5 py-4 sm:px-5">
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-primary">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="min-w-0 text-base font-semibold text-primary">
           Today&apos;s Schedule
         </h2>
-        <a
+        <Link
           href="/schedule"
-          className="text-xs font-medium text-terra transition-colors hover:text-terra/80"
+          className="shrink-0 whitespace-nowrap text-xs font-medium text-terra transition-colors hover:text-terra/80"
         >
-          View full calendar &rarr;
-        </a>
+          <span className="sm:hidden">Calendar &rarr;</span>
+          <span className="hidden sm:inline">View full calendar &rarr;</span>
+        </Link>
       </div>
 
       {/* Tasks with NOW indicator */}
