@@ -22,11 +22,12 @@ import { ModelModeSelector } from "@/components/app/ModelModeSelector";
 import { LearningToast } from "@/components/app/LearningToast";
 import { ChatSessionPanel } from "@/components/app/ChatSessionPanel";
 import MemoryPanel from "@/components/app/MemoryPanel";
-import { toListState } from "@/lib/learning";
-import { toPanelMemory } from "@/lib/transforms";
-import { errorMessageOf } from "@/lib/you";
+import { isShapeError } from "@/lib/learning";
+import { toMemoryPanelState, toPanelMemory } from "@/lib/transforms";
+import { errorMessageOf, statusOf } from "@/lib/you";
 import { useJarvis } from "@/lib/context/JarvisContext";
-import type { MemoryRecord } from "@/lib/types";
+import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
+import type { MemoryOut, MemoryRecord } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Attachment type
@@ -107,12 +108,15 @@ function ChatPage() {
     return [];
   }, [messages]);
 
-  // Independently-fetched memories for the panel
-  const [panelMemories, setPanelMemories] = useState<MemoryRecord[]>([]);
+  // Independently-fetched memories for the panel: undefined until GET /memories/ answers.
+  const [panelMemories, setPanelMemories] = useState<MemoryOut[] | undefined>(undefined);
+  const [memoriesLoading, setMemoriesLoading] = useState(false);
   const [memoriesError, setMemoriesError] = useState<unknown>(null);
   const { showToast } = useJarvis();
+  const { run: runMemoryAction, isBusy: isMemoryBusy } = useSingleFlight();
 
   const refreshMemories = useCallback(async () => {
+    setMemoriesLoading(true);
     try {
       const fresh = await listMemories();
       setPanelMemories(fresh);
@@ -120,22 +124,38 @@ function ChatPage() {
     } catch (err) {
       // An outage (5xx) is never "no memories": the panel shows ErrorState with Retry.
       setMemoriesError(err);
+    } finally {
+      setMemoriesLoading(false);
     }
   }, []);
-  const memoryList = toListState({ items: panelMemories, error: memoriesError });
+  // Once the list has loaded it is the only source: the turn's memories never come back.
+  const memoryState = toMemoryPanelState({
+    loaded: panelMemories,
+    loading: memoriesLoading,
+    error: memoriesError,
+    frame: latestMemories,
+  });
 
-  /** Run one memory action, then re-read the panel. A failure says so (409: the backend's reason). */
+  /**
+   * Run one action on one memory (a second click while it runs does nothing),
+   * then re-read the panel. A 404 on forget means it is already gone: done.
+   * An answer in an unexpected shape still landed: the re-read shows it.
+   * Any other failure says so (409: the backend's reason).
+   */
   const memoryAction = useCallback(
-    async (action: () => Promise<unknown>) => {
+    async (id: string, action: () => Promise<unknown>, goneIsDone = false) => {
+      const pending = runMemoryAction(id, action);
+      if (!pending) return;
       try {
-        await action();
+        await pending;
       } catch (err) {
-        showToast(errorMessageOf(err, "That didn't go through. Try again."), "error");
+        const done = isShapeError(err) || (goneIsDone && statusOf(err) === 404);
+        if (!done) showToast(errorMessageOf(err, "That didn't go through. Try again."), "error");
       } finally {
         await refreshMemories();
       }
     },
-    [refreshMemories, showToast],
+    [runMemoryAction, refreshMemories, showToast],
   );
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -478,14 +498,14 @@ function ChatPage() {
 
       {/* Memory Panel */}
       <MemoryPanel
-        memories={panelMemories.length > 0 ? panelMemories : latestMemories}
+        state={memoryState}
         isOpen={showMemoryPanel}
         onClose={() => setShowMemoryPanel(false)}
-        onDeleteMemory={(id: string) => memoryAction(() => deleteMemory(id))}
-        onConfirmPattern={(id: string) => memoryAction(() => confirmMemory(id))}
-        onDismissPattern={(id: string) => memoryAction(() => dismissMemory(id))}
-        error={memoryList.kind === "error" ? memoryList.message : null}
+        onDeleteMemory={(id: string) => memoryAction(id, () => deleteMemory(id), true)}
+        onConfirmPattern={(id: string) => memoryAction(id, () => confirmMemory(id))}
+        onDismissPattern={(id: string) => memoryAction(id, () => dismissMemory(id))}
         onRetry={refreshMemories}
+        isBusy={isMemoryBusy}
       />
     </div>
   );

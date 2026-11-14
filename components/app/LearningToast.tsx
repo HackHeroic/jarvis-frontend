@@ -71,7 +71,11 @@ export function LearningToast({ pattern, onDismiss, onUndo }: LearningToastProps
             )}
           </div>
         </div>
-        <button onClick={() => { setVisible(false); onDismiss(); }} className="text-muted/40 hover:text-muted">
+        <button
+          onClick={() => { setVisible(false); onDismiss(); }}
+          className="text-muted/40 hover:text-muted"
+          aria-label="Close"
+        >
           <X size={14} />
         </button>
       </div>

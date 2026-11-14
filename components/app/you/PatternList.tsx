@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { confirmMemory, dismissMemory } from "@/lib/api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
+import { isShapeError } from "@/lib/learning";
 import { errorMessageOf, removeWithRollback, statusOf } from "@/lib/you";
 import type { PatternShown } from "@/lib/types";
 
@@ -35,7 +36,9 @@ export function PatternList({ patterns, setPatterns, onStale }: PatternListProps
       );
       showToast("Confirmed — Jarvis will keep this in mind.", "success");
     } catch (err) {
-      if (statusOf(err) === 409) {
+      if (isShapeError(err)) {
+        onStale(); // it answered 2xx in a shape this page can't read: re-read to show it
+      } else if (statusOf(err) === 409) {
         showToast(errorMessageOf(err, "This pattern changed in the meantime."), "info");
         onStale();
       } else {
@@ -55,7 +58,7 @@ export function PatternList({ patterns, setPatterns, onStale }: PatternListProps
         setItems: setPatterns,
         request: () => dismissMemory(id),
         // Already forgotten or gone: it is out of the list either way.
-        isGone: (err) => statusOf(err) === 404 || statusOf(err) === 409,
+        isGone: (err) => isShapeError(err) || statusOf(err) === 404 || statusOf(err) === 409,
       }),
     );
     if (!pending) return;

@@ -6,19 +6,22 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { updateYouSettings } from "@/lib/api";
 import { useJarvis } from "@/lib/context/JarvisContext";
+import { isShapeError } from "@/lib/learning";
 import { AUTONOMY_OPTIONS, errorMessageOf } from "@/lib/you";
 import type { AutonomyMode, YouProfile } from "@/lib/types";
 
 interface AutonomySettingsProps {
   profile: YouProfile;
   onSaved: (profile: YouProfile) => void;
+  /** Re-read the page: the save answered in a shape this page can't read. */
+  onStale: () => void;
 }
 
 const HH_MM = /^\d{2}:\d{2}$/;
 const TRY_AGAIN = "That didn't save. Try again.";
 
 /** How far Jarvis may act on its own, and when the user's day starts. Saved through PATCH /you/settings. */
-export function AutonomySettings({ profile, onSaved }: AutonomySettingsProps) {
+export function AutonomySettings({ profile, onSaved, onStale }: AutonomySettingsProps) {
   const { showToast } = useJarvis();
   const [mode, setMode] = useState<AutonomyMode>(profile.autonomy_mode);
   const [savingMode, setSavingMode] = useState(false);
@@ -39,8 +42,12 @@ export function AutonomySettings({ profile, onSaved }: AutonomySettingsProps) {
       onSaved(await updateYouSettings({ autonomy_mode: next }));
       showToast("Saved.", "success");
     } catch (err) {
-      setMode(previous);
-      showToast(errorMessageOf(err, TRY_AGAIN), "error");
+      if (isShapeError(err)) {
+        onStale(); // saved (2xx), but unreadable: the re-read shows what is stored
+      } else {
+        setMode(previous);
+        showToast(errorMessageOf(err, TRY_AGAIN), "error");
+      }
     } finally {
       setSavingMode(false);
     }
@@ -61,7 +68,8 @@ export function AutonomySettings({ profile, onSaved }: AutonomySettingsProps) {
       setWake(saved.wake_time);
       showToast("Wake time saved.", "success");
     } catch (err) {
-      setWakeError(errorMessageOf(err, TRY_AGAIN));
+      if (isShapeError(err)) onStale();
+      else setWakeError(errorMessageOf(err, TRY_AGAIN));
     } finally {
       setSavingWake(false);
     }
