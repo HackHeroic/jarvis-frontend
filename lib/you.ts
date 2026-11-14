@@ -171,6 +171,7 @@ export function draftToChatResponse(draft: DraftState, message: string): ChatRes
     message,
     draft_id: draft.draft_id,
     schedule_status: "draft",
+    draft_source: "suggestion",
   };
 }
 

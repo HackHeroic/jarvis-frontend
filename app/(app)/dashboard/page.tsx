@@ -9,9 +9,10 @@ import ScheduleTimeline from "@/components/app/ScheduleTimeline";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
 import { WhileYouWereAway } from "@/components/app/WhileYouWereAway";
+import { PendingDraftBanner } from "@/components/app/PendingDraftBanner";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ArrowRight, Sparkles, Send } from "lucide-react";
+import { Sparkles, Send } from "lucide-react";
 import { toListState } from "@/lib/learning";
 import type { PearlInsight } from "@/lib/types";
 
@@ -21,7 +22,7 @@ import type { PearlInsight } from "@/lib/types";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { tasks, tasksLoading, tasksError, refreshTasks, draftResponse } = useJarvis();
+  const { tasks, tasksLoading, tasksError, refreshTasks } = useJarvis();
   // Real tasks only: an outage shows ErrorState, a 200 with [] shows EmptyState.
   // While a fetch (or a Retry) is in flight with nothing to show, it is loading.
   const taskList = toListState({
@@ -29,7 +30,6 @@ export default function DashboardPage() {
     error: tasksLoading ? null : tasksError,
   });
   const isLive = taskList.kind === "ready" || taskList.kind === "empty";
-  const activeDraftId = draftResponse?.draft_id || draftResponse?.schedule?.draft_id || null;
   const [pearlInsights, setPearlInsights] = useState<PearlInsight[]>([]);
   const [brainDump, setBrainDump] = useState("");
 
@@ -123,28 +123,8 @@ export default function DashboardPage() {
       {/* What Jarvis prepared on its own: pending suggestions to accept or dismiss */}
       <WhileYouWereAway />
 
-      {/* Active Draft Banner */}
-      {activeDraftId && (
-        <Card className="flex items-center justify-between gap-3 border-l-[3px] border-terra px-4 py-4 sm:px-5">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-primary">
-              You have a pending schedule
-            </p>
-            <p className="mt-0.5 text-xs text-secondary">
-              Review and confirm your tasks before they go live.
-            </p>
-          </div>
-          <Button
-            variant="primary"
-            size="sm"
-            className="shrink-0"
-            onClick={() => router.push("/chat")}
-          >
-            Review
-            <ArrowRight size={14} className="ml-1" />
-          </Button>
-        </Card>
-      )}
+      {/* Pending plan: reviewed in chat, or (a suggestion's plan) acted on here */}
+      <PendingDraftBanner />
 
       {/* PEARL Insights */}
       {pearlInsights.length > 0 && (

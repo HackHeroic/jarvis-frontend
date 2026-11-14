@@ -373,6 +373,12 @@ export interface ChatResponse {
   conflict_summary?: string | null;
   pearl_insights?: PearlInsight[] | null;
   saved_constraints?: string[];
+  /**
+   * Client-only: where a stored draft came from. 'suggestion' — drafted by an
+   * accepted suggestion (a learned rule); chat has no card for it, so the
+   * dashboard banner acts on it in place. Absent: a chat turn's draft.
+   */
+  draft_source?: "chat" | "suggestion";
 }
 
 // ---------------------------------------------------------------------------
@@ -394,6 +400,8 @@ export interface DraftState {
   goal_id?: string | null;
   tasks: Record<string, unknown>[];
   horizon_start?: string | null;
+  /** Solved slots (task_id → {start_min, end_min}). Not in today's GET /drafts/{id}; read if sent. */
+  schedule?: Record<string, unknown> | null;
   status: DraftStatus;
   rejection_reason?: string | null;
   created_at?: string | null;

@@ -256,6 +256,10 @@ describe("draftToChatResponse (the dashboard's pending-draft banner)", () => {
     expect(response?.message).toContain("keeps 9 AM free");
   });
 
+  it("is tagged as a suggestion's plan, so the banner acts on it in place (chat can't show it)", () => {
+    expect(draftToChatResponse(draft, "x")?.draft_source).toBe("suggestion");
+  });
+
   it("a closed draft (accepted, superseded…) is not offered for review", () => {
     expect(draftToChatResponse({ ...draft, status: "superseded" }, "x")).toBeNull();
     expect(draftToChatResponse({ ...draft, status: "accepted" }, "x")).toBeNull();
