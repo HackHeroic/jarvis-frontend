@@ -440,6 +440,8 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
     setAcceptState("accepting");
     try {
+      // No expected_version: the chat `complete` payload this card shows carries none
+      // (Jarvis-Engine app/schemas/chat_stream.py), so the backend does no version check.
       const result = await acceptDraft(draftId);
 
       // Only `accepted` with tasks saved is a success. `empty` (nothing could be

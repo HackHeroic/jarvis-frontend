@@ -10,6 +10,7 @@ import { acceptDraft, getDraftById, rejectDraft } from "@/lib/api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
 import { describeError } from "@/lib/learning";
+import type { DraftState } from "@/lib/types";
 import {
   bannerAcceptOutcome,
   bannerDiscardOutcome,
@@ -55,13 +56,34 @@ export function PendingDraftBanner() {
   );
 }
 
+/** The plan as shown, and the version of the read it came from (sent back on "Lock it in"). */
+interface ShownPlan {
+  summary: DraftSummary;
+  version: string;
+}
+
 function SuggestionDraftBanner({ draftId, message }: { draftId: string; message: string }) {
   const { clearDraft, refreshTasks, showToast } = useJarvis();
   const { run, isBusy } = useSingleFlight();
   // undefined until GET /drafts/{id} answers.
-  const [summary, setSummary] = useState<DraftSummary | undefined>(undefined);
+  const [shown, setShown] = useState<ShownPlan | undefined>(undefined);
+  const summary = shown?.summary;
+  // The backend's words when the plan changed since it was read (shown above the latest).
+  const [changedNote, setChangedNote] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const controllerRef = useRef<AbortController | null>(null);
+
+  /** Show a draft as read; a closed one has nothing left to decide. */
+  const show = useCallback(
+    (draft: DraftState) => {
+      if (!OPEN.has(draft.status)) {
+        clearDraft(); // locked in or closed elsewhere
+        return;
+      }
+      setShown({ summary: summarizeDraft(draft), version: draft.version });
+    },
+    [clearDraft],
+  );
 
   const load = useCallback(async () => {
     controllerRef.current?.abort();
@@ -71,11 +93,7 @@ function SuggestionDraftBanner({ draftId, message }: { draftId: string; message:
     try {
       const draft = await getDraftById(draftId);
       if (controller.signal.aborted) return;
-      if (!OPEN.has(draft.status)) {
-        clearDraft(); // locked in or closed elsewhere: nothing left to decide
-        return;
-      }
-      setSummary(summarizeDraft(draft));
+      show(draft);
     } catch (err) {
       if (controller.signal.aborted) return;
       if ((err as { status?: unknown }).status === 404) {
@@ -84,7 +102,7 @@ function SuggestionDraftBanner({ draftId, message }: { draftId: string; message:
       }
       setError(err);
     }
-  }, [draftId, clearDraft]);
+  }, [draftId, clearDraft, show]);
 
   useEffect(() => {
     load();
@@ -98,19 +116,32 @@ function SuggestionDraftBanner({ draftId, message }: { draftId: string; message:
   }
 
   async function lockIn() {
+    // Accept exactly what is shown: the version of the read behind it.
+    const version = shown?.version;
     // Lock it in and Discard share the plan's key: one request at a time.
-    const pending = run(draftId, () => acceptDraft(draftId));
+    const pending = run(draftId, () => acceptDraft(draftId, version));
     if (!pending) return;
+    setChangedNote(null);
     try {
       settle(bannerAcceptOutcome(await pending));
     } catch (err) {
-      settle(bannerErrorOutcome(err, "accept"));
+      const outcome = bannerErrorOutcome(err, "accept");
+      if (outcome.latest === undefined) {
+        settle(outcome);
+        return;
+      }
+      // The plan changed since it was read; nothing was written. Say so, show the
+      // latest in place of the old one, and keep the banner open.
+      setChangedNote(outcome.message);
+      if (outcome.latest) show(outcome.latest);
+      else void load();
     }
   }
 
   async function discard() {
     const pending = run(draftId, () => rejectDraft(draftId, []));
     if (!pending) return;
+    setChangedNote(null);
     try {
       await pending;
       settle(bannerDiscardOutcome());
@@ -126,6 +157,11 @@ function SuggestionDraftBanner({ draftId, message }: { draftId: string; message:
     <Card className="border-l-[3px] border-terra px-4 py-4 sm:px-5">
       <p className="text-sm font-semibold text-primary">A plan is ready for you</p>
       {message && <p className="mt-0.5 text-xs text-secondary">{message}</p>}
+      {changedNote && (
+        <p role="status" className="mt-2 text-xs font-medium text-gold">
+          {changedNote}
+        </p>
+      )}
 
       <div className="mt-3">
         {summary === undefined && !failure && (

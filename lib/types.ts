@@ -435,6 +435,12 @@ export interface DraftState {
   status: DraftStatus;
   rejection_reason?: string | null;
   created_at?: string | null;
+  /**
+   * What this read saw, as one opaque value (a hash of the tasks and slots). Sent
+   * back as the accept's `expected_version`: a plan changed since is not accepted
+   * (409 `stale_version`, with the latest draft).
+   */
+  version: string;
 }
 
 // ---------------------------------------------------------------------------

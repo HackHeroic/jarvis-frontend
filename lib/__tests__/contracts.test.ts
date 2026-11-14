@@ -420,7 +420,9 @@ describe("/api/v1/anticipation", () => {
 
 /**
  * GET /api/v1/drafts/{id} — tests/test_draft_endpoints.py
- * ::test_get_draft__solved_draft__schedule_slots_with_local_times, literally.
+ * ::test_get_draft__solved_draft__schedule_slots_with_local_times, literally. The
+ * `version` is what backend 1f8351a answers for exactly these tasks and slots
+ * (DraftSchedule.version: a hash of tasks + slots, so it is the same every run).
  */
 const DRAFT_WITH_SLOTS = {
   draft_id: "8f1d2c3b-4a5e-4f60-9a7b-6c5d4e3f2a1b",
@@ -450,9 +452,22 @@ const DRAFT_WITH_SLOTS = {
       },
     },
   },
+  version: "37506042eff02067",
 };
 
 describe("GET /api/v1/drafts/{id}", () => {
+  it("carries the version of what was read, to send back on accept", () => {
+    expect(parseDraftState(clone(DRAFT_WITH_SLOTS)).version).toBe("37506042eff02067");
+  });
+
+  it("a read without a version (or an empty one) is a contract error", () => {
+    const body = clone(DRAFT_WITH_SLOTS) as Partial<typeof DRAFT_WITH_SLOTS>;
+    delete body.version;
+    expect(() => parseDraftState(body)).toThrow(ContractError);
+    expect(() => parseDraftState({ ...clone(DRAFT_WITH_SLOTS), version: "" })).toThrow(ContractError);
+    expect(() => parseDraftState({ ...clone(DRAFT_WITH_SLOTS), version: 7 })).toThrow(ContractError);
+  });
+
   it("parses a solved draft with its slots and local times", () => {
     const draft = parseDraftState(clone(DRAFT_WITH_SLOTS));
     expect(draft.status).toBe("pending");
