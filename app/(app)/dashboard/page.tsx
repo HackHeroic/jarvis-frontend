@@ -16,7 +16,6 @@ import { Sparkles, Send } from "lucide-react";
 import { getYou } from "@/lib/api";
 import { toListState } from "@/lib/learning";
 import {
-  completionStreak,
   focusMinutesToday,
   rangeHeading,
   rangeStats,
@@ -54,8 +53,10 @@ export default function DashboardPage() {
   const [brainDump, setBrainDump] = useState("");
   const [range, setRange] = useState<DashboardRange>("today");
   const [now, setNow] = useState(() => new Date());
-  // How many patterns the You page shows; null until known (never a wrong number).
+  // From GET /you, null until known (never a wrong number): how many patterns the
+  // You page shows, and the streak — the backend's count, shown as it is.
   const [patterns, setPatterns] = useState<number | null>(null);
+  const [streakDays, setStreakDays] = useState<number | null>(null);
   // Everything below the tiles appears at once, after the suggestions' first read
   // (or a short wait), so cards arriving late never push the schedule down.
   const [suggestionsSettled, setSuggestionsSettled] = useState(false);
@@ -70,15 +71,18 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // ---- Patterns: the same list the You page shows ----
+  // ---- Patterns (the same list the You page shows) and the streak ----
   useEffect(() => {
     const controller = new AbortController();
     getYou({ signal: controller.signal })
       .then((you) => {
-        if (!controller.signal.aborted) setPatterns(you.patterns.length);
+        if (controller.signal.aborted) return;
+        setPatterns(you.patterns.length);
+        // A backend that does not send it yet leaves the tile at "—".
+        setStreakDays(you.streak_days ?? null);
       })
       .catch(() => {
-        // Unknown stays "—": an outage is never "0 patterns".
+        // Unknown stays "—": an outage is never "0 patterns" or a broken streak.
       });
     return () => controller.abort();
   }, []);
@@ -102,7 +106,6 @@ export default function DashboardPage() {
   const view = useMemo(() => tasksInRange(tasks, range, now), [tasks, range, now]);
   const stats = useMemo(() => rangeStats(view), [view]);
   const focusMinutes = useMemo(() => focusMinutesToday(tasks, now), [tasks, now]);
-  const streakDays = useMemo(() => completionStreak(tasks, now), [tasks, now]);
   // Once shown, it stays shown: a later Retry of the tasks never hides the rest again.
   const [ready, setReady] = useState(false);
   const firstReadsDone = suggestionsSettled && taskList.kind !== "loading";

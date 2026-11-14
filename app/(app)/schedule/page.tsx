@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { completeTask, skipTask } from "@/lib/api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import { isSetAside } from "@/lib/constants";
+import { tasksOnDay, unscheduledPending } from "@/lib/schedule";
 import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
 import { errorMessageOf } from "@/lib/you";
 import { Card } from "@/components/ui/Card";
@@ -162,11 +163,10 @@ function SchedulePageInner() {
 
   const now = useMemo(() => new Date(), []);
 
-  // ---- Tasks for selected day ----
-  const dayTasks = useMemo(
-    () => allTasks.filter((t) => isSameDay(t.start_time, selectedDate)),
-    [allTasks, selectedDate],
-  );
+  // ---- Tasks for selected day: slotted ones only (a task with no slot has no time to draw) ----
+  const dayTasks = useMemo(() => tasksOnDay(allTasks, selectedDate), [allTasks, selectedDate]);
+  // ---- Pending tasks with no slot yet: the "Not scheduled yet" strip ----
+  const notScheduled = useMemo(() => unscheduledPending(allTasks), [allTasks]);
 
   // ---- Navigation helpers ----
   function navigatePrev() {
@@ -317,6 +317,14 @@ function SchedulePageInner() {
         </div>
       )}
 
+      {/* Pending tasks with no slot yet: listed, never drawn at a made-up time */}
+      {!loading && notScheduled.length > 0 && (
+        <NotScheduledStrip
+          tasks={notScheduled}
+          onOpen={(t) => router.push(`/workspace/${t.task_id}`)}
+        />
+      )}
+
       {/* Empty state — only for day view when no tasks */}
       {!loading && allTasks.length === 0 && (
         <Card className="px-6 py-12">
@@ -375,6 +383,50 @@ function SchedulePageInner() {
         />
       )}
     </div>
+  );
+}
+
+// ===========================================================================
+// NOT SCHEDULED YET
+// ===========================================================================
+
+interface NotScheduledStripProps {
+  /** Pending tasks with no slot, sorted by title. */
+  tasks: ScheduleTask[];
+  onOpen: (task: ScheduleTask) => void;
+}
+
+/** Tasks with no time yet, as a strip above the grid: they belong to no hour and no day. */
+function NotScheduledStrip({ tasks, onOpen }: NotScheduledStripProps) {
+  return (
+    <section
+      aria-label="Not scheduled yet"
+      className="rounded-xl border border-border bg-surface-card px-3.5 py-3 sm:px-4"
+    >
+      <h2 className="flex items-baseline justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-secondary">
+        <span>Not scheduled yet</span>
+        <span className="font-normal normal-case tracking-normal text-muted">
+          {tasks.length} {tasks.length === 1 ? "task" : "tasks"} with no time yet
+        </span>
+      </h2>
+      <ul className="mt-2.5 flex flex-wrap gap-2">
+        {tasks.map((task) => (
+          <li key={task.task_id} className="min-w-0 max-w-full">
+            <button
+              type="button"
+              onClick={() => onOpen(task)}
+              className="flex max-w-full items-center gap-2 rounded-lg border-l-[3px] bg-surface-muted px-2.5 py-1.5 text-left transition-colors hover:bg-surface-subtle"
+              style={{ borderLeftColor: task.color }}
+            >
+              <span className="min-w-0 truncate text-xs font-medium text-primary">{task.title}</span>
+              <span className="shrink-0 text-[10px] tabular-nums text-muted">
+                {task.duration_minutes} min
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -650,7 +702,7 @@ function WeekGrid({ allTasks, selectedDate, now, onSelectDay }: WeekGridProps) {
       <div className="grid min-w-[640px] grid-cols-7 gap-1 rounded-xl border border-border bg-surface-card p-2">
       {days.map((day) => {
         const isToday = isSameDay(day, now);
-        const tasksForDay = allTasks.filter((t) => isSameDay(t.start_time, day));
+        const tasksForDay = tasksOnDay(allTasks, day);
 
         return (
           <button
@@ -752,7 +804,7 @@ function MonthGrid({ allTasks, selectedDate, now, onSelectDay }: MonthGridProps)
         {cells.map((day) => {
           const isCurrentMonth = day.getMonth() === currentMonth;
           const isToday = isSameDay(day, now);
-          const tasksForDay = allTasks.filter((t) => isSameDay(t.start_time, day));
+          const tasksForDay = tasksOnDay(allTasks, day);
           // Collect unique colors
           const dotColors = Array.from(
             new Set(

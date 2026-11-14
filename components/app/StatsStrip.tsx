@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ClipboardList, Timer, Flame, Brain } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { streakLabel } from "@/lib/dashboard";
 
 interface StatsStripProps {
   /** Done tasks out of every task in the selected range. */
@@ -11,7 +12,8 @@ interface StatsStripProps {
   doneLabel: string;
   /** Minutes of work scheduled or done today. */
   focusMinutes: number;
-  streakDays: number;
+  /** Days in a row with something done (GET /you); null while unknown, shown as "—". */
+  streakDays: number | null;
   /** Patterns Jarvis sees (GET /you); null while unknown, so no wrong number is shown. */
   patternsLearned: number | null;
 }
@@ -89,7 +91,11 @@ export default function StatsStrip({
         </div>
         <div className="min-w-0">
           <p className={`${VALUE} text-gold`}>
-            {streakDays} {streakDays === 1 ? "day" : "days"}
+            {streakDays === null ? (
+              <span aria-label="Not known yet">{streakLabel(null)}</span>
+            ) : (
+              streakLabel(streakDays)
+            )}
           </p>
           <p className={LABEL}>Streak</p>
         </div>

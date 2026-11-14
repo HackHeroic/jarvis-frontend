@@ -88,6 +88,7 @@ const YOU = {
     input_tokens: 120,
     output_tokens: 30,
   },
+  streak_days: 3,
 };
 
 /**
@@ -148,6 +149,36 @@ describe("GET /api/v1/you", () => {
     expect(you.focus.hours.map((h) => h.hour)).toEqual(Array.from({ length: 24 }, (_, i) => i));
     expect(you.receipt.truncated).toBe(false);
     expect(you.receipt.since).toBe(YOU.receipt.since);
+  });
+
+  it("parseYouResponse reads streak_days and rejects a negative one", () => {
+    expect(parseYouResponse(clone(YOU)).streak_days).toBe(3);
+    const zero = clone(YOU);
+    zero.streak_days = 0;
+    expect(parseYouResponse(zero).streak_days).toBe(0);
+    for (const bad of [-1, 2.5, "3", null]) {
+      const body = clone(YOU) as Record<string, unknown>;
+      body.streak_days = bad;
+      expect(() => parseYouResponse(body)).toThrow(ContractError);
+    }
+  });
+
+  it("a backend that does not send streak_days yet leaves it unknown, never 0", () => {
+    const body = clone(YOU) as Partial<typeof YOU>;
+    delete body.streak_days;
+    const you = parseYouResponse(body);
+    expect(you.streak_days).toBeUndefined();
+    expect(you.patterns).toHaveLength(1); // the rest of the page still reads
+  });
+
+  it("one card per pattern_key: a key listed twice is kept once, the first, in order", () => {
+    const body = clone(YOU);
+    const first = body.patterns[0];
+    const other = { ...first, pattern_key: "peak_hour:19", detector: "peak_hour", description: "Evenings go well" };
+    body.patterns = [first, other, { ...first, description: "the same pattern again" }];
+    const you = parseYouResponse(body);
+    expect(you.patterns.map((p) => p.pattern_key)).toEqual(["skip_time_window:9", "peak_hour:19"]);
+    expect(you.patterns[0].description).toBe(first.description);
   });
 
   it("a pattern not yet remembered has a null memory_id", () => {

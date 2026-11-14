@@ -596,5 +596,7 @@ export function getDemoYou(): YouResponse {
       input_tokens: 0,
       output_tokens: 0,
     },
+    // A sample has no outcome history, so no streak.
+    streak_days: 0,
   };
 }
