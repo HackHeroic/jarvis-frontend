@@ -146,7 +146,8 @@ export interface PearlInsight {
   insight: string;
   confidence: number;
   occurrences: number;
-  memory_id: string;
+  /** The memory holding the pattern, to confirm or dismiss; null when none is stored yet. */
+  memory_id: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -354,7 +355,6 @@ export interface ChatResponse {
   search_result?: Record<string, unknown>;
   thinking_process?: string;
   generation_metrics?: GenerationMetrics;
-  awaiting_task_confirmation?: boolean;
   clarification_options?: string[];
   /** 'replan' when the turn saved a constraint or set an anti-guilt message; null otherwise. */
   suggested_action?: 'replan' | null;
@@ -435,6 +435,14 @@ export interface DraftState {
 // Chat Request
 // ---------------------------------------------------------------------------
 
+/**
+ * Which models answer a turn: 'auto' (the local model first, the cloud when it
+ * cannot answer) or '4b', the wire value for cloud only (the backend also accepts
+ * 'cloud' and 'gemini'). The picker's words are in lib/modelModes.ts.
+ */
+export type ModelMode = 'auto' | '4b';
+
+/** The body of POST /api/v1/chat/stream: exactly the fields the backend reads. */
 export interface ChatRequest {
   user_prompt: string;
   user_id: string;
@@ -442,37 +450,7 @@ export interface ChatRequest {
   file_base64?: string;
   media_type?: string;
   file_name?: string;
-  /** Model routing mode: 'auto' (Jarvis picks), '27b' (force local primary), '4b' (force cloud). Wire values — display labels come from /api/v1/models/status. */
-  model_mode?: 'auto' | '4b' | '27b';
-  confirm_before_schedule?: boolean;
-  draft_schedule?: {
-    schedule?: SchedulePayload;
-    execution_graph?: ExecutionGraph;
-    horizon_start?: string;
-  };
-  day_start_hour?: number;
-  deadline_override?: string;
-  min_daily_deep_work_minutes?: number;
-  max_daily_deep_work_minutes?: number;
-}
-
-// ---------------------------------------------------------------------------
-// Confirm Schedule Request
-// ---------------------------------------------------------------------------
-
-export interface ConfirmScheduleRequest {
-  user_id: string;
-  tasks: Array<{
-    task_id: string;
-    title: string;
-    duration_minutes: number;
-    difficulty_weight: number;
-    dependencies: unknown[];
-    completion_criteria: string;
-    implementation_intention?: ImplementationIntention;
-  }>;
-  goal_metadata?: Record<string, unknown>;
-  model_mode?: "auto" | "4b" | "27b";
+  model_mode?: ModelMode;
 }
 
 // ---------------------------------------------------------------------------
@@ -494,9 +472,6 @@ export type JarvisStreamPhase =
   | "scheduling"
   | "schedule_done"
   | "synthesizing"
-  // Task confirmation phases
-  | "awaiting_confirmation"
-  | "confirming"
   // Voice of Jarvis streaming phases
   | "reasoning"
   | "responding"
@@ -637,22 +612,6 @@ export interface ScheduleTask {
 }
 
 // ---------------------------------------------------------------------------
-// Preview Task (editable task card in draft review)
-// ---------------------------------------------------------------------------
-
-export interface PreviewTask {
-  task_id: string;
-  title: string;
-  duration_minutes: number;
-  difficulty_weight: number;
-  completion_criteria: string;
-  implementation_intention?: ImplementationIntention;
-  deadline_hint?: string;
-  subject_tag?: string;
-  isEditing?: boolean;
-}
-
-// ---------------------------------------------------------------------------
 // Task Workspace (Proactive Cognitive Workspace)
 // ---------------------------------------------------------------------------
 
@@ -701,7 +660,8 @@ export interface SessionMessage {
 export interface ToolUseEvent {
   module: string;
   tool: string;
-  status: "started" | "done" | "error";
+  /** 'skipped': the step did not run (its feature is off, or a hook held it); `detail.reason` says why. */
+  status: "started" | "done" | "error" | "skipped";
   detail?: Record<string, unknown>;
   timestamp?: number;
 }

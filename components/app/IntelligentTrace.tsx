@@ -91,6 +91,11 @@ function ToolUseTree({ toolUses, module }: { toolUses: ToolUseEvent[]; module?: 
             {tu.status === "done" && <span className="text-sage">✓</span>}
             {tu.status === "error" && <span className="text-terra">✗</span>}
             {tu.status === "started" && <Loader2 size={8} className="animate-spin text-dusk" />}
+            {tu.status === "skipped" && (
+              <span className="text-muted/50" title={tu.detail?.reason ? String(tu.detail.reason) : "Not run"}>
+                –
+              </span>
+            )}
             {detailParts.length > 0 && (
               <span className="text-muted/40">{detailParts.join(" · ")}</span>
             )}

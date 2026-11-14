@@ -5,6 +5,7 @@ import {
   SHAPE_ERROR_MESSAGE,
   describeAcceptOutcome,
   describeError,
+  noDraftToAccept,
   readPatternFrame,
   shouldToast,
   toConsentRequest,
@@ -55,6 +56,18 @@ describe("describeAcceptOutcome", () => {
     expect(outcome.ok).toBe(false);
     expect(outcome.tone).toBe("error");
     expect(outcome.message).toBe("That didn't save. Try again.");
+  });
+});
+
+describe("noDraftToAccept", () => {
+  it("noDraftToAccept says the plan was not kept, without blame", () => {
+    const outcome = noDraftToAccept();
+    expect(outcome).toEqual({
+      ok: false,
+      tone: "info",
+      message: "I couldn't keep this plan for review. Ask me again and I'll rebuild it.",
+    });
+    expect(outcome.message).not.toMatch(/failed|you didn't|missed|behind/i);
   });
 });
 

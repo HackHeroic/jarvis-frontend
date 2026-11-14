@@ -4,7 +4,7 @@
  * `ApiError` carrying the backend's user-facing message — never raw response text.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, completeTask, skipTask } from "@/lib/api";
+import { ApiError, completeTask, deleteDocument, skipTask } from "@/lib/api";
 import { API_BASE, USER_ID } from "@/lib/constants";
 import { errorMessageOf } from "@/lib/you";
 
@@ -104,5 +104,19 @@ describe("skipTask", () => {
     const err = await skipTask("t-1").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(errorMessageOf(err, "fallback")).toBe("That task does not exist.");
+  });
+});
+
+describe("deleteDocument", () => {
+  it("DELETEs /documents/{id} with no trailing slash (the backend route has none)", async () => {
+    respond(200, { status: "deleted", source_id: "src 1" });
+    await deleteDocument("src 1");
+    expect(calls).toEqual([
+      {
+        url: `${API_BASE}/api/v1/documents/src%201?user_id=${encodeURIComponent(USER_ID)}`,
+        method: "DELETE",
+        body: undefined,
+      },
+    ]);
   });
 });

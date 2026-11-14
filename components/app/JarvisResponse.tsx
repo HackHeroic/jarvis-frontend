@@ -44,10 +44,8 @@ interface JarvisResponseProps {
   isReplanning?: boolean;
   onCalendarApproved?: (id: string) => void;
   onCalendarRejected?: (id: string) => void;
-  onConfirmTasks?: (tasks: TaskChunk[]) => void;
   onAcceptDraft?: () => void;
   onRejectDraft?: (reason?: string) => void;
-  onChatModify?: () => void;
   /** Send a chat message on the user's behalf (the infeasible-scope choices). */
   onSendMessage?: (text: string) => void;
 }
@@ -231,10 +229,8 @@ export function JarvisResponse({
   isReplanning,
   onCalendarApproved,
   onCalendarRejected,
-  onConfirmTasks,
   onAcceptDraft,
   onRejectDraft,
-  onChatModify,
   onSendMessage,
 }: JarvisResponseProps) {
   const {
@@ -343,7 +339,7 @@ export function JarvisResponse({
       )}
 
       {/* 6. Task Decomposition Preview — skip when DraftReview will render (avoids duplicate) */}
-      {!isStreaming && executionGraph && !response?.awaiting_task_confirmation && response?.schedule_status !== 'draft' && (
+      {!isStreaming && executionGraph && response?.schedule_status !== 'draft' && (
         <TaskDecompositionPreview graph={executionGraph} />
       )}
 
@@ -352,16 +348,12 @@ export function JarvisResponse({
         <DraftScheduleSection schedule={schedule} />
       )}
 
-      {/* 7b. Interactive Draft Review (two-stage) */}
-      {!isStreaming && response && (
-        response.awaiting_task_confirmation || response.schedule_status === 'draft'
-      ) && (
+      {/* 7b. Interactive Draft Review */}
+      {!isStreaming && response && response.schedule_status === 'draft' && (
         <DraftReview
           response={response}
-          onConfirmTasks={onConfirmTasks || (() => {})}
           onAcceptDraft={onAcceptDraft || (() => {})}
           onRejectDraft={onRejectDraft || (() => {})}
-          onChatModify={onChatModify || (() => {})}
         />
       )}
 

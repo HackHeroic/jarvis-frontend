@@ -65,7 +65,6 @@ function ChatPage() {
     loadConversation,
     triggerReplan,
     isReplanning,
-    confirmTasks,
     acceptDraft,
     rejectDraft,
     devMode,
@@ -245,10 +244,6 @@ function ChatPage() {
   }, [startNewConversation]);
 
   // Focus chat input for "Chat to modify" flow
-  const handleChatModify = useCallback(() => {
-    textareaRef.current?.focus();
-  }, []);
-
   // ---- Sidebar drag-to-resize ----
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -387,10 +382,8 @@ function ChatPage() {
                         onClarificationSelect={(text) => sendMessage(text)}
                         onReplan={() => triggerReplan()}
                         isReplanning={isReplanning}
-                        onConfirmTasks={(tasks) => confirmTasks(tasks)}
                         onAcceptDraft={() => acceptDraft()}
                         onRejectDraft={(reason) => rejectDraft(reason)}
-                        onChatModify={handleChatModify}
                         onSendMessage={(text) => sendMessage(text)}
                       />
                     </div>

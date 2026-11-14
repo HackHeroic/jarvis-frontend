@@ -4,7 +4,7 @@
  * In Live Mode, calls the real Jarvis-Engine API.
  */
 
-import { API_BASE, IS_DEMO_MODE, USER_ID, DEMO_LATENCY } from './constants';
+import { API_BASE, IS_DEMO_MODE, USER_ID } from './constants';
 import { toConsentRequest, toSinceLastSpoke } from './learning';
 import {
   parseAcceptResponse,
@@ -18,12 +18,11 @@ import {
   parseYouResponse,
 } from './contracts';
 
-// The only chat path: v2 (LangGraph orchestrator). v1 (/chat/stream) is deprecated.
-const CHAT_STREAM_PATH = '/api/v1/chat/v2/stream';
+// The one chat path: the LangGraph orchestrator's turn stream.
+const CHAT_STREAM_PATH = '/api/v1/chat/stream';
 import type {
   ChatResponse,
   ChatRequest,
-  ConfirmScheduleRequest,
   DraftState,
   TaskWorkspace,
   Session,
@@ -217,7 +216,7 @@ export function untilAborted(signal: AbortSignal, handlers: StreamHandlers): Str
 }
 
 // ---------------------------------------------------------------------------
-// SSE line-by-line parser (shared by chatStream & confirmScheduleStream)
+// SSE line-by-line parser
 // ---------------------------------------------------------------------------
 
 /**
@@ -310,34 +309,6 @@ export async function consumeSSE(
 }
 
 // ---------------------------------------------------------------------------
-// Chat (non-streaming)
-// ---------------------------------------------------------------------------
-
-export async function chat(request: ChatRequest): Promise<ChatResponse> {
-  if (IS_DEMO_MODE) {
-    await delay(DEMO_LATENCY);
-    return getDemoResponseLazy(request.user_prompt);
-  }
-
-  const res = await fetch(`${API_BASE}/api/v1/chat/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Chat failed (${res.status}): ${readApiErrorText(text)}`);
-  }
-
-  try {
-    return await res.json();
-  } catch {
-    throw new Error('Received invalid response from server.');
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Chat Stream (SSE)
 // ---------------------------------------------------------------------------
 
@@ -406,78 +377,14 @@ export async function chatStream(
 }
 
 // ---------------------------------------------------------------------------
-// Confirm Schedule Stream (SSE)
-// ---------------------------------------------------------------------------
-
-export async function confirmScheduleStream(
-  request: ConfirmScheduleRequest,
-  handlers: StreamHandlers,
-  options?: StreamOptions,
-): Promise<void> {
-  if (IS_DEMO_MODE) {
-    handlers.onComplete?.({
-      intent: 'PLAN_DAY',
-      message: 'Demo: schedule confirmed.',
-    } as ChatResponse);
-    return;
-  }
-
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}/api/v1/chat/confirm-schedule`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-      signal: options?.signal,
-    });
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return;
-    handlers.onError?.(new Error(`Network error: ${String(e)}`));
-    return;
-  }
-
-  if (!res.ok || !res.body) {
-    const text = await res.text().catch(() => '');
-    handlers.onError?.(new Error(`Confirm schedule failed (${res.status}): ${readApiErrorText(text)}`));
-    return;
-  }
-
-  await consumeSSE(res, handlers, 'Schedule error');
-}
-
-// ---------------------------------------------------------------------------
 // Task Lifecycle
 // ---------------------------------------------------------------------------
-
-export interface TaskUpdateRequest {
-  user_id: string;
-  title?: string;
-  duration_minutes?: number;
-  difficulty_weight?: number;
-  status?: string;
-}
 
 export interface TaskResponse {
   task_id: string;
   status: string;
   message: string;
   replan_triggered?: boolean;
-}
-
-export async function updateTask(
-  taskId: string,
-  body: TaskUpdateRequest,
-): Promise<TaskResponse> {
-  const res = await fetch(`${API_BASE}/api/v1/tasks/${encodeURIComponent(taskId)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Task update failed (${res.status}): ${text}`);
-  }
-  return res.json();
 }
 
 /**
@@ -513,21 +420,6 @@ export async function skipTask(
     body: JSON.stringify({ user_id: userId }),
   });
   if (!res.ok) throw await apiError(res, 'Task skip failed');
-  return res.json();
-}
-
-export async function deleteTask(
-  taskId: string,
-  userId: string = USER_ID,
-): Promise<TaskResponse> {
-  const res = await fetch(
-    `${API_BASE}/api/v1/tasks/${encodeURIComponent(taskId)}?user_id=${encodeURIComponent(userId)}`,
-    { method: 'DELETE' },
-  );
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Task delete failed (${res.status}): ${text}`);
-  }
   return res.json();
 }
 
@@ -658,7 +550,7 @@ export async function deleteDocument(
   userId: string = USER_ID,
 ): Promise<void> {
   const res = await fetch(
-    `${API_BASE}/api/v1/documents/${encodeURIComponent(sourceId)}/?user_id=${encodeURIComponent(userId)}`,
+    `${API_BASE}/api/v1/documents/${encodeURIComponent(sourceId)}?user_id=${encodeURIComponent(userId)}`,
     { method: 'DELETE' },
   );
   if (!res.ok) throw new Error(`Failed to delete document: ${res.status}`);
@@ -693,34 +585,6 @@ export async function acceptDraft(
     },
   );
   if (!res.ok) throw await apiError(res, 'Failed to accept draft');
-  return res.json();
-}
-
-/**
- * Accept a schedule directly by persisting tasks — used when no draft_id is available
- * (e.g., confirm-schedule flow returns schedule without creating a DraftStore entry).
- */
-export async function acceptScheduleDirect(
-  tasks: unknown[],
-  schedule?: Record<string, unknown> | null,
-  horizonStart?: string,
-  goalMetadata?: unknown,
-): Promise<{ status: string; task_count: number }> {
-  const res = await fetch(
-    `${API_BASE}/api/v1/chat/accept-schedule`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: USER_ID,
-        tasks,
-        goal_metadata: goalMetadata,
-        schedule,
-        horizon_start: horizonStart,
-      }),
-    },
-  );
-  if (!res.ok) throw await apiError(res, 'Failed to accept schedule');
   return res.json();
 }
 

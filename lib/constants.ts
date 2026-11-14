@@ -47,7 +47,6 @@ export const PHASE_NAMES: Record<string, string> = {
   learning:              "Jotting down what I learned...",
   validating:            "Making sure I understand the goal...",
   schedule_done:         "Schedule locked in!",
-  confirming:            "Getting your thumbs up...",
 };
 
 export function getPhaseDisplayName(phase: string): string {

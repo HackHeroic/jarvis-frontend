@@ -147,6 +147,19 @@ export function describeAcceptOutcome(res: { status?: string; task_count?: numbe
   return { ok: false, tone: "error", message: "That didn't save. Try again." };
 }
 
+/**
+ * A plan the turn could not store for review (a schedule with no `draft_id`):
+ * there is nothing to accept, so no request is made. Draft acceptance is the
+ * only way a plan's tasks are saved.
+ */
+export function noDraftToAccept(): AcceptOutcome {
+  return {
+    ok: false,
+    tone: "info",
+    message: "I couldn't keep this plan for review. Ask me again and I'll rebuild it.",
+  };
+}
+
 // ---------------------------------------------------------------------------
 // List state: an outage is never "nothing here"
 // ---------------------------------------------------------------------------
