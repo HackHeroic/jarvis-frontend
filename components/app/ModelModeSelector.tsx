@@ -4,20 +4,15 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { Settings } from "lucide-react";
 import { getModelStatus, type ModelStatus } from "@/lib/api";
+import { modelModeOptions, type ModelMode } from "@/lib/modelModes";
 
 /**
- * Model mode selector — shows dynamic model names from backend.
- *
- * Wire values ("auto" | "4b" | "27b") are kept for backend compatibility:
- *   "auto" = Jarvis picks (local primary + cloud fallback)
- *   "27b"  = Force local primary (whatever is loaded in LM Studio)
- *   "4b"   = Force cloud (the backend's cloud tier — Claude, then Gemini)
- *
- * The local option's label comes from GET /api/v1/models/status; the cloud
- * option is labelled "Cloud" because more than one cloud model may answer.
+ * Model mode selector: Auto or Cloud, worded as the backend acts on them
+ * (lib/modelModes.ts). Auto names the loaded local model from
+ * GET /api/v1/models/status.
  */
 
-export type ModelMode = "auto" | "4b" | "27b";
+export type { ModelMode };
 
 interface ModelModeSelectorProps {
   value: ModelMode;
@@ -25,17 +20,6 @@ interface ModelModeSelectorProps {
   disabled?: boolean;
   devMode?: boolean;
   onToggleDevMode?: () => void;
-}
-
-/** Extract a short display name from a full model ID like "openai/google/gemma-4-26b-a4b" */
-function shortModelName(fullId: string): string {
-  // Strip prefixes: "openai/google/gemma-4-26b-a4b" → "gemma-4-26b-a4b"
-  const parts = fullId.split("/");
-  const name = parts[parts.length - 1];
-  // Clean up common suffixes for display
-  return name
-    .replace(/-instruct$/, "")
-    .replace(/-it$/, "");
 }
 
 export function ModelModeSelector({
@@ -51,43 +35,7 @@ export function ModelModeSelector({
     getModelStatus().then(setStatus).catch(() => {});
   }, []);
 
-  // Build mode list dynamically from backend model status
-  const modes: { value: ModelMode; label: string; tooltip: string }[] = [];
-
-  if (status) {
-    const primaryName = shortModelName(status.primary_model || "");
-
-    modes.push({
-      value: "auto",
-      label: "Auto",
-      tooltip: status.local_available
-        ? `Local ${primaryName} + cloud fallback`
-        : "Cloud only",
-    });
-
-    if (status.local_available && primaryName) {
-      // Only show local model option if LM Studio has a model loaded
-      modes.push({
-        value: "27b",
-        label: primaryName,
-        tooltip: `Force local model: ${status.primary_model}`,
-      });
-    }
-
-    // Always show cloud option. Wire value stays "4b" (chat.py: "4b" | "cloud" | "gemini" force cloud).
-    modes.push({
-      value: "4b",
-      label: "Cloud",
-      tooltip: "Force cloud models for this turn",
-    });
-  } else {
-    // Fallback before status loads
-    modes.push(
-      { value: "auto", label: "Auto", tooltip: "Auto-routing" },
-      { value: "27b", label: "Local", tooltip: "Local model" },
-      { value: "4b", label: "Cloud", tooltip: "Cloud model" },
-    );
-  }
+  const modes = modelModeOptions(status);
 
   return (
     <div className="flex min-w-0 items-center gap-1.5">

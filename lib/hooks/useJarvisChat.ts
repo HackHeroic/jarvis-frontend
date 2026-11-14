@@ -8,7 +8,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ApiError, chatStream, confirmScheduleStream, acceptDraft, acceptScheduleDirect, rejectDraft, untilAborted, createStreamControl, type StreamControl, loadConversation as loadConversationAPI } from "../api";
+import { ApiError, chatStream, acceptDraft, rejectDraft, untilAborted, createStreamControl, type StreamControl, loadConversation as loadConversationAPI } from "../api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import type {
   JarvisMessage,
@@ -16,12 +16,12 @@ import type {
   JarvisStreamPhase,
   PhaseEventData,
   ChatResponse,
-  PreviewTask,
   ToolUseEvent,
 } from "../types";
 import { useDevMode } from "./useDevMode";
 import { INITIAL_STREAM_STATE } from "../types";
-import { describeAcceptOutcome, readPatternFrame, toLearningMoment, type LearningMoment } from "../learning";
+import { describeAcceptOutcome, noDraftToAccept, readPatternFrame, toLearningMoment, type LearningMoment } from "../learning";
+import { toModelMode, type ModelMode } from "../modelModes";
 import {
   saveChatMessages,
   loadChatMessages,
@@ -32,7 +32,7 @@ import {
 } from "../store";
 import { USER_ID } from "../constants";
 
-export type ModelMode = "auto" | "4b" | "27b";
+export type { ModelMode };
 
 export type UseJarvisChatReturn = {
   messages: JarvisMessage[];
@@ -49,13 +49,6 @@ export type UseJarvisChatReturn = {
   ) => Promise<void>;
   abort: () => void;
   clearMessages: () => void;
-  pendingTasks: PreviewTask[] | null;
-  pendingGoalMetadata: Record<string, unknown> | null;
-  confirmTasks: (
-    editedTasks: PreviewTask[],
-    goalMetadata?: Record<string, unknown>,
-  ) => Promise<void>;
-  cancelConfirmation: () => void;
   draftScheduleResponse: ChatResponse | null;
   acceptDraft: () => Promise<void>;
   acceptState: "idle" | "accepting" | "accepted";
@@ -81,11 +74,6 @@ export function useJarvisChat(): UseJarvisChatReturn {
   const [streamState, setStreamState] =
     useState<JarvisStreamState>(INITIAL_STREAM_STATE);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [pendingTasks, setPendingTasks] = useState<PreviewTask[] | null>(null);
-  const [pendingGoalMetadata, setPendingGoalMetadata] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
   const [draftScheduleResponse, setDraftScheduleResponse] =
     useState<ChatResponse | null>(null);
   const [acceptState, setAcceptState] = useState<
@@ -108,8 +96,9 @@ export function useJarvisChat(): UseJarvisChatReturn {
     const savedConversationId = localStorage.getItem("jarvis-conversation-id");
     if (savedConversationId) setConversationId(savedConversationId);
 
-    const savedModelMode = localStorage.getItem("jarvis-model-mode") as ModelMode;
-    if (savedModelMode) setModelMode(savedModelMode);
+    // Read as the backend reads it: a stored "27b" (the old local option) is auto.
+    const savedModelMode = localStorage.getItem("jarvis-model-mode");
+    if (savedModelMode) setModelMode(toModelMode(savedModelMode));
   }, []);
 
   // Persist model mode to localStorage
@@ -235,15 +224,6 @@ export function useJarvisChat(): UseJarvisChatReturn {
       const control = createStreamControl();
       streamRef.current = control;
 
-      // Build draft_schedule context if we have an active draft
-      const draftContext = draftScheduleResponse
-        ? {
-            schedule: draftScheduleResponse.schedule,
-            execution_graph: draftScheduleResponse.execution_graph,
-            horizon_start: draftScheduleResponse.schedule?.horizon_start,
-          }
-        : undefined;
-
       await chatStream(
         {
           user_prompt: content.trim(),
@@ -251,11 +231,8 @@ export function useJarvisChat(): UseJarvisChatReturn {
           file_base64: options?.fileBase64,
           media_type: options?.mediaType,
           file_name: options?.fileName,
-          model_mode:
-            (options?.modelMode as "auto" | "4b" | "27b") || modelMode,
-          confirm_before_schedule: true,
+          model_mode: options?.modelMode ? toModelMode(options.modelMode) : modelMode,
           conversation_id: conversationId || undefined,
-          ...(draftContext ? { draft_schedule: draftContext } : {}),
         },
         untilAborted(control.deliverySignal, {
           onPhase: (phase, data) => {
@@ -408,34 +385,6 @@ export function useJarvisChat(): UseJarvisChatReturn {
               streamingMsg.current = null;
             }
 
-            // Check if pipeline is paused for task confirmation
-            if (
-              response.awaiting_task_confirmation &&
-              response.execution_graph?.decomposition
-            ) {
-              setPendingTasks(
-                response.execution_graph.decomposition.map((t) => ({
-                  task_id: t.task_id,
-                  title: t.title,
-                  duration_minutes: t.duration_minutes,
-                  difficulty_weight: t.difficulty_weight,
-                  completion_criteria: t.completion_criteria,
-                  implementation_intention: t.implementation_intention,
-                })),
-              );
-              setPendingGoalMetadata(
-                (response.execution_graph
-                  ?.goal_metadata as unknown as Record<string, unknown>) || null,
-              );
-              setStreamState((s) => ({
-                ...s,
-                phase: "awaiting_confirmation",
-              }));
-              setIsStreaming(false);
-              streamRef.current = null;
-              return;
-            }
-
             // Draft schedule: store in draft state, don't save as final
             if (
               response.schedule_status === "draft" &&
@@ -474,202 +423,24 @@ export function useJarvisChat(): UseJarvisChatReturn {
         { signal: control.requestSignal },
       );
     },
-    [isStreaming, conversationId, draftScheduleResponse, modelMode, addLearningMoment],
+    [isStreaming, conversationId, modelMode, addLearningMoment],
   );
-
-  const confirmTasks = useCallback(
-    async (
-      editedTasks: PreviewTask[],
-      goalMetadata?: Record<string, unknown>,
-    ) => {
-      setStreamState((s) => ({ ...s, phase: "confirming" }));
-      setIsStreaming(true);
-      setPendingTasks(null);
-
-      // Create a new assistant message for the schedule response
-      const now = Date.now();
-      const assistantMsg: JarvisMessage = {
-        id: `msg-${now}-confirm`,
-        role: "assistant",
-        content: "",
-        reasoning: "",
-        isStreaming: true,
-        timestamp: now,
-      };
-      streamingMsg.current = assistantMsg;
-      setMessages((m) => [...m, assistantMsg]);
-
-      // Stop cancels it; leaving the page only detaches its handlers.
-      const control = createStreamControl();
-      streamRef.current = control;
-
-      await confirmScheduleStream(
-        {
-          user_id: USER_ID,
-          tasks: editedTasks.map((t) => ({
-            task_id: t.task_id,
-            title: t.title,
-            duration_minutes: t.duration_minutes,
-            difficulty_weight: t.difficulty_weight,
-            completion_criteria: t.completion_criteria,
-            implementation_intention: t.implementation_intention,
-            dependencies: [],
-          })),
-          goal_metadata: goalMetadata,
-          model_mode: modelMode,
-        },
-        untilAborted(control.deliverySignal, {
-          onPhase: (phase, data) => {
-            const phaseEvent: PhaseEventData = { phase, ...data };
-            const activeModel = (data.model as string) || null;
-            const phaseModeMode = (data.model_mode as string) || null;
-            setStreamState((s) => ({
-              ...s,
-              phase: phase as JarvisStreamPhase,
-              activeModel: activeModel || s.activeModel,
-              modelMode: phaseModeMode || s.modelMode,
-              currentPhaseData: phaseEvent,
-              phaseHistory: [...s.phaseHistory, phaseEvent],
-            }));
-          },
-
-          onStep: (intent, data) => {
-            setStreamState((s) => ({
-              ...s,
-              phase: "synthesizing",
-              intent,
-              activeModel:
-                (data?.synthesis_model as string) || s.activeModel,
-              modelMode: (data?.model_mode as string) || s.modelMode,
-            }));
-          },
-
-          onThinkingToken: (token) => {
-            if (!streamingMsg.current) return;
-            if (!reasoningStartTime.current) {
-              reasoningStartTime.current = Date.now();
-            }
-            streamingMsg.current.reasoning =
-              (streamingMsg.current.reasoning || "") + token;
-            setStreamState((s) => ({
-              ...s,
-              phase: "reasoning",
-              reasoning: s.reasoning + token,
-            }));
-            setMessages((m) => {
-              const updated = { ...streamingMsg.current! };
-              return [...m.slice(0, -1), updated];
-            });
-          },
-
-          onMessageToken: (token) => {
-            if (!streamingMsg.current) return;
-            if (reasoningStartTime.current) {
-              const duration = Date.now() - reasoningStartTime.current;
-              setStreamState((s) => ({
-                ...s,
-                reasoningDurationMs: duration,
-              }));
-              reasoningStartTime.current = null;
-            }
-            streamingMsg.current.content += token;
-            setStreamState((s) => ({
-              ...s,
-              phase: "responding",
-              message: s.message + token,
-            }));
-            setMessages((m) => {
-              const updated = { ...streamingMsg.current! };
-              return [...m.slice(0, -1), updated];
-            });
-          },
-
-          onComplete: (response: ChatResponse) => {
-            if (streamingMsg.current) {
-              streamingMsg.current.isStreaming = false;
-              streamingMsg.current.response = response;
-              if (!streamingMsg.current.content.trim()) {
-                streamingMsg.current.content = response.message || "Done.";
-              }
-              if (
-                !streamingMsg.current.reasoning?.trim() &&
-                response.thinking_process
-              ) {
-                streamingMsg.current.reasoning = response.thinking_process;
-              }
-              const final = { ...streamingMsg.current };
-              setMessages((m) => [...m.slice(0, -1), final]);
-              streamingMsg.current = null;
-            }
-
-            // Store draft schedule so Accept All button can access it
-            if (
-              response.schedule_status === "draft" &&
-              response.schedule
-            ) {
-              setDraftScheduleResponse(response);
-              saveDraftSchedule(response);
-              jarvis.setDraft(response);
-            }
-
-            setStreamState((s) => ({ ...s, phase: "complete" }));
-            setIsStreaming(false);
-            streamRef.current = null;
-          },
-
-          onError: (err) => {
-            const errorMsg = err.message || String(err);
-            if (streamingMsg.current) {
-              streamingMsg.current.isStreaming = false;
-              if (!streamingMsg.current.content) {
-                streamingMsg.current.content = `Error: ${errorMsg}`;
-              }
-              const final = { ...streamingMsg.current };
-              setMessages((m) => [...m.slice(0, -1), final]);
-              streamingMsg.current = null;
-            }
-            setStreamState((s) => ({
-              ...s,
-              phase: "error",
-              error: errorMsg,
-            }));
-            setIsStreaming(false);
-            streamRef.current = null;
-          },
-        }),
-        { signal: control.requestSignal },
-      );
-    },
-    [modelMode],
-  );
-
-  const cancelConfirmation = useCallback(() => {
-    setPendingTasks(null);
-    setPendingGoalMetadata(null);
-    setStreamState((s) => ({ ...s, phase: "complete" }));
-  }, []);
 
   const acceptDraftFn = useCallback(async () => {
     if (!draftScheduleResponse) return;
     const draftId =
       draftScheduleResponse.draft_id ||
       draftScheduleResponse.schedule?.draft_id;
+    if (!draftId) {
+      // The turn could not store this plan for review: nothing to accept, no request.
+      const outcome = noDraftToAccept();
+      jarvis.showToast(outcome.message, outcome.tone);
+      return;
+    }
 
     setAcceptState("accepting");
     try {
-      let result: { status?: string; task_count?: number };
-      if (draftId) {
-        result = await acceptDraft(draftId);
-      } else {
-        const tasks = draftScheduleResponse.execution_graph?.decomposition || [];
-        const schedule = draftScheduleResponse.schedule;
-        result = await acceptScheduleDirect(
-          tasks,
-          schedule ? { schedule: schedule.schedule, horizon_start: schedule.horizon_start } : null,
-          schedule?.horizon_start,
-          draftScheduleResponse.execution_graph?.goal_metadata,
-        );
-      }
+      const result = await acceptDraft(draftId);
 
       // Only `accepted` with tasks saved is a success. `empty` (nothing could be
       // scheduled) and anything else keep the draft open.
@@ -746,7 +517,6 @@ export function useJarvisChat(): UseJarvisChatReturn {
     clearChatMessages();
     setDraftScheduleResponse(null);
     clearDraftSchedule();
-    setPendingTasks(null);
   }, []);
 
   const loadConversation = useCallback(async (sessionId: string) => {
@@ -755,7 +525,6 @@ export function useJarvisChat(): UseJarvisChatReturn {
     // Clear draft state when switching conversations
     setDraftScheduleResponse(null);
     clearDraftSchedule();
-    setPendingTasks(null);
     try {
       const sessionMessages = await loadConversationAPI(sessionId, USER_ID);
       if (sessionMessages.length === 0) {
@@ -798,8 +567,6 @@ export function useJarvisChat(): UseJarvisChatReturn {
   const clearMessages = useCallback(() => {
     setMessages([]);
     setStreamState(INITIAL_STREAM_STATE);
-    setPendingTasks(null);
-    setPendingGoalMetadata(null);
     clearChatMessages();
     clearDraftSchedule();
     setDraftScheduleResponse(null);
@@ -836,10 +603,6 @@ export function useJarvisChat(): UseJarvisChatReturn {
     sendMessage,
     abort,
     clearMessages,
-    pendingTasks,
-    pendingGoalMetadata,
-    confirmTasks,
-    cancelConfirmation,
     draftScheduleResponse,
     acceptDraft: acceptDraftFn,
     acceptState,

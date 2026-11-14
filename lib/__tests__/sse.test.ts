@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { consumeSSE, createStreamControl, untilAborted, type StreamHandlers } from "@/lib/api";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { chatStream, consumeSSE, createStreamControl, untilAborted, type StreamHandlers } from "@/lib/api";
+import { API_BASE, USER_ID } from "@/lib/constants";
 import { toLearningMoment, type LearningMoment } from "@/lib/learning";
+import type { ChatResponse, PearlInsight, ToolUseEvent } from "@/lib/types";
 
 function frame(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -320,5 +322,58 @@ describe("complete frame: since_last_spoke", () => {
   it("a non-string value is ignored (null), and the turn still completes", async () => {
     expect(await completeWith({ text: "x" })).toBeNull();
     expect(await completeWith(7)).toBeNull();
+  });
+});
+
+describe("chatStream", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("chatStream posts to /api/v1/chat/stream", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        urls.push(String(url));
+        return sseResponse(frame("complete", COMPLETE));
+      }),
+    );
+
+    await chatStream({ user_prompt: "hi", user_id: USER_ID }, {});
+
+    expect(urls).toHaveLength(1);
+    expect(urls[0].endsWith("/api/v1/chat/stream")).toBe(true);
+    expect(urls[0]).toBe(`${API_BASE}/api/v1/chat/stream`);
+  });
+});
+
+describe("frames the backend sends that the types must admit", () => {
+  it("a tool step the backend skipped arrives as status 'skipped', with its reason", async () => {
+    const skipped: ToolUseEvent = {
+      module: "planning_module",
+      tool: "translate_habits",
+      status: "skipped",
+      detail: { reason: "feature 'habit_translation' disabled" },
+    };
+    const seen: ToolUseEvent[] = [];
+    await consumeSSE(sseResponse(frame("tool_use", skipped)), { onToolUse: (e) => seen.push(e) }, "Stream error");
+    expect(seen).toEqual([skipped]);
+  });
+
+  it("a PEARL insight whose memory is not stored yet has memory_id null", async () => {
+    const insight: PearlInsight = {
+      insight: "I keep demanding work out of the 9 AM hour.",
+      confidence: 0.75,
+      occurrences: 4,
+      memory_id: null,
+    };
+    let got: ChatResponse | null = null;
+    await consumeSSE(
+      sseResponse(frame("complete", { ...COMPLETE, pearl_insights: [insight] })),
+      { onComplete: (r) => (got = r) },
+      "Stream error",
+    );
+    expect(got!.pearl_insights).toEqual([insight]);
   });
 });
