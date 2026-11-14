@@ -12,6 +12,7 @@ import type {
   ChatResponse,
   ChatRequest,
   ConfirmScheduleRequest,
+  DraftState,
   TaskWorkspace,
   Session,
   SessionMessage,
@@ -27,6 +28,93 @@ import type {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ---------------------------------------------------------------------------
+// Error envelope
+// ---------------------------------------------------------------------------
+
+/**
+ * The backend's error body: every HTTP error (and every v2 SSE `error` frame) is
+ * `{"error": {"code", "message", "details", "request_id"}}` — see
+ * Jarvis-Engine/app/api/error_handlers.py. The old shape was `{"detail": ...}`.
+ */
+export interface ApiErrorBody {
+  code: string;
+  message: string;
+  details: Record<string, unknown> | null;
+  request_id: string;
+}
+
+function errorBodyOf(json: unknown): Partial<ApiErrorBody> | null {
+  if (!json || typeof json !== 'object') return null;
+  const error = (json as { error?: unknown }).error;
+  return error && typeof error === 'object' ? (error as Partial<ApiErrorBody>) : null;
+}
+
+/**
+ * The human-readable message in an error body: the envelope's `error.message`
+ * first, then the legacy `detail` / `message` / string `error` fields, else `fallback`.
+ */
+export function readApiError(json: unknown, fallback: string): string {
+  const body = errorBodyOf(json);
+  if (typeof body?.message === 'string' && body.message) return body.message;
+  if (json && typeof json === 'object') {
+    const legacy = json as { detail?: unknown; message?: unknown; error?: unknown };
+    for (const value of [legacy.detail, legacy.message, legacy.error]) {
+      if (typeof value === 'string' && value) return value;
+    }
+  }
+  return fallback;
+}
+
+/** The envelope's machine-readable `error.code` (e.g. 'invalid_state_transition'), if any. */
+export function readApiErrorCode(json: unknown): string | undefined {
+  const code = errorBodyOf(json)?.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+/** `readApiError` over a raw response body that may or may not be JSON. */
+function readApiErrorText(text: string): string {
+  try {
+    return readApiError(JSON.parse(text), text);
+  } catch {
+    return text;
+  }
+}
+
+/** A non-2xx response from the backend, with its status and envelope code. */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string | undefined;
+  /** The backend's `error.message` — written to be shown to the user. Undefined when the body had none. */
+  readonly serverMessage: string | undefined;
+
+  constructor(message: string, status: number, code?: string, serverMessage?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.serverMessage = serverMessage;
+  }
+}
+
+/** Build an `ApiError` from a failed response; `label` prefixes the message. */
+async function apiError(res: Response, label: string): Promise<ApiError> {
+  const text = await res.text().catch(() => '');
+  let json: unknown = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // not JSON — keep the raw text
+  }
+  const serverMessage = readApiError(json, '') || undefined;
+  return new ApiError(
+    `${label} (${res.status}): ${serverMessage || text || res.statusText}`,
+    res.status,
+    readApiErrorCode(json),
+    serverMessage,
+  );
 }
 
 /** Lazy-load demo data to keep live-mode bundles small. */
@@ -96,7 +184,8 @@ async function consumeSSE(
             } else if (currentEvent === 'complete') {
               handlers.onComplete?.(data as ChatResponse);
             } else if (currentEvent === 'error') {
-              handlers.onError?.(new Error(data.error || errorLabel));
+              // v2 frames carry the error envelope ({error: {message, ...}}); v1 frames a bare string.
+              handlers.onError?.(new Error(readApiError(data, errorLabel)));
             } else if (currentEvent === 'tool_use') {
               handlers.onToolUse?.(data as ToolUseEvent);
             } else if (currentEvent === 'memory_extracted') {
@@ -134,14 +223,7 @@ export async function chat(request: ChatRequest): Promise<ChatResponse> {
 
   if (!res.ok) {
     const text = await res.text();
-    let detail = text;
-    try {
-      const json = JSON.parse(text);
-      detail = json.detail || json.message || text;
-    } catch {
-      // use raw text
-    }
-    throw new Error(`Chat failed (${res.status}): ${detail}`);
+    throw new Error(`Chat failed (${res.status}): ${readApiErrorText(text)}`);
   }
 
   try {
@@ -212,7 +294,7 @@ export async function chatStream(
 
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '');
-    handlers.onError?.(new Error(`Stream failed (${res.status}): ${text}`));
+    handlers.onError?.(new Error(`Stream failed (${res.status}): ${readApiErrorText(text)}`));
     return;
   }
 
@@ -252,7 +334,7 @@ export async function confirmScheduleStream(
 
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '');
-    handlers.onError?.(new Error(`Confirm schedule failed (${res.status}): ${text}`));
+    handlers.onError?.(new Error(`Confirm schedule failed (${res.status}): ${readApiErrorText(text)}`));
     return;
   }
 
@@ -478,14 +560,19 @@ export async function deleteDocument(
 // Draft Management (new — not in Demo)
 // ---------------------------------------------------------------------------
 
-export async function getDraftById(draftId: string): Promise<ChatResponse> {
+export async function getDraftById(draftId: string): Promise<DraftState> {
   const res = await fetch(
     `${API_BASE}/api/v1/drafts/${encodeURIComponent(draftId)}?user_id=${encodeURIComponent(USER_ID)}`,
   );
-  if (!res.ok) throw new Error(`Failed to get draft: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to get draft');
   return res.json();
 }
 
+/**
+ * Accept a draft. Throws `ApiError`: 409 `invalid_state_transition` when the draft
+ * is no longer open (already accepted, rejected, expired or superseded), 409
+ * `conflict` when its tasks clash with tasks the user already has.
+ */
 export async function acceptDraft(
   draftId: string,
 ): Promise<{ status: string }> {
@@ -497,7 +584,7 @@ export async function acceptDraft(
       body: JSON.stringify({ user_id: USER_ID }),
     },
   );
-  if (!res.ok) throw new Error(`Failed to accept draft: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to accept draft');
   return res.json();
 }
 
@@ -525,10 +612,11 @@ export async function acceptScheduleDirect(
       }),
     },
   );
-  if (!res.ok) throw new Error(`Failed to accept schedule: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to accept schedule');
   return res.json();
 }
 
+/** Reject a draft. Throws `ApiError` (409 `invalid_state_transition` when it is no longer open). */
 export async function rejectDraft(
   draftId: string,
   components: string[],
@@ -541,24 +629,30 @@ export async function rejectDraft(
       body: JSON.stringify({ user_id: USER_ID, components }),
     },
   );
-  if (!res.ok) throw new Error(`Failed to reject draft: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to reject draft');
   return res.json();
 }
 
+/**
+ * Edit one task in a draft (`user_id` is a required query parameter). Throws
+ * `ApiError` (409 `invalid_state_transition` when the draft is no longer open).
+ */
 export async function editDraftTask(
   draftId: string,
   taskId: string,
   updates: Record<string, unknown>,
+  userId: string = USER_ID,
 ): Promise<{ status: string }> {
+  const params = new URLSearchParams({ user_id: userId });
   const res = await fetch(
-    `${API_BASE}/api/v1/drafts/${encodeURIComponent(draftId)}/tasks/${encodeURIComponent(taskId)}`,
+    `${API_BASE}/api/v1/drafts/${encodeURIComponent(draftId)}/tasks/${encodeURIComponent(taskId)}?${params}`,
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     },
   );
-  if (!res.ok) throw new Error(`Failed to edit draft task: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to edit draft task');
   return res.json();
 }
 
@@ -620,8 +714,9 @@ export async function getDueHabits(): Promise<Record<string, unknown>[]> {
   const res = await fetch(
     `${API_BASE}/api/v1/habits/tracker/due?user_id=${encodeURIComponent(USER_ID)}`,
   );
-  if (res.status === 404 || res.status === 503) return [];
-  if (!res.ok) throw new Error(`Failed to get due habits: ${res.status}`);
+  if (res.status === 404) return [];
+  // A 503 means the database is down — never "nothing due".
+  if (!res.ok) throw await apiError(res, 'Failed to get due habits');
   const data = await res.json();
   return data.due_trackers ?? data;
 }
@@ -651,19 +746,22 @@ export async function getBehavioralConstraints(): Promise<BehavioralConstraint[]
   return data.constraints ?? [];
 }
 
+/** Record a habit review. `user_id` is a required query parameter; the body carries only `quality`. */
 export async function completeHabit(
   id: string,
   quality: number,
-): Promise<{ status: string }> {
+  userId: string = USER_ID,
+): Promise<{ next_review_date: string | null; next_interval_days: number | null }> {
+  const params = new URLSearchParams({ user_id: userId });
   const res = await fetch(
-    `${API_BASE}/api/v1/habits/tracker/${encodeURIComponent(id)}/complete`,
+    `${API_BASE}/api/v1/habits/tracker/${encodeURIComponent(id)}/complete?${params}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quality }),
     },
   );
-  if (!res.ok) throw new Error(`Failed to complete habit: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to complete habit');
   return res.json();
 }
 
@@ -671,30 +769,36 @@ export async function completeHabit(
 // Calendar (new)
 // ---------------------------------------------------------------------------
 
-export async function getPendingCalendars(): Promise<Record<string, unknown>[]> {
-  const res = await fetch(
-    `${API_BASE}/api/v1/ingestion/pending-calendar?user_id=${encodeURIComponent(USER_ID)}`,
-  );
-  if (!res.ok) throw new Error(`Failed to get pending calendars: ${res.status}`);
-  return res.json();
+/** The caller's pending calendar updates. Throws `ApiError` on failure (503 when the database is down). */
+export async function getPendingCalendars(
+  userId: string = USER_ID,
+): Promise<Record<string, unknown>[]> {
+  if (IS_DEMO_MODE) return [];
+  const params = new URLSearchParams({ user_id: userId });
+  const res = await fetch(`${API_BASE}/api/v1/ingestion/pending-calendar?${params}`);
+  if (!res.ok) throw await apiError(res, 'Failed to get pending calendars');
+  const data = await res.json();
+  return data.pending ?? [];
 }
 
-export async function approveCalendar(id: string): Promise<void> {
+export async function approveCalendar(id: string, userId: string = USER_ID): Promise<void> {
   if (IS_DEMO_MODE) return;
+  const params = new URLSearchParams({ user_id: userId });
   const res = await fetch(
-    `${API_BASE}/api/v1/ingestion/pending-calendar/${encodeURIComponent(id)}/approve`,
+    `${API_BASE}/api/v1/ingestion/pending-calendar/${encodeURIComponent(id)}/approve?${params}`,
     { method: 'POST' },
   );
-  if (!res.ok) throw new Error(`Calendar approval failed: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Calendar approval failed');
 }
 
-export async function rejectCalendar(id: string): Promise<void> {
+export async function rejectCalendar(id: string, userId: string = USER_ID): Promise<void> {
   if (IS_DEMO_MODE) return;
+  const params = new URLSearchParams({ user_id: userId });
   const res = await fetch(
-    `${API_BASE}/api/v1/ingestion/pending-calendar/${encodeURIComponent(id)}/reject`,
+    `${API_BASE}/api/v1/ingestion/pending-calendar/${encodeURIComponent(id)}/reject?${params}`,
     { method: 'POST' },
   );
-  if (!res.ok) throw new Error(`Calendar rejection failed: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Calendar rejection failed');
 }
 
 // ---------------------------------------------------------------------------

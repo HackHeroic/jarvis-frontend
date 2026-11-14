@@ -61,7 +61,9 @@ export function apiTasksToScheduleTasks(
           ? new Date(t.scheduled_end as string)
           : new Date(startTime.getTime() + dur * 60_000);
 
-      const VALID_STATUSES = new Set(["pending", "in_progress", "completed", "skipped"]);
+      const VALID_STATUSES = new Set([
+        "pending", "in_progress", "completed", "skipped", "missed", "pacing_pushed",
+      ]);
       const rawStatus = (t.status as string) || "pending";
       const status = VALID_STATUSES.has(rawStatus)
         ? (rawStatus as ScheduleTask["status"])

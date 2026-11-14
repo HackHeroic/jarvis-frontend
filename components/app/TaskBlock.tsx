@@ -4,6 +4,7 @@ import { Check } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { ScheduleTask } from "@/lib/types";
+import { isSkippedStatus } from "@/lib/constants";
 import clsx from "clsx";
 
 interface TaskBlockProps {
@@ -22,7 +23,7 @@ function formatTime(date: Date): string {
 
 export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlockProps) {
   const isCompleted = task.status === "completed";
-  const isSkipped = task.status === "skipped";
+  const isSkipped = isSkippedStatus(task.status);
   const remaining = task.duration_minutes - progressMinutes;
   const progressPercent = task.duration_minutes > 0
     ? Math.min(100, Math.round((progressMinutes / task.duration_minutes) * 100))

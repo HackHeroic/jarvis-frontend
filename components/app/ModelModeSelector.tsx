@@ -11,9 +11,10 @@ import { getModelStatus, type ModelStatus } from "@/lib/api";
  * Wire values ("auto" | "4b" | "27b") are kept for backend compatibility:
  *   "auto" = Jarvis picks (local primary + cloud fallback)
  *   "27b"  = Force local primary (whatever is loaded in LM Studio)
- *   "4b"   = Force cloud (Gemini)
+ *   "4b"   = Force cloud (the backend's cloud tier — Claude, then Gemini)
  *
- * Display labels come from GET /api/v1/models/status and show actual model names.
+ * The local option's label comes from GET /api/v1/models/status; the cloud
+ * option is labelled "Cloud" because more than one cloud model may answer.
  */
 
 export type ModelMode = "auto" | "4b" | "27b";
@@ -56,14 +57,13 @@ export function ModelModeSelector({
   if (status) {
     const primaryName = shortModelName(status.primary_model || "");
     const fastName = shortModelName(status.fast_model || "");
-    const cloudName = shortModelName(status.cloud_model || "gemini-2.5-flash");
 
     modes.push({
       value: "auto",
       label: "Auto",
       tooltip: status.local_available
-        ? `Local ${primaryName} + ${cloudName} fallback`
-        : `Cloud only: ${cloudName}`,
+        ? `Local ${primaryName} + cloud fallback`
+        : "Cloud only",
     });
 
     if (status.local_available && primaryName) {
@@ -75,11 +75,11 @@ export function ModelModeSelector({
       });
     }
 
-    // Always show cloud option
+    // Always show cloud option. Wire value stays "4b" (chat.py: "4b" | "cloud" | "gemini" force cloud).
     modes.push({
       value: "4b",
-      label: cloudName,
-      tooltip: `Force cloud: ${status.cloud_model}`,
+      label: "Cloud",
+      tooltip: "Force cloud models for this turn",
     });
   } else {
     // Fallback before status loads

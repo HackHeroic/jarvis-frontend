@@ -30,8 +30,9 @@ export function MetricsBar({ metrics }: MetricsBarProps) {
     parts.push(`${metrics.tok_per_sec.toFixed(1)} tok/s`);
   }
 
-  if (metrics.model) {
-    const short = metrics.model.split('/').pop() ?? metrics.model;
+  // Whichever model actually answered (Claude, Gemini, local...): show its last path segment.
+  if (typeof metrics.model === 'string' && metrics.model.trim()) {
+    const short = metrics.model.split('/').filter(Boolean).pop() ?? metrics.model;
     parts.push(short);
   }
 

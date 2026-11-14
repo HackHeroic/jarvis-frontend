@@ -125,9 +125,15 @@ export const TASK_STATUS_DISPLAY: Record<string, { label: string; color: string 
   completed: { label: "Completed", color: "sage" },
   pacing_pushed: { label: "Adjusted — no stress", color: "sage" },
   skipped: { label: "Rescheduled", color: "muted" },
+  missed: { label: "Still open — no stress", color: "muted" },
   // NEVER use: "Overdue", "Failed", "Missed", "Late"
 };
 
 export function getTaskStatusDisplay(status: string): { label: string; color: string } {
   return TASK_STATUS_DISPLAY[status] || { label: status.replace(/_/g, " "), color: "muted" };
+}
+
+/** pacing_pushed is what POST /tasks/{id}/skip writes (the anti-guilt skip): it renders as skipped. */
+export function isSkippedStatus(status: string): boolean {
+  return status === "skipped" || status === "pacing_pushed";
 }

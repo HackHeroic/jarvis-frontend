@@ -15,7 +15,7 @@ import clsx from "clsx";
 
 import { useJarvisChat } from "@/lib/hooks/useJarvisChat";
 import { JarvisResponse } from "@/components/app/JarvisResponse";
-import { approveCalendar, rejectCalendar, listMemories, deleteMemory, confirmMemory, dismissMemory } from "@/lib/api";
+import { listMemories, deleteMemory, confirmMemory, dismissMemory } from "@/lib/api";
 import { PromptSelector } from "@/components/app/PromptSelector";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ModelModeSelector } from "@/components/app/ModelModeSelector";
@@ -345,8 +345,6 @@ function ChatPage() {
                         onAcceptDraft={() => acceptDraft()}
                         onRejectDraft={(reason) => rejectDraft(reason)}
                         onChatModify={handleChatModify}
-                        onCalendarApproved={(id) => approveCalendar(id)}
-                        onCalendarRejected={(id) => rejectCalendar(id)}
                       />
                     </div>
                   </div>
