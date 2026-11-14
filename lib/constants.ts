@@ -114,8 +114,6 @@ export function getIntentColor(intent: string): string {
   return INTENT_COLORS[intent] || PALETTE_ROTATION[hashCode(intent) % PALETTE_ROTATION.length];
 }
 
-export const DEMO_LATENCY = 800;
-
 // ---------------------------------------------------------------------------
 // Anti-guilt task status display (psychology framework)
 // ---------------------------------------------------------------------------

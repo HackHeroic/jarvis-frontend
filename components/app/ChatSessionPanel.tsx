@@ -14,9 +14,11 @@ import {
   Loader2,
   Pin,
   PinOff,
+  CloudOff,
 } from "lucide-react";
 import clsx from "clsx";
 import { listSessions, archiveSession, renameSession, pinSession } from "@/lib/api";
+import { sessionsListNote } from "@/lib/sessions";
 import type { Session } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -65,6 +67,9 @@ export function ChatSessionPanel({
   sidebarWidth = 260,
 }: ChatSessionPanelProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
+  // Whether a list has ever loaded, and whether the last refresh failed (the last list stays).
+  const [loaded, setLoaded] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
@@ -89,8 +94,11 @@ export function ChatSessionPanel({
       setSessions(active);
       // Sync pinned state from backend
       setPinnedIds(new Set(active.filter((s) => s.is_pinned).map((s) => s.id)));
+      setLoaded(true);
+      setRefreshFailed(false);
     } catch {
-      // Non-critical -- degrade gracefully
+      // The last list stays, and a quiet note says it may be out of date.
+      setRefreshFailed(true);
     }
   }, []);
 
@@ -230,6 +238,7 @@ export function ChatSessionPanel({
     ? sessions.find((s) => s.id === menuOpenId)
     : null;
   const isPinnedMenu = menuOpenId ? pinnedIds.has(menuOpenId) : false;
+  const listNote = sessionsListNote({ loaded, refreshFailed, count: sortedSessions.length });
 
   // ---- Panel content (shared between desktop + mobile) ----
   const panelContent = (
@@ -274,9 +283,24 @@ export function ChatSessionPanel({
         </button>
       </div>
 
+      {/* A failed refresh: quiet, never silent */}
+      {listNote.note && (
+        <p role="status" className="flex shrink-0 items-center gap-1.5 px-4 pb-1 text-[10px] text-muted">
+          <CloudOff size={11} className="shrink-0 text-gold" />
+          <span className="min-w-0 flex-1 truncate">{listNote.note}</span>
+          <button
+            type="button"
+            onClick={() => fetchSessions()}
+            className="shrink-0 font-medium text-secondary transition-colors hover:text-primary"
+          >
+            Retry
+          </button>
+        </p>
+      )}
+
       {/* Session list */}
       <div className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5 min-h-0">
-        {sortedSessions.length === 0 && (
+        {listNote.showEmpty && (
           <div className="flex flex-col items-center justify-center py-10 px-4">
             <MessageSquare size={24} className="text-muted mb-2 opacity-40" />
             <p className="text-xs text-muted text-center">

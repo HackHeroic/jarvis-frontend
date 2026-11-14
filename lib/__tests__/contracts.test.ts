@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   ContractError,
   parseAcceptResponse,
+  parseCompleteDraftVersion,
   parseDraftState,
   parseMemoryList,
   parseMemoryOut,
@@ -19,6 +20,7 @@ import {
   parseYouResponse,
 } from "@/lib/contracts";
 import { toPanelMemory } from "@/lib/transforms";
+import { CHAT_COMPLETE_FRAME, PLANNING_COMPLETE_FRAME } from "./draft-samples";
 
 const MARATHON = "Training for the Mumbai marathon in March";
 
@@ -485,5 +487,24 @@ describe("GET /api/v1/drafts/{id}", () => {
     const body = clone(DRAFT_WITH_SLOTS);
     delete (body.schedule.schedule.t1 as Partial<typeof body.schedule.schedule.t1>).start;
     expect(() => parseDraftState(body)).toThrow(ContractError);
+  });
+});
+
+describe("chat complete frame: draft_version", () => {
+  it("a turn that hands over a draft carries its version next to draft_id", () => {
+    expect(parseCompleteDraftVersion(clone(PLANNING_COMPLETE_FRAME))).toBe("0123456789abcdef");
+  });
+
+  it("a turn that hands over none has no version (the key is absent; null reads the same)", () => {
+    expect(parseCompleteDraftVersion(clone(CHAT_COMPLETE_FRAME))).toBeUndefined();
+    expect(parseCompleteDraftVersion({ ...clone(CHAT_COMPLETE_FRAME), draft_version: null })).toBeUndefined();
+  });
+
+  it("anything but a non-empty string is a contract error, never a plan accepted unnamed", () => {
+    for (const bad of ["", 7, true, {}, ["0123456789abcdef"]]) {
+      expect(() => parseCompleteDraftVersion({ ...clone(PLANNING_COMPLETE_FRAME), draft_version: bad })).toThrow(
+        ContractError,
+      );
+    }
   });
 });

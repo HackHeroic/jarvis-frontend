@@ -3,6 +3,8 @@ import { chatStream, consumeSSE, createStreamControl, untilAborted, type StreamH
 import { API_BASE, USER_ID } from "@/lib/constants";
 import { toLearningMoment, type LearningMoment } from "@/lib/learning";
 import type { ChatResponse, PearlInsight, ToolUseEvent } from "@/lib/types";
+import { ContractError } from "@/lib/contracts";
+import { CHAT_COMPLETE_FRAME, PLANNING_COMPLETE_FRAME } from "./draft-samples";
 
 function frame(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -322,6 +324,41 @@ describe("complete frame: since_last_spoke", () => {
   it("a non-string value is ignored (null), and the turn still completes", async () => {
     expect(await completeWith({ text: "x" })).toBeNull();
     expect(await completeWith(7)).toBeNull();
+  });
+});
+
+describe("complete frame: draft_version", () => {
+  async function complete(data: unknown) {
+    const calls: Array<[string, unknown]> = [];
+    await consumeSSE(
+      sseResponse(frame("complete", data)),
+      { onComplete: (r) => calls.push(["complete", r]), onError: (e) => calls.push(["error", e]) },
+      "Stream error",
+    );
+    return calls;
+  }
+
+  it("a turn that hands over a draft keeps its version with the draft (the backend's recorded frame)", async () => {
+    const calls = await complete(PLANNING_COMPLETE_FRAME);
+    expect(calls.map(([name]) => name)).toEqual(["complete"]);
+    const response = calls[0][1] as ChatResponse;
+    expect(response.draft_id).toBe("draft-1");
+    expect(response.draft_version).toBe("0123456789abcdef");
+    expect(response.schedule_status).toBe("draft");
+  });
+
+  it("a turn that hands over none has no version (absent or null)", async () => {
+    for (const data of [CHAT_COMPLETE_FRAME, { ...CHAT_COMPLETE_FRAME, draft_version: null }]) {
+      const calls = await complete(data);
+      expect(calls.map(([name]) => name)).toEqual(["complete"]);
+      expect((calls[0][1] as ChatResponse).draft_version).toBeUndefined();
+    }
+  });
+
+  it("a malformed version is drift: the turn ends with a contract error, never a card that accepts unnamed", async () => {
+    const calls = await complete({ ...PLANNING_COMPLETE_FRAME, draft_version: 12345 });
+    expect(calls.map(([name]) => name)).toEqual(["error"]);
+    expect(calls[0][1]).toBeInstanceOf(ContractError);
   });
 });
 

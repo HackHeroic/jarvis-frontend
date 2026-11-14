@@ -8,7 +8,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ApiError, chatStream, acceptDraft, rejectDraft, untilAborted, createStreamControl, type StreamControl, loadConversation as loadConversationAPI } from "../api";
+import { ApiError, chatStream, acceptDraft, getDraftById, rejectDraft, untilAborted, createStreamControl, type StreamControl, loadConversation as loadConversationAPI } from "../api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import type {
   JarvisMessage,
@@ -20,7 +20,9 @@ import type {
 } from "../types";
 import { useDevMode } from "./useDevMode";
 import { INITIAL_STREAM_STATE } from "../types";
-import { describeAcceptOutcome, noDraftToAccept, readPatternFrame, toLearningMoment, type LearningMoment } from "../learning";
+import { readPatternFrame, toLearningMoment, type LearningMoment } from "../learning";
+import { acceptFromCard, replaceDraftInMessages, withLatestDraft } from "../draftCard";
+import { conversationLoadFailure } from "../sessions";
 import { toModelMode, type ModelMode } from "../modelModes";
 import {
   saveChatMessages,
@@ -33,6 +35,13 @@ import {
 import { USER_ID } from "../constants";
 
 export type { ModelMode };
+
+/** A conversation that would not open because Jarvis could not be reached: Retry loads it again. */
+export interface ConversationLoadError {
+  sessionId: string;
+  headline: string;
+  detail?: string;
+}
 
 export type UseJarvisChatReturn = {
   messages: JarvisMessage[];
@@ -56,6 +65,8 @@ export type UseJarvisChatReturn = {
   conversationId: string | null;
   startNewConversation: () => void;
   loadConversation: (sessionId: string) => Promise<void>;
+  /** Set when opening a conversation hit an outage (not a deletion); null otherwise. */
+  conversationLoadError: ConversationLoadError | null;
   triggerReplan: () => Promise<void>;
   isReplanning: boolean;
   modelMode: ModelMode;
@@ -68,6 +79,7 @@ export type UseJarvisChatReturn = {
 
 export function useJarvisChat(): UseJarvisChatReturn {
   const jarvis = useJarvis();
+  const { setDraft } = jarvis;
   const router = useRouter();
 
   const [messages, setMessages] = useState<JarvisMessage[]>([]);
@@ -80,6 +92,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
     "idle" | "accepting" | "accepted"
   >("idle");
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationLoadError, setConversationLoadError] = useState<ConversationLoadError | null>(null);
   const [isReplanning, setIsReplanning] = useState(false);
   const [modelMode, setModelMode] = useState<ModelMode>("auto");
 
@@ -189,6 +202,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
       },
     ) => {
       if (!content.trim() || isStreaming) return;
+      setConversationLoadError(null);
 
       const now = Date.now();
       const userMsg: JarvisMessage = {
@@ -392,7 +406,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
             ) {
               setDraftScheduleResponse(response);
               saveDraftSchedule(response);
-              jarvis.setDraft(response);
+              setDraft(response);
             }
 
             setStreamState((s) => ({ ...s, phase: "complete" }));
@@ -423,66 +437,47 @@ export function useJarvisChat(): UseJarvisChatReturn {
         { signal: control.requestSignal },
       );
     },
-    [isStreaming, conversationId, modelMode, addLearningMoment],
+    [isStreaming, conversationId, modelMode, addLearningMoment, setDraft],
   );
 
   const acceptDraftFn = useCallback(async () => {
     if (!draftScheduleResponse) return;
-    const draftId =
-      draftScheduleResponse.draft_id ||
-      draftScheduleResponse.schedule?.draft_id;
-    if (!draftId) {
-      // The turn could not store this plan for review: nothing to accept, no request.
-      const outcome = noDraftToAccept();
-      jarvis.showToast(outcome.message, outcome.tone);
-      return;
-    }
-
     setAcceptState("accepting");
-    try {
-      // No expected_version: the chat `complete` payload this card shows carries none
-      // (Jarvis-Engine app/schemas/chat_stream.py), so the backend does no version check.
-      const result = await acceptDraft(draftId);
+    // The plan this card shows, by the version its turn handed over: a plan changed
+    // since is refused (409 stale_version) and read as the dashboard banner reads it.
+    const outcome = await acceptFromCard(draftScheduleResponse, { accept: acceptDraft, reread: getDraftById });
 
-      // Only `accepted` with tasks saved is a success. `empty` (nothing could be
-      // scheduled) and anything else keep the draft open.
-      const outcome = describeAcceptOutcome(result);
-      if (!outcome.ok) {
-        setAcceptState("idle");
-        jarvis.showToast(outcome.message, outcome.tone);
-        return;
-      }
-
+    if (outcome.accepted) {
       jarvis.clearDraft();
       setDraftScheduleResponse(null);
       setAcceptState("accepted");
-
       await jarvis.refreshTasks();
-
       jarvis.showToast(outcome.message, outcome.tone);
       setTimeout(() => {
         setAcceptState("idle");
         router.push("/schedule");
       }, 1000);
-    } catch (err) {
-      console.error("[ACCEPT] Failed:", err);
-      setAcceptState("idle");
-      if (err instanceof ApiError && err.status === 409) {
-        // The backend says why, in words meant for the user.
-        if (err.code === "invalid_state_transition") {
-          // Already locked in or closed: drop the draft so the panel stops
-          // offering an accept that can only fail again.
-          jarvis.clearDraft();
-          setDraftScheduleResponse(null);
-          jarvis.showToast(err.serverMessage || "This plan is already closed.", "info");
-        } else {
-          // `conflict`: the plan clashes with tasks you already have; the draft stays open.
-          jarvis.showToast(err.serverMessage || "This plan clashes with your existing tasks.", "error");
-        }
-        return;
-      }
-      const fallback = describeAcceptOutcome({});
-      jarvis.showToast(fallback.message, fallback.tone);
+      return;
+    }
+
+    // Anything else is never success: say why, and the card stays open unless the
+    // plan is settled or gone.
+    setAcceptState("idle");
+    jarvis.showToast(outcome.message, outcome.tone);
+    const latest = outcome.latest;
+    if (latest) {
+      // The plan changed since the card was drawn; nothing was written. Redraw the
+      // card on the latest draft, whose version the next accept sends.
+      const redrawn = withLatestDraft(draftScheduleResponse, latest);
+      setDraftScheduleResponse(redrawn);
+      saveDraftSchedule(redrawn);
+      jarvis.setDraft(redrawn);
+      setMessages((m) => replaceDraftInMessages(m, latest));
+    }
+    if (outcome.refreshTasks) void jarvis.refreshTasks();
+    if (outcome.clearDraft) {
+      jarvis.clearDraft();
+      setDraftScheduleResponse(null);
     }
   }, [draftScheduleResponse, jarvis, router]);
 
@@ -513,6 +508,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
   }, [draftScheduleResponse, sendMessage, jarvis]);
 
   const startNewConversation = useCallback(() => {
+    setConversationLoadError(null);
     setConversationId(null);
     localStorage.removeItem("jarvis-conversation-id");
     setMessages([]);
@@ -524,13 +520,14 @@ export function useJarvisChat(): UseJarvisChatReturn {
   const loadConversation = useCallback(async (sessionId: string) => {
     setConversationId(sessionId);
     localStorage.setItem("jarvis-conversation-id", sessionId);
+    setConversationLoadError(null);
     // Clear draft state when switching conversations
     setDraftScheduleResponse(null);
     clearDraftSchedule();
     try {
       const sessionMessages = await loadConversationAPI(sessionId, USER_ID);
       if (sessionMessages.length === 0) {
-        // Session exists but has no messages (or was not found)
+        // The session exists but has no messages
         const placeholder: JarvisMessage = {
           id: `msg-${Date.now()}-empty`,
           role: "assistant",
@@ -553,11 +550,21 @@ export function useJarvisChat(): UseJarvisChatReturn {
       }));
       setMessages(loaded);
       saveChatMessages(loaded);
-    } catch {
+    } catch (err) {
+      const failure = conversationLoadFailure(err);
+      if (failure.kind === "unreachable") {
+        // An outage, not a deletion: the conversation stays selected in the sidebar,
+        // nothing is stored in its place, and Retry loads it again.
+        setMessages([]);
+        clearChatMessages();
+        setConversationLoadError({ sessionId, headline: failure.headline, detail: failure.detail });
+        return;
+      }
+      // 404 not_found: it may have been deleted.
       const errorPlaceholder: JarvisMessage = {
         id: `msg-${Date.now()}-error`,
         role: "assistant",
-        content: "Could not load this conversation. It may have been deleted.",
+        content: failure.message,
         isStreaming: false,
         timestamp: Date.now(),
       };
@@ -567,6 +574,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
   }, []);
 
   const clearMessages = useCallback(() => {
+    setConversationLoadError(null);
     setMessages([]);
     setStreamState(INITIAL_STREAM_STATE);
     clearChatMessages();
@@ -612,6 +620,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
     conversationId,
     startNewConversation,
     loadConversation,
+    conversationLoadError,
     triggerReplan,
     isReplanning,
     modelMode,

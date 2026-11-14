@@ -371,6 +371,12 @@ export interface ChatResponse {
   /** Set only on the turn that produced a schedule; null on every other turn. */
   draft_id?: string | null;
   /**
+   * That draft's version (as GET /drafts/{id} reports it), sent only with draft_id and
+   * read strictly (`parseCompleteDraftVersion`). The review card's accept sends it as
+   * `expected_version`: a plan changed since is refused (409 `stale_version`).
+   */
+  draft_version?: string;
+  /**
    * 'draft' on the turn that produced a schedule; 'infeasible' when every horizon
    * was tried and the scope still did not fit; null on every other turn.
    */
