@@ -99,3 +99,18 @@ export function layoutDayBlocks(
   flush();
   return result;
 }
+
+
+/**
+ * A task's due hint as words. A hint the model wrote ("due Saturday") is shown as it
+ * is; a bare ISO date ("2026-11-17") reads as "due Tue 17 Nov".
+ */
+export function dueHintLabel(hint: string | null | undefined): string {
+  if (!hint) return "";
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(hint.trim());
+  if (!iso) return hint;
+  const day = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  if (Number.isNaN(day.getTime())) return hint;
+  const label = day.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  return `due ${label}`;
+}

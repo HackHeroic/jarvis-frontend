@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import type { ScheduleTask } from "@/lib/types";
 import { taskStatusDisplay } from "@/lib/constants";
 import clsx from "clsx";
+import { dueHintLabel } from "@/lib/schedule";
 
 interface TaskBlockProps {
   task: ScheduleTask;
@@ -81,7 +82,7 @@ export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlock
               </p>
             )}
             {isPlain && task.deadline_hint && (
-              <p className="mt-0.5 text-xs text-muted">{task.deadline_hint}</p>
+              <p className="mt-0.5 text-xs text-muted">{dueHintLabel(task.deadline_hint)}</p>
             )}
           </div>
 

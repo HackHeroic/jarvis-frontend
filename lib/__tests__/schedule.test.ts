@@ -144,3 +144,19 @@ describe("layoutDayBlocks", () => {
     expect(out.get("a")).toMatchObject({ top: 0, height: 30 });
   });
 });
+
+
+import { dueHintLabel } from "../schedule";
+
+describe("dueHintLabel", () => {
+  it("turns a bare ISO date into words", () => {
+    expect(dueHintLabel("2026-11-17")).toBe("due Tue 17 Nov");
+  });
+  it("keeps a hint that is already words", () => {
+    expect(dueHintLabel("due Saturday")).toBe("due Saturday");
+    expect(dueHintLabel("before Thursday quiz")).toBe("before Thursday quiz");
+  });
+  it("is empty for no hint", () => {
+    expect(dueHintLabel(null)).toBe("");
+  });
+});
