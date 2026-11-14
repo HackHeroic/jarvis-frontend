@@ -101,7 +101,9 @@ export function useJarvisChat(): UseJarvisChatReturn {
     if (savedMessages.length > 0) setMessages(savedMessages);
 
     const savedDraft = loadDraftSchedule();
-    if (savedDraft) setDraftScheduleResponse(savedDraft);
+    // A suggestion's plan has no card in chat (the dashboard banner acts on it),
+    // so chat never adopts it as its own draft.
+    if (savedDraft && savedDraft.draft_source !== "suggestion") setDraftScheduleResponse(savedDraft);
 
     const savedConversationId = localStorage.getItem("jarvis-conversation-id");
     if (savedConversationId) setConversationId(savedConversationId);
