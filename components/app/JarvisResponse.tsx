@@ -21,6 +21,8 @@ import { ActionProposalCards } from './ActionProposalCards';
 import { PendingCalendarApproval } from './PendingCalendarApproval';
 import { DraftReview } from './DraftReview';
 import { LearningMoments } from './LearningMoments';
+import { SinceLastSpoke } from './SinceLastSpoke';
+import { toSinceLastSpoke } from '@/lib/learning';
 import { ConsentNotice } from './ConsentNotice';
 
 import type {
@@ -265,6 +267,8 @@ export function JarvisResponse({
   const conflictSummary = response?.conflict_summary ?? undefined;
 
   const learningMoments = message.learningMoments ?? [];
+  // Re-checked here too: a message restored from storage may hold anything.
+  const sinceLastSpoke = toSinceLastSpoke(response?.since_last_spoke);
   const consentRequest = message.consentRequest;
 
   // Detect pending calendar entries from ingestion result
@@ -296,6 +300,9 @@ export function JarvisResponse({
           phaseHistory={phaseHistory}
         />
       )}
+
+      {/* 3b. Where the last conversation left off — a new session's first turn only */}
+      {sinceLastSpoke && <SinceLastSpoke note={sinceLastSpoke} />}
 
       {/* 4. Main Message */}
       {(cleanContent || isStreaming) && (

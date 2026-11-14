@@ -10,6 +10,7 @@ import {
   toConsentRequest,
   toLearningMoment,
   toListState,
+  toSinceLastSpoke,
 } from "@/lib/learning";
 import type { MemoryExtractedEvent, PatternDetectedEvent } from "@/lib/types";
 
@@ -230,5 +231,25 @@ describe("toConsentRequest", () => {
       reason: "Changes saved tasks",
       module: "",
     });
+  });
+});
+
+describe("toSinceLastSpoke (the complete frame's since_last_spoke)", () => {
+  it("a non-empty string is the note, trimmed", () => {
+    expect(
+      toSinceLastSpoke("  Since we last spoke (yesterday): you were talking about \"DP practice\". Since then: 2 done.  "),
+    ).toBe('Since we last spoke (yesterday): you were talking about "DP practice". Since then: 2 done.');
+  });
+
+  it("null (every turn but a new session's first) shows nothing", () => {
+    expect(toSinceLastSpoke(null)).toBeNull();
+    expect(toSinceLastSpoke(undefined)).toBeNull();
+  });
+
+  it("a blank or non-string value is ignored, never rendered", () => {
+    expect(toSinceLastSpoke("   ")).toBeNull();
+    expect(toSinceLastSpoke(42)).toBeNull();
+    expect(toSinceLastSpoke({ text: "hi" })).toBeNull();
+    expect(toSinceLastSpoke(["Since we last spoke"])).toBeNull();
   });
 });

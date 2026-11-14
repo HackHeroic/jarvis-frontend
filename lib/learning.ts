@@ -110,6 +110,14 @@ export function toConsentRequest(data: unknown): ConsentRequestEvent | null {
   return { reason, module: scalarString(raw.module) };
 }
 
+/**
+ * The complete frame's `since_last_spoke`: the note when it is a non-empty
+ * string (trimmed), else null — a non-string or blank value is ignored.
+ */
+export function toSinceLastSpoke(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 // ---------------------------------------------------------------------------
 // Accept outcomes
 // ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   ContractError,
   parseAcceptResponse,
+  parseDraftState,
   parseMemoryList,
   parseMemoryOut,
   parseRunTriggerResponse,
@@ -359,5 +360,60 @@ describe("/api/v1/anticipation", () => {
   it("POST /run with nothing to say has null suggestion and consent", () => {
     const run = parseRunTriggerResponse({ status: "nothing_to_say", suggestion: null, consent: null });
     expect(run).toEqual({ status: "nothing_to_say", suggestion: null, consent: null });
+  });
+});
+
+/**
+ * GET /api/v1/drafts/{id} — tests/test_draft_endpoints.py
+ * ::test_get_draft__solved_draft__schedule_slots_with_local_times, literally.
+ */
+const DRAFT_WITH_SLOTS = {
+  draft_id: "8f1d2c3b-4a5e-4f60-9a7b-6c5d4e3f2a1b",
+  user_id: "test_user",
+  goal_id: null,
+  tasks: [
+    { task_id: "t1", title: "Read ch1", duration_minutes: 25 },
+    { task_id: "t2", title: "Practice problems", duration_minutes: 20 },
+    { task_id: "t3", title: "Not placed", duration_minutes: 25 },
+  ],
+  horizon_start: "2026-11-16T08:00:00+05:30",
+  status: "pending",
+  rejection_reason: null,
+  created_at: "2026-11-14 03:31:00+00:00",
+  schedule: {
+    horizon_start: "2026-11-16T08:00:00+05:30",
+    schedule: {
+      t1: {
+        task_id: "t1", title: "Read ch1", start_min: 60, end_min: 85,
+        start: "2026-11-16T09:00:00+05:30", end: "2026-11-16T09:25:00+05:30",
+        duration_minutes: 25,
+      },
+      t2: {
+        task_id: "t2", title: "Practice problems", start_min: 0, end_min: 20,
+        start: "2026-11-16T08:00:00+05:30", end: "2026-11-16T08:20:00+05:30",
+        duration_minutes: 20,
+      },
+    },
+  },
+};
+
+describe("GET /api/v1/drafts/{id}", () => {
+  it("parses a solved draft with its slots and local times", () => {
+    const draft = parseDraftState(clone(DRAFT_WITH_SLOTS));
+    expect(draft.status).toBe("pending");
+    expect(draft.tasks).toHaveLength(3);
+    expect(draft.schedule?.schedule.t1.start).toBe("2026-11-16T09:00:00+05:30");
+    expect(draft.schedule?.schedule.t2.title).toBe("Practice problems");
+    expect(draft.schedule?.schedule.t3).toBeUndefined(); // not placed
+  });
+
+  it("a draft stored without slots has schedule null (test_get_draft__no_solved_slots__schedule_null)", () => {
+    expect(parseDraftState({ ...clone(DRAFT_WITH_SLOTS), schedule: null }).schedule).toBeNull();
+  });
+
+  it("a slot without its start instant is a contract error", () => {
+    const body = clone(DRAFT_WITH_SLOTS);
+    delete (body.schedule.schedule.t1 as Partial<typeof body.schedule.schedule.t1>).start;
+    expect(() => parseDraftState(body)).toThrow(ContractError);
   });
 });

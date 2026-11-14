@@ -374,6 +374,12 @@ export interface ChatResponse {
   pearl_insights?: PearlInsight[] | null;
   saved_constraints?: string[];
   /**
+   * "Since we last spoke (…): …" — set only on the first turn of a new session
+   * that has an earlier one to pick up from; null otherwise. Normalised by
+   * `toSinceLastSpoke` (a non-string or blank value reads as null).
+   */
+  since_last_spoke?: string | null;
+  /**
    * Client-only: where a stored draft came from. 'suggestion' — drafted by an
    * accepted suggestion (a learned rule); chat has no card for it, so the
    * dashboard banner acts on it in place. Absent: a chat turn's draft.
@@ -384,6 +390,24 @@ export interface ChatResponse {
 // ---------------------------------------------------------------------------
 // Draft state (GET /api/v1/drafts/{id} — a draft_schedules row)
 // ---------------------------------------------------------------------------
+
+/** One task's solved slot (app/schemas/draft.py `DraftSlot`). */
+export interface DraftSlot {
+  task_id: string;
+  title: string | null;
+  start_min: number;
+  end_min: number;
+  /** ISO-8601 instant with the offset of the user's zone. */
+  start: string;
+  end: string;
+  duration_minutes: number;
+}
+
+/** A draft's solved slots (`DraftScheduleView`): every task the solver placed, by task_id. */
+export interface DraftScheduleView {
+  horizon_start: string;
+  schedule: Record<string, DraftSlot>;
+}
 
 /** draft_schedules.status. Only pending/modified drafts are open; the rest are closed for good. */
 export type DraftStatus =
@@ -400,8 +424,8 @@ export interface DraftState {
   goal_id?: string | null;
   tasks: Record<string, unknown>[];
   horizon_start?: string | null;
-  /** Solved slots (task_id → {start_min, end_min}). Not in today's GET /drafts/{id}; read if sent. */
-  schedule?: Record<string, unknown> | null;
+  /** The solved slots with their times on the user's clock; null for a draft stored without them. */
+  schedule?: DraftScheduleView | null;
   status: DraftStatus;
   rejection_reason?: string | null;
   created_at?: string | null;
