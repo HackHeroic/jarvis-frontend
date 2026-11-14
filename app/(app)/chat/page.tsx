@@ -23,6 +23,9 @@ import { LearningToast } from "@/components/app/LearningToast";
 import { ChatSessionPanel } from "@/components/app/ChatSessionPanel";
 import MemoryPanel from "@/components/app/MemoryPanel";
 import { toListState } from "@/lib/learning";
+import { toPanelMemory } from "@/lib/transforms";
+import { errorMessageOf } from "@/lib/you";
+import { useJarvis } from "@/lib/context/JarvisContext";
 import type { MemoryRecord } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -91,12 +94,14 @@ function ChatPage() {
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const isResizing = useRef(false);
 
-  // Collect memories from latest assistant response
+  // Collect memories from latest assistant response (the complete frame's panel memories)
   const latestMemories: MemoryRecord[] = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
       if (msg.role === "assistant" && msg.response?.memories?.length) {
-        return msg.response.memories;
+        return msg.response.memories
+          .map(toPanelMemory)
+          .filter((m): m is MemoryRecord => m !== null);
       }
     }
     return [];
@@ -105,6 +110,7 @@ function ChatPage() {
   // Independently-fetched memories for the panel
   const [panelMemories, setPanelMemories] = useState<MemoryRecord[]>([]);
   const [memoriesError, setMemoriesError] = useState<unknown>(null);
+  const { showToast } = useJarvis();
 
   const refreshMemories = useCallback(async () => {
     try {
@@ -117,6 +123,20 @@ function ChatPage() {
     }
   }, []);
   const memoryList = toListState({ items: panelMemories, error: memoriesError });
+
+  /** Run one memory action, then re-read the panel. A failure says so (409: the backend's reason). */
+  const memoryAction = useCallback(
+    async (action: () => Promise<unknown>) => {
+      try {
+        await action();
+      } catch (err) {
+        showToast(errorMessageOf(err, "That didn't go through. Try again."), "error");
+      } finally {
+        await refreshMemories();
+      }
+    },
+    [refreshMemories, showToast],
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -461,9 +481,9 @@ function ChatPage() {
         memories={panelMemories.length > 0 ? panelMemories : latestMemories}
         isOpen={showMemoryPanel}
         onClose={() => setShowMemoryPanel(false)}
-        onDeleteMemory={async (id: string) => { try { await deleteMemory(id); await refreshMemories(); } catch { /* silently handle */ } }}
-        onConfirmPattern={async (id: string) => { try { await confirmMemory(id); await refreshMemories(); } catch { /* silently handle */ } }}
-        onDismissPattern={async (id: string) => { try { await dismissMemory(id); await refreshMemories(); } catch { /* silently handle */ } }}
+        onDeleteMemory={(id: string) => memoryAction(() => deleteMemory(id))}
+        onConfirmPattern={(id: string) => memoryAction(() => confirmMemory(id))}
+        onDismissPattern={(id: string) => memoryAction(() => dismissMemory(id))}
         error={memoryList.kind === "error" ? memoryList.message : null}
         onRetry={refreshMemories}
       />

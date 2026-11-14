@@ -5,6 +5,7 @@ import { X, CheckCircle, XCircle } from "lucide-react";
 import clsx from "clsx";
 import type { MemoryRecord } from "@/lib/types";
 import { hashCode, PALETTE_ROTATION, MEMORY_TYPE_COLORS } from "@/lib/constants";
+import { freshnessLabel, provenanceLabel } from "@/lib/you";
 import { ErrorState } from "@/components/app/ErrorState";
 
 // ---------------------------------------------------------------------------
@@ -36,17 +37,6 @@ function formatTypeName(type: string): string {
   return type
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function sourceLabel(source?: string): string {
-  if (!source) return "unknown";
-  const map: Record<string, string> = {
-    user: "you told me",
-    behavior: "behavior",
-    ingestion: "ingestion",
-    inferred: "inferred",
-  };
-  return map[source] ?? source;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +93,7 @@ export default function MemoryPanel({
       ([a], [b]) => getImportance(b) - getImportance(a)
     );
   }, [memories]);
+  const now = new Date();
 
   return (
     <>
@@ -166,40 +157,26 @@ export default function MemoryPanel({
 
                   {/* Cards */}
                   <div className="space-y-2">
-                    {mems.map((mem) => {
-                      const isSuperseded = !!mem.superseded_by;
+                    {mems.map((mem, index) => {
+                      const id = mem.memory_id;
                       const isBehavioral =
                         mem.memory_type === "behavioral_pattern";
+                      const noted = mem.noted_at
+                        ? freshnessLabel(mem.noted_at, now)
+                        : "";
 
                       return (
                         <div
-                          key={mem.id}
+                          key={id ?? `${type}-${index}`}
                           className={clsx(
                             "rounded-lg border-l-[3px] bg-surface-muted px-3 py-2.5 relative group",
-                            border,
-                            isSuperseded && "opacity-60"
+                            border
                           )}
                         >
                           {/* Content */}
-                          <p
-                            className={clsx(
-                              "text-xs leading-relaxed text-primary",
-                              isSuperseded && "line-through"
-                            )}
-                          >
-                            {isBehavioral && !isSuperseded && (
-                              <span className="text-sage font-medium">
-                                Jarvis noticed:{" "}
-                              </span>
-                            )}
+                          <p className="text-xs leading-relaxed text-primary">
                             {mem.content}
                           </p>
-
-                          {isSuperseded && (
-                            <p className="text-[10px] text-muted mt-0.5">
-                              Updated &rarr;
-                            </p>
-                          )}
 
                           {/* Confidence bar */}
                           <div className="mt-2 flex items-center gap-2">
@@ -223,16 +200,26 @@ export default function MemoryPanel({
                             </span>
                           </div>
 
-                          {/* Source badge + delete */}
-                          <div className="mt-1.5 flex items-center justify-between">
-                            <span className="text-[9px] font-medium text-muted uppercase tracking-wide bg-surface-canvas px-1.5 py-0.5 rounded">
-                              {sourceLabel(mem.source)}
+                          {/* Source + freshness + forget */}
+                          <div className="mt-1.5 flex items-center justify-between gap-2">
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              {mem.provenance && (
+                                <span className="text-[9px] font-medium text-muted uppercase tracking-wide bg-surface-canvas px-1.5 py-0.5 rounded">
+                                  {provenanceLabel(mem.provenance)}
+                                </span>
+                              )}
+                              {noted && (
+                                <span className="truncate text-[9px] text-muted">
+                                  {noted}
+                                </span>
+                              )}
                             </span>
-                            {onDeleteMemory && !isSuperseded && (
+                            {onDeleteMemory && id && (
                               <button
-                                onClick={() => onDeleteMemory(mem.id)}
-                                className="opacity-0 group-hover:opacity-100 text-muted hover:text-terra transition-opacity text-xs"
-                                aria-label="Delete memory"
+                                onClick={() => onDeleteMemory(id)}
+                                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted hover:text-terra transition-opacity text-xs"
+                                aria-label="Forget — Jarvis won't store this again."
+                                title="Forget — Jarvis won't store this again."
                               >
                                 <X size={12} />
                               </button>
@@ -240,11 +227,11 @@ export default function MemoryPanel({
                           </div>
 
                           {/* Behavioral pattern confirm/dismiss */}
-                          {isBehavioral && !isSuperseded && (
+                          {isBehavioral && id && (
                             <div className="mt-2 flex gap-2">
                               {onConfirmPattern && (
                                 <button
-                                  onClick={() => onConfirmPattern(mem.id)}
+                                  onClick={() => onConfirmPattern(id)}
                                   className="flex items-center gap-1 text-[10px] font-medium text-sage bg-sage/10 px-2 py-1 rounded-md hover:bg-sage/20 transition-colors"
                                 >
                                   <CheckCircle size={10} />
@@ -253,11 +240,11 @@ export default function MemoryPanel({
                               )}
                               {onDismissPattern && (
                                 <button
-                                  onClick={() => onDismissPattern(mem.id)}
+                                  onClick={() => onDismissPattern(id)}
                                   className="flex items-center gap-1 text-[10px] font-medium text-muted bg-surface-canvas px-2 py-1 rounded-md hover:bg-surface-muted transition-colors"
                                 >
                                   <XCircle size={10} />
-                                  Dismiss
+                                  Not right
                                 </button>
                               )}
                             </div>

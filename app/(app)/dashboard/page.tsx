@@ -8,6 +8,7 @@ import StatsStrip from "@/components/app/StatsStrip";
 import ScheduleTimeline from "@/components/app/ScheduleTimeline";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
+import { WhileYouWereAway } from "@/components/app/WhileYouWereAway";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ArrowRight, Sparkles, Send } from "lucide-react";
@@ -118,6 +119,9 @@ export default function DashboardPage() {
         streakDays={stats.streakDays}
         patternsLearned={stats.patternsLearned}
       />
+
+      {/* What Jarvis prepared on its own: pending suggestions to accept or dismiss */}
+      <WhileYouWereAway />
 
       {/* Active Draft Banner */}
       {activeDraftId && (

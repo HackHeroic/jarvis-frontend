@@ -6,6 +6,16 @@
 
 import { API_BASE, IS_DEMO_MODE, USER_ID, DEMO_LATENCY } from './constants';
 import { toConsentRequest } from './learning';
+import {
+  parseAcceptResponse,
+  parseMemoryList,
+  parseMemoryOut,
+  parseRunTriggerResponse,
+  parseSuggestion,
+  parseSuggestionList,
+  parseYouProfile,
+  parseYouResponse,
+} from './contracts';
 
 // The only chat path: v2 (LangGraph orchestrator). v1 (/chat/stream) is deprecated.
 const CHAT_STREAM_PATH = '/api/v1/chat/v2/stream';
@@ -17,11 +27,18 @@ import type {
   TaskWorkspace,
   Session,
   SessionMessage,
-  MemoryRecord,
+  MemoryOut,
   ToolUseEvent,
   MemoryExtractedEvent,
   PatternDetectedEvent,
   ConsentRequestEvent,
+  YouResponse,
+  YouProfile,
+  SettingsUpdate,
+  SuggestionOut,
+  AcceptSuggestionResponse,
+  RunTriggerResponse,
+  TriggerName,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -119,6 +136,11 @@ async function apiError(res: Response, label: string): Promise<ApiError> {
   );
 }
 
+/** `?user_id=…` — how every route learns who is asking (the backend's `CurrentUser` seam). */
+function userQuery(userId: string = USER_ID): string {
+  return new URLSearchParams({ user_id: userId }).toString();
+}
+
 /** Lazy-load demo data to keep live-mode bundles small. */
 const getDemoResponseLazy = async (prompt: string) => {
   const { getDemoResponse } = await import('./demoData');
@@ -146,6 +168,9 @@ export interface StreamHandlers {
 export interface StreamOptions {
   signal?: AbortSignal;
 }
+
+/** Options for a plain request: an abort signal, so a page that unmounts stops its fetch. */
+export type RequestOptions = StreamOptions;
 
 /**
  * The same handlers, silenced once `signal` aborts. A stream the user stopped,
@@ -775,12 +800,13 @@ export interface BehavioralConstraint {
   created_at: string;
 }
 
+/** Remove a rule; future schedules stop applying it. Throws `ApiError` (404 when it is already gone). */
 export async function deleteBehavioralConstraint(id: string): Promise<void> {
   const res = await fetch(
-    `${API_BASE}/api/v1/habits/constraints/${encodeURIComponent(id)}?user_id=${encodeURIComponent(USER_ID)}`,
+    `${API_BASE}/api/v1/habits/constraints/${encodeURIComponent(id)}?${userQuery()}`,
     { method: "DELETE" },
   );
-  if (!res.ok) throw new Error(`Failed to delete constraint: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to delete constraint');
 }
 
 export async function getBehavioralConstraints(): Promise<BehavioralConstraint[]> {
@@ -854,37 +880,122 @@ export async function rejectCalendar(id: string, userId: string = USER_ID): Prom
 // Memory Management
 // ---------------------------------------------------------------------------
 
-export async function listMemories(): Promise<MemoryRecord[]> {
-  const res = await fetch(`${API_BASE}/api/v1/memories/?user_id=${USER_ID}`);
+/**
+ * The memories Jarvis is using (`GET /memories/` → `{memories, count}`, each a
+ * `MemoryOut`). A 5xx (503 when the database is down) throws `ApiError`.
+ */
+export async function listMemories(): Promise<MemoryOut[]> {
+  const res = await fetch(`${API_BASE}/api/v1/memories/?${userQuery()}`);
   // A 5xx is an outage, never "no memories".
   if (res.status >= 500) throw await apiError(res, 'Failed to list memories');
   if (!res.ok) return [];
-  const data = await res.json();
-  return data.memories || [];
+  return parseMemoryList(await res.json());
 }
 
+/**
+ * Forget a memory for good: its words are erased and the same fact is not
+ * stored again. Throws `ApiError` (404 unknown, 503 outage).
+ */
 export async function deleteMemory(memoryId: string): Promise<void> {
   const res = await fetch(
-    `${API_BASE}/api/v1/memories/${encodeURIComponent(memoryId)}?user_id=${USER_ID}`,
+    `${API_BASE}/api/v1/memories/${encodeURIComponent(memoryId)}?${userQuery()}`,
     { method: 'DELETE' },
   );
-  if (!res.ok) throw new Error(`Failed to delete memory: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to forget memory');
 }
 
-export async function confirmMemory(memoryId: string): Promise<void> {
+/** Confirm a memory holds. Throws `ApiError`: 409 when it was dismissed or forgotten. */
+export async function confirmMemory(memoryId: string): Promise<MemoryOut> {
   const res = await fetch(
-    `${API_BASE}/api/v1/memories/${encodeURIComponent(memoryId)}/confirm?user_id=${USER_ID}`,
+    `${API_BASE}/api/v1/memories/${encodeURIComponent(memoryId)}/confirm?${userQuery()}`,
     { method: 'POST' },
   );
-  if (!res.ok) throw new Error(`Failed to confirm memory: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to confirm memory');
+  return parseMemoryOut(await res.json());
 }
 
-export async function dismissMemory(memoryId: string): Promise<void> {
+/** Say a memory does not hold: hidden for good. Throws `ApiError` (409 when already forgotten). */
+export async function dismissMemory(memoryId: string): Promise<MemoryOut> {
   const res = await fetch(
-    `${API_BASE}/api/v1/memories/${encodeURIComponent(memoryId)}/dismiss?user_id=${USER_ID}`,
+    `${API_BASE}/api/v1/memories/${encodeURIComponent(memoryId)}/dismiss?${userQuery()}`,
     { method: 'POST' },
   );
-  if (!res.ok) throw new Error(`Failed to dismiss memory: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to dismiss memory');
+  return parseMemoryOut(await res.json());
+}
+
+// ---------------------------------------------------------------------------
+// The You page
+// ---------------------------------------------------------------------------
+
+/** Everything Jarvis knows about the user, in one read. Throws `ApiError` (503 when the database is down). */
+export async function getYou(options?: RequestOptions): Promise<YouResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/you?${userQuery()}`, { signal: options?.signal });
+  if (!res.ok) throw await apiError(res, 'Failed to load the You page');
+  return parseYouResponse(await res.json());
+}
+
+/**
+ * Change settings; the ones left out stay as they are. Throws `ApiError`: 422
+ * `validation_error` (an unknown timezone, a bad time, an unknown key) changes nothing.
+ */
+export async function updateYouSettings(update: SettingsUpdate): Promise<YouProfile> {
+  const res = await fetch(`${API_BASE}/api/v1/you/settings?${userQuery()}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to save settings');
+  return parseYouProfile(await res.json());
+}
+
+// ---------------------------------------------------------------------------
+// Suggestions (anticipation)
+// ---------------------------------------------------------------------------
+
+/** The user's pending suggestions, newest first. Throws `ApiError` on any failure, never `[]`. */
+export async function listSuggestions(options?: RequestOptions): Promise<SuggestionOut[]> {
+  if (IS_DEMO_MODE) return [];
+  const res = await fetch(`${API_BASE}/api/v1/anticipation/suggestions?${userQuery()}`, {
+    signal: options?.signal,
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to list suggestions');
+  return parseSuggestionList(await res.json());
+}
+
+/**
+ * Accept a suggestion: its action runs once. Throws `ApiError`: 409 when it was
+ * already handled or is out of date (a newer plan replaced it) — show the
+ * backend's message, never success.
+ */
+export async function acceptSuggestion(id: string): Promise<AcceptSuggestionResponse> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/anticipation/suggestions/${encodeURIComponent(id)}/accept?${userQuery()}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) throw await apiError(res, 'Failed to accept suggestion');
+  return parseAcceptResponse(await res.json());
+}
+
+/** Dismiss a pending suggestion; it is never made again. Throws `ApiError` (409 when no longer pending). */
+export async function dismissSuggestion(id: string): Promise<SuggestionOut> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/anticipation/suggestions/${encodeURIComponent(id)}/dismiss?${userQuery()}`,
+    { method: 'POST' },
+  );
+  if (!res.ok) throw await apiError(res, 'Failed to dismiss suggestion');
+  return parseSuggestion(await res.json());
+}
+
+/** Run a trigger now, whether or not it is due (once a day still holds). Throws `ApiError`. */
+export async function runTrigger(trigger: TriggerName): Promise<RunTriggerResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/anticipation/run?${userQuery()}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trigger }),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to run trigger');
+  return parseRunTriggerResponse(await res.json());
 }
 
 // ---------------------------------------------------------------------------

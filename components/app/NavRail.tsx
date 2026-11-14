@@ -10,6 +10,7 @@ import {
   BookOpen,
   FileText,
   Target,
+  User,
   Command,
   Moon,
   Sun,
@@ -33,6 +34,7 @@ const iconMap: Record<string, LucideIcon> = {
   BookOpen,
   FileText,
   Target,
+  User,
 };
 
 export default function NavRail() {
