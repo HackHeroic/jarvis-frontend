@@ -1,13 +1,19 @@
+import Link from "next/link";
 import { ClipboardList, Timer, Flame, Brain } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Tooltip } from "@/components/ui/Tooltip";
 
 interface StatsStripProps {
+  /** Done tasks out of every task in the selected range. */
   tasksCompleted: number;
   tasksTotal: number;
+  /** The tile's label for the selected range, e.g. "Done today", "Done this week". */
+  doneLabel: string;
+  /** Minutes of work scheduled or done today. */
   focusMinutes: number;
   streakDays: number;
-  patternsLearned?: number;
+  /** Patterns Jarvis sees (GET /you); null while unknown, so no wrong number is shown. */
+  patternsLearned: number | null;
 }
 
 const CARD = "flex w-full items-center gap-2.5 px-3 py-3 sm:gap-3 sm:px-4";
@@ -19,9 +25,10 @@ const LABEL = "text-[11px] leading-tight text-secondary sm:text-xs";
 export default function StatsStrip({
   tasksCompleted,
   tasksTotal,
+  doneLabel,
   focusMinutes,
   streakDays,
-  patternsLearned = 0,
+  patternsLearned,
 }: StatsStripProps) {
   const taskPercent = tasksTotal > 0 ? Math.round((tasksCompleted / tasksTotal) * 100) : 0;
 
@@ -46,7 +53,7 @@ export default function StatsStrip({
             <p className={`${VALUE} text-dusk`}>
               {tasksCompleted}/{tasksTotal}
             </p>
-            <p className={LABEL}>Tasks done</p>
+            <p className={LABEL}>{doneLabel}</p>
           </div>
         </div>
         <div
@@ -55,7 +62,7 @@ export default function StatsStrip({
           aria-valuenow={taskPercent}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label="Tasks completed"
+          aria-label={doneLabel}
         >
           <div
             className="h-full rounded-full bg-dusk transition-all duration-500"
@@ -88,20 +95,28 @@ export default function StatsStrip({
         </div>
       </Card>
 
-      {/* Patterns Learned */}
-      <Tooltip
-        content="Jarvis observes how you work and adapts your schedule."
-        className="w-full"
-      >
-        <Card className={CARD}>
-          <div className={`${ICON} bg-terra/10 text-terra`}>
-            <Brain size={18} />
-          </div>
-          <div className="min-w-0">
-            <p className={`${VALUE} text-terra`}>{patternsLearned}</p>
-            <p className={LABEL}>Patterns</p>
-          </div>
-        </Card>
+      {/* Patterns — the count the You page shows; opens it */}
+      <Tooltip content="Patterns Jarvis sees in what happened. Open You to see them." className="w-full">
+        <Link
+          href="/you"
+          className="block h-full w-full rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terra"
+        >
+          <Card className={`${CARD} h-full transition-colors hover:bg-surface-subtle`}>
+            <div className={`${ICON} bg-terra/10 text-terra`}>
+              <Brain size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className={`${VALUE} text-terra`}>
+                {patternsLearned === null ? (
+                  <span aria-label="Not known yet">—</span>
+                ) : (
+                  patternsLearned
+                )}
+              </p>
+              <p className={LABEL}>Patterns</p>
+            </div>
+          </Card>
+        </Link>
       </Tooltip>
     </div>
   );

@@ -10,8 +10,10 @@ import type {
   ChatResponse,
   DraftState,
   FocusProfile,
+  HourFocus,
   Provenance,
   Receipt,
+  RunTriggerResponse,
   SuggestionOut,
 } from "./types";
 
@@ -101,12 +103,47 @@ export function hourLabel(hour: number): string {
   return `${hour % 12 || 12} ${hour < 12 ? "AM" : "PM"}`;
 }
 
+/** True when an hour has outcomes behind it; without any, its bar is the starting assumption. */
+export function hourIsObserved(h: HourFocus): boolean {
+  return h.done + h.not_done > 0;
+}
+
+/**
+ * The hour to call "your strongest hour": the best-scoring hour with outcomes
+ * behind it (a tie goes to the one with more), only on a learned profile. Null on
+ * the prior, or when no hour has outcomes — an assumption is never "yours".
+ */
+export function strongestObservedHour(f: FocusProfile): HourFocus | null {
+  if (f.source !== "learned") return null;
+  let best: HourFocus | null = null;
+  for (const h of f.hours) {
+    if (!hourIsObserved(h)) continue;
+    const seen = h.done + h.not_done;
+    if (
+      !best ||
+      h.score > best.score ||
+      (h.score === best.score && seen > best.done + best.not_done)
+    ) {
+      best = h;
+    }
+  }
+  return best;
+}
+
 // ---------------------------------------------------------------------------
 // Autonomy mode
 // ---------------------------------------------------------------------------
 
-/** The three modes, in plain words that match what the consent chain does with each. */
-export const AUTONOMY_OPTIONS: { value: AutonomyMode; label: string; description: string }[] = [
+/**
+ * The three modes, in plain words that match what the consent chain does with each.
+ * `note` is an honest caveat shown under the option.
+ */
+export const AUTONOMY_OPTIONS: {
+  value: AutonomyMode;
+  label: string;
+  description: string;
+  note?: string;
+}[] = [
   {
     value: "suggest_only",
     label: "Only suggest",
@@ -121,6 +158,8 @@ export const AUTONOMY_OPTIONS: { value: AutonomyMode; label: string; description
     value: "auto_low_risk",
     label: "Small changes on its own",
     description: "Jarvis makes small, low-risk changes by itself and asks before anything bigger.",
+    // The backend has no low-risk actions yet, so the consent chain asks first.
+    note: "Nothing counts as a small change yet, so this behaves like Ask first for now.",
   },
 ];
 
@@ -139,6 +178,75 @@ export function acceptResultMessage(r: ActionResultOut): string {
     return written === 1 ? "1 task is on today's plan." : `${written} tasks are on today's plan.`;
   }
   return r.message;
+}
+
+/** One line of a suggestion's body; `noticed` marks an "I noticed …" line (a learning note). */
+export interface BriefLine {
+  text: string;
+  noticed: boolean;
+}
+
+/** A suggestion body (the brief arrives with "\n" between lines), one entry per non-blank line. */
+export function briefLines(body: string): BriefLine[] {
+  return body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((text) => ({ text, noticed: /^I noticed\b/i.test(text) }));
+}
+
+/** A quiet line under the "While you were away" header; `consent` says why Jarvis held off. */
+export interface PanelNote {
+  text: string;
+  detail?: string;
+  tone: "quiet" | "consent";
+}
+
+export interface CheckNowOutcome {
+  /** A suggestion waiting for the user, to show as a card (if it is not already). */
+  card: SuggestionOut | null;
+  note: PanelNote | null;
+  /** The run changed the plan on its own: re-read the tasks. */
+  tasksChanged: boolean;
+}
+
+const NOTHING_NEEDED = "Nothing needs your attention right now.";
+
+/**
+ * What a "Check now" run of the morning brief (`POST /anticipation/run`) says,
+ * honestly: a new card; "already here"; nothing to say; or, when consent said no,
+ * the consent rule's own words for why Jarvis held off.
+ */
+export function checkNowOutcome(r: RunTriggerResponse): CheckNowOutcome {
+  const waiting = r.suggestion?.status === "pending" ? r.suggestion : null;
+  switch (r.status) {
+    case "created":
+      if (waiting) return { card: waiting, note: null, tasksChanged: false };
+      if (r.suggestion) {
+        return {
+          card: null,
+          note: { text: `Done on its own: ${r.suggestion.title}.`, tone: "quiet" },
+          tasksChanged: true,
+        };
+      }
+      return { card: null, note: { text: NOTHING_NEEDED, tone: "quiet" }, tasksChanged: false };
+    case "already_done":
+      return {
+        card: waiting,
+        note: { text: "Today's brief is already here.", tone: "quiet" },
+        tasksChanged: false,
+      };
+    case "denied": {
+      const why = r.consent?.message?.trim();
+      return {
+        card: null,
+        note: why ? { text: "I held off.", detail: why, tone: "consent" } : { text: "I held off.", tone: "consent" },
+        tasksChanged: false,
+      };
+    }
+    default: // nothing_to_say, not_due
+      return { card: null, note: { text: NOTHING_NEEDED, tone: "quiet" }, tasksChanged: false };
+  }
 }
 
 /** The suggestion kind (the trigger's name) whose accept can draft a plan for review. */

@@ -212,6 +212,24 @@ describe("readPatternFrame — inline always, toast only when strong", () => {
   it("a malformed pattern frame is neither", () => {
     expect(readPatternFrame(asPattern({ confidence: 0.9, occurrence_count: 9 }))).toEqual({ moment: null, toast: null });
   });
+
+  it("pattern_key is optional in the backend's frame: absent or null, it still notes and toasts", () => {
+    // Typed, not cast: this only compiles while pattern_key is optional and nullable.
+    const noKey: PatternDetectedEvent = {
+      memory_id: "m-4",
+      type: "peak_hour",
+      content: "Your evenings around 7 PM go well",
+      confidence: 0.93,
+      occurrence_count: 30,
+      action: "created",
+    };
+    const nullKey: PatternDetectedEvent = { ...noKey, pattern_key: null };
+    for (const frame of [noKey, nullKey]) {
+      const { moment, toast } = readPatternFrame(frame);
+      expect(moment).toMatchObject({ kind: "pattern", id: "m-4", content: "Your evenings around 7 PM go well" });
+      expect(toast).toMatchObject({ content: "Your evenings around 7 PM go well", occurrence_count: 30 });
+    }
+  });
 });
 
 describe("toConsentRequest", () => {

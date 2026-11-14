@@ -380,14 +380,14 @@ export function getDemoScheduleTasks(): Record<string, unknown>[] {
       status: "completed",
       goal_id: "goal_dsa",
     },
-    // In progress: Deep learning
+    // Pending: Deep learning
     {
       task_id: "task_dl_1",
       title: "Deep learning — attention mechanisms",
       start_time: `${day}T10:00:00`,
       end_time: `${day}T10:25:00`,
       duration_minutes: 25,
-      status: "in_progress",
+      status: "pending",
       goal_id: "goal_dl",
     },
     // Lunch block

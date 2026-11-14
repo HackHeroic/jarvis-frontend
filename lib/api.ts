@@ -480,6 +480,10 @@ export async function updateTask(
   return res.json();
 }
 
+/**
+ * Mark a task done, with its quality rating. A repeat click records nothing more.
+ * Throws `ApiError` carrying the backend's message (404 unknown task, 503 outage).
+ */
 export async function completeTask(
   taskId: string,
   userId: string = USER_ID,
@@ -490,13 +494,15 @@ export async function completeTask(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_id: userId, quality }),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Task complete failed (${res.status}): ${text}`);
-  }
+  if (!res.ok) throw await apiError(res, 'Task complete failed');
   return res.json();
 }
 
+/**
+ * Set a task aside (the anti-guilt skip). The response's `message` is the
+ * backend's own note for the user — where the task could go, or, for a task
+ * already done or set aside, that nothing changed. Throws `ApiError` on failure.
+ */
 export async function skipTask(
   taskId: string,
   userId: string = USER_ID,
@@ -506,10 +512,7 @@ export async function skipTask(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_id: userId }),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Task skip failed (${res.status}): ${text}`);
-  }
+  if (!res.ok) throw await apiError(res, 'Task skip failed');
   return res.json();
 }
 
@@ -962,9 +965,37 @@ export async function dismissMemory(memoryId: string): Promise<MemoryOut> {
 // The You page
 // ---------------------------------------------------------------------------
 
+/** How long a 503 on GET /you waits before its one retry. */
+const YOU_RETRY_MS = 600;
+
+/** Resolve after `ms`, or reject with an AbortError as soon as `signal` aborts. */
+function waitOrAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const aborted = () => new DOMException('The read was aborted.', 'AbortError');
+    if (signal?.aborted) {
+      reject(aborted());
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      reject(aborted());
+    }
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 /**
  * Everything Jarvis knows about the user, in one read. Throws `ApiError` (503
  * when the database is down). In demo mode: labelled sample data, no request.
+ *
+ * A 503 is retried once, after a short wait: two reads of GET /you for one user
+ * at the same moment (React's dev double-mount, or two open tabs) can collide in
+ * the backend and answer 503 while the database is fine. A second 503 is the
+ * outage it says it is.
  */
 export async function getYou(options?: RequestOptions): Promise<YouResponse> {
   if (IS_DEMO_MODE) {
@@ -972,7 +1003,12 @@ export async function getYou(options?: RequestOptions): Promise<YouResponse> {
     const { getDemoYou } = await import('./demoData');
     return getDemoYou();
   }
-  const res = await fetch(`${API_BASE}/api/v1/you?${userQuery()}`, { signal: options?.signal });
+  const url = `${API_BASE}/api/v1/you?${userQuery()}`;
+  let res = await fetch(url, { signal: options?.signal });
+  if (res.status === 503) {
+    await waitOrAbort(YOU_RETRY_MS, options?.signal);
+    res = await fetch(url, { signal: options?.signal });
+  }
   if (!res.ok) throw await apiError(res, 'Failed to load the You page');
   return parseYouResponse(await res.json());
 }

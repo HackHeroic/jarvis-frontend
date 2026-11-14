@@ -90,40 +90,94 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** A GET /you body (learned focus, truncated receipt). */
+const YOU_BODY = {
+  profile: PROFILE,
+  patterns: [],
+  rules: [],
+  memories: [MEMORY],
+  focus: {
+    source: "learned",
+    observations: 18,
+    hours: Array.from({ length: 24 }, (_, hour) => ({ hour, score: 0.5, done: 1, not_done: 0 })),
+  },
+  receipt: {
+    since: "2026-10-15T10:00:00Z",
+    truncated: true,
+    on_device_calls: 5000,
+    cloud_calls: 3,
+    pii_redactions: 1,
+    input_tokens: 1,
+    output_tokens: 1,
+  },
+};
+
 describe("getYou", () => {
   it("reads GET /api/v1/you with the user id", async () => {
-    respond(200, {
-      profile: PROFILE,
-      patterns: [],
-      rules: [],
-      memories: [MEMORY],
-      focus: {
-        source: "learned",
-        observations: 18,
-        hours: Array.from({ length: 24 }, (_, hour) => ({ hour, score: 0.5, done: 1, not_done: 0 })),
-      },
-      receipt: {
-        since: "2026-10-15T10:00:00Z",
-        truncated: true,
-        on_device_calls: 5000,
-        cloud_calls: 3,
-        pii_redactions: 1,
-        input_tokens: 1,
-        output_tokens: 1,
-      },
-    });
+    respond(200, YOU_BODY);
     const you = await getYou();
     expect(calls).toEqual([{ url: `${API_BASE}/api/v1/you?${userParam}`, method: "GET", body: undefined }]);
     expect(you.focus.source).toBe("learned");
     expect(you.receipt.truncated).toBe(true);
   });
 
-  it("a 503 envelope is an ApiError with the backend's message, never an empty page", async () => {
-    respond(503, envelope("persistence_unavailable", "Could not reach the database."));
+  it("a 503 envelope (twice: after its one retry) is an ApiError with the backend's message, never an empty page", async () => {
+    vi.useFakeTimers();
+    try {
+      respond(503, envelope("persistence_unavailable", "Could not reach the database."));
+      const pending = getYou().catch((e) => e);
+      await vi.advanceTimersByTimeAsync(1_000);
+      const err = await pending;
+      expect(err).toBeInstanceOf(ApiError);
+      expect(err.status).toBe(503);
+      expect(err.serverMessage).toBe("Could not reach the database.");
+      expect(calls).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("one 503 is retried once, shortly after: two reads at once can collide in the backend", async () => {
+    vi.useFakeTimers();
+    try {
+      const answers = [
+        new Response(JSON.stringify(envelope("persistence_unavailable", "Could not reach the database.")), {
+          status: 503,
+        }),
+        new Response(JSON.stringify(YOU_BODY), { status: 200 }),
+      ];
+      let n = 0;
+      vi.stubGlobal("fetch", vi.fn(async () => answers[n++]));
+      const pending = getYou();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect((await pending).focus.source).toBe("learned");
+      expect(n).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a read aborted while it waits to retry stops: no second request", async () => {
+    vi.useFakeTimers();
+    try {
+      respond(503, envelope("persistence_unavailable", "Could not reach the database."));
+      const controller = new AbortController();
+      const pending = getYou({ signal: controller.signal }).catch((e) => e);
+      await vi.advanceTimersByTimeAsync(10);
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect((await pending).name).toBe("AbortError");
+      expect(calls).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("any other failure is not retried", async () => {
+    respond(500, envelope("internal_error", "Something went wrong."));
     const err = await getYou().catch((e) => e);
-    expect(err).toBeInstanceOf(ApiError);
-    expect(err.status).toBe(503);
-    expect(err.serverMessage).toBe("Could not reach the database.");
+    expect(err.status).toBe(500);
+    expect(calls).toHaveLength(1);
   });
 });
 

@@ -1,18 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUTONOMY_OPTIONS,
   acceptResultMessage,
+  briefLines,
+  checkNowOutcome,
   createSingleFlight,
   draftAwaitingReview,
   draftToChatResponse,
   focusCaption,
   freshnessLabel,
+  hourIsObserved,
   provenanceLabel,
   receiptLine,
   receiptWindow,
   reinsert,
   removeWithRollback,
+  strongestObservedHour,
 } from "@/lib/you";
-import type { ActionResultOut, DraftState, FocusProfile, Receipt, SuggestionOut } from "@/lib/types";
+import type {
+  ActionResultOut,
+  DraftState,
+  FocusProfile,
+  Receipt,
+  RunTriggerResponse,
+  SuggestionOut,
+} from "@/lib/types";
 
 const NOW = new Date("2026-11-14T10:00:00Z"); // 15:30 IST
 
@@ -366,5 +378,145 @@ describe("removeWithRollback (forget / dismiss / remove a rule)", () => {
     });
     expect(outcome).toBeNull();
     expect(h.now()).toEqual(["a"]);
+  });
+});
+
+describe("checkNowOutcome (what a 'Check now' run says)", () => {
+  const run = (over: Partial<RunTriggerResponse>): RunTriggerResponse => ({
+    status: "nothing_to_say",
+    suggestion: null,
+    consent: null,
+    ...over,
+  });
+
+  it("created and waiting for the user: the card appears, no note", () => {
+    const brief = morningBrief();
+    expect(
+      checkNowOutcome(
+        run({
+          status: "created",
+          suggestion: brief,
+          consent: { behavior: "ask", kind: "mode_decision", message: "This changes your schedule, so I'm asking first." },
+        }),
+      ),
+    ).toEqual({ card: brief, note: null, tasksChanged: false });
+  });
+
+  it("created and applied on its own (allow): no card to act on, a note, and the plan changed", () => {
+    const applied = morningBrief({ status: "auto_applied" });
+    expect(checkNowOutcome(run({ status: "created", suggestion: applied }))).toEqual({
+      card: null,
+      note: { text: "Done on its own: Today is ready.", tone: "quiet" },
+      tasksChanged: true,
+    });
+  });
+
+  it("already done today: says so, and brings back today's card if it is still waiting", () => {
+    const brief = morningBrief();
+    expect(checkNowOutcome(run({ status: "already_done", suggestion: brief }))).toEqual({
+      card: brief,
+      note: { text: "Today's brief is already here.", tone: "quiet" },
+      tasksChanged: false,
+    });
+    expect(checkNowOutcome(run({ status: "already_done", suggestion: morningBrief({ status: "dismissed" }) })).card).toBeNull();
+    expect(checkNowOutcome(run({ status: "already_done", suggestion: null })).note?.text).toBe(
+      "Today's brief is already here.",
+    );
+  });
+
+  it("nothing to say (or not due): an honest 'nothing needs you'", () => {
+    for (const status of ["nothing_to_say", "not_due"] as const) {
+      expect(checkNowOutcome(run({ status }))).toEqual({
+        card: null,
+        note: { text: "Nothing needs your attention right now.", tone: "quiet" },
+        tasksChanged: false,
+      });
+    }
+  });
+
+  it("denied: the consent rule's own words say why Jarvis did not act", () => {
+    const outcome = checkNowOutcome(
+      run({
+        status: "denied",
+        consent: { behavior: "deny", kind: "rule_match", message: 'You already told me: "No work after 10 PM".' },
+      }),
+    );
+    expect(outcome).toEqual({
+      card: null,
+      note: { text: "I held off.", detail: 'You already told me: "No work after 10 PM".', tone: "consent" },
+      tasksChanged: false,
+    });
+  });
+
+  it("denied without a message still says it held off, never a success", () => {
+    expect(checkNowOutcome(run({ status: "denied", consent: null })).note).toEqual({
+      text: "I held off.",
+      tone: "consent",
+    });
+  });
+});
+
+describe("briefLines (a suggestion body, one line per line)", () => {
+  it("splits on newlines, trims, and drops blank lines", () => {
+    const body =
+      "1 task is planned for today; the hardest, 'Revise Operating Systems lecture notes', is at 15:20.\n1 from yesterday found a new slot.\n\n  I noticed you tend to set work aside around 9 AM (14 of the last 15 times).  ";
+    expect(briefLines(body)).toEqual([
+      { text: "1 task is planned for today; the hardest, 'Revise Operating Systems lecture notes', is at 15:20.", noticed: false },
+      { text: "1 from yesterday found a new slot.", noticed: false },
+      { text: "I noticed you tend to set work aside around 9 AM (14 of the last 15 times).", noticed: true },
+    ]);
+  });
+
+  it("a one-line body is one line; Windows newlines split too", () => {
+    expect(briefLines("Want me to keep that hour clear?")).toEqual([
+      { text: "Want me to keep that hour clear?", noticed: false },
+    ]);
+    expect(briefLines("a\r\nb").map((l) => l.text)).toEqual(["a", "b"]);
+  });
+});
+
+describe("the focus chart's evidence", () => {
+  function profile(source: "prior" | "learned", hours: [number, number, number, number][]): FocusProfile {
+    const base = focus(source, 40);
+    for (const [hour, score, done, notDone] of hours) {
+      base.hours[hour] = { hour, score, done, not_done: notDone };
+    }
+    return base;
+  }
+
+  it("an hour with no outcomes is the starting assumption, not evidence", () => {
+    expect(hourIsObserved({ hour: 7, score: 0.7, done: 0, not_done: 0 })).toBe(false);
+    expect(hourIsObserved({ hour: 9, score: 0.2, done: 1, not_done: 14 })).toBe(true);
+  });
+
+  it("the strongest hour is the best-scoring hour that has outcomes behind it", () => {
+    // 7 AM scores 0.95 but rests on nothing; 7 PM rests on 30 outcomes.
+    const f = profile("learned", [
+      [7, 0.95, 0, 0],
+      [19, 0.9, 28, 2],
+      [20, 0.88, 14, 1],
+    ]);
+    expect(strongestObservedHour(f)?.hour).toBe(19);
+  });
+
+  it("no strongest hour on the prior, or when no hour has outcomes", () => {
+    expect(strongestObservedHour(profile("prior", [[19, 0.9, 28, 2]]))).toBeNull();
+    expect(strongestObservedHour(focus("learned", 0))).toBeNull();
+  });
+
+  it("a tie goes to the hour with more outcomes behind it", () => {
+    const f = profile("learned", [
+      [10, 0.8, 2, 0],
+      [19, 0.8, 20, 5],
+    ]);
+    expect(strongestObservedHour(f)?.hour).toBe(19);
+  });
+});
+
+describe("AUTONOMY_OPTIONS", () => {
+  it("'Small changes on its own' says honestly that it behaves like Ask first for now", () => {
+    const auto = AUTONOMY_OPTIONS.find((o) => o.value === "auto_low_risk");
+    expect(auto?.note).toBe("Nothing counts as a small change yet, so this behaves like Ask first for now.");
+    expect(AUTONOMY_OPTIONS.filter((o) => o.note)).toHaveLength(1);
   });
 });

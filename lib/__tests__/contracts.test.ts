@@ -361,6 +361,30 @@ describe("/api/v1/anticipation", () => {
     const run = parseRunTriggerResponse({ status: "nothing_to_say", suggestion: null, consent: null });
     expect(run).toEqual({ status: "nothing_to_say", suggestion: null, consent: null });
   });
+
+  it("POST /run denied carries the consent rule's message and no suggestion (test_anticipation_service)", () => {
+    const run = parseRunTriggerResponse({
+      status: "denied",
+      suggestion: null,
+      consent: { behavior: "deny", kind: "rule_match", message: 'You already told me: "No work after 10 PM".' },
+    });
+    expect(run).toEqual({
+      status: "denied",
+      suggestion: null,
+      consent: { behavior: "deny", kind: "rule_match", message: 'You already told me: "No work after 10 PM".' },
+    });
+  });
+
+  it("POST /run already_done returns today's suggestion (test_anticipation_api)", () => {
+    const run = parseRunTriggerResponse({ status: "already_done", suggestion: clone(SUGGESTION), consent: null });
+    expect(run.status).toBe("already_done");
+    expect(run.suggestion?.id).toBe(SUGGESTION.id);
+    expect(run.suggestion?.status).toBe("pending");
+  });
+
+  it("POST /run with an unknown status is a contract error", () => {
+    expect(() => parseRunTriggerResponse({ status: "maybe", suggestion: null, consent: null })).toThrow(ContractError);
+  });
 });
 
 /**
