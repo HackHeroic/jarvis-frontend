@@ -5,9 +5,10 @@
  */
 
 import { API_BASE, IS_DEMO_MODE, USER_ID, DEMO_LATENCY } from './constants';
-import { toConsentRequest } from './learning';
+import { toConsentRequest, toSinceLastSpoke } from './learning';
 import {
   parseAcceptResponse,
+  parseDraftState,
   parseMemoryList,
   parseMemoryOut,
   parseRunTriggerResponse,
@@ -276,7 +277,12 @@ export async function consumeSSE(
             } else if (currentEvent === 'message') {
               handlers.onMessageToken?.(data.token);
             } else if (currentEvent === 'complete') {
-              handlers.onComplete?.(data as ChatResponse);
+              // since_last_spoke is shown as its own note: only a non-empty string counts.
+              const complete = data as ChatResponse;
+              if (complete && typeof complete === 'object' && 'since_last_spoke' in complete) {
+                complete.since_last_spoke = toSinceLastSpoke(complete.since_last_spoke);
+              }
+              handlers.onComplete?.(complete);
             } else if (currentEvent === 'error') {
               // v2 frames carry the error envelope ({error: {message, ...}}); v1 frames a bare string.
               handlers.onError?.(new Error(readApiError(data, errorLabel)));
@@ -664,7 +670,7 @@ export async function getDraftById(draftId: string): Promise<DraftState> {
     `${API_BASE}/api/v1/drafts/${encodeURIComponent(draftId)}?user_id=${encodeURIComponent(USER_ID)}`,
   );
   if (!res.ok) throw await apiError(res, 'Failed to get draft');
-  return res.json();
+  return parseDraftState(await res.json());
 }
 
 /**

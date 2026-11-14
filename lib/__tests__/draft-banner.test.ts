@@ -65,19 +65,60 @@ describe("summarizeDraft", () => {
     expect(summary.timed).toBe(false);
   });
 
-  it("with slots (task start_min or a schedule map), each line gets its local time, earliest first", () => {
-    const withSlots = {
-      ...DRAFT,
-      schedule: { t1: { start_min: 660, end_min: 685 }, t2: { start_min: 90, end_min: 110 } },
-      tasks: [...DRAFT.tasks.slice(0, 2), { ...DRAFT.tasks[2], start_min: 720 }],
+  it("with the backend's slots, each line gets its time in the user's locale, earliest first", () => {
+    // tests/test_draft_endpoints.py::test_get_draft__solved_draft__schedule_slots_with_local_times
+    const solved = {
+      tasks: [
+        { task_id: "t1", title: "Read ch1", duration_minutes: 25 },
+        { task_id: "t2", title: "Practice problems", duration_minutes: 20 },
+        { task_id: "t3", title: "Not placed", duration_minutes: 25 },
+      ],
+      horizon_start: "2026-11-16T08:00:00+05:30",
+      schedule: {
+        horizon_start: "2026-11-16T08:00:00+05:30",
+        schedule: {
+          t1: {
+            task_id: "t1", title: "Read ch1", start_min: 60, end_min: 85,
+            start: "2026-11-16T09:00:00+05:30", end: "2026-11-16T09:25:00+05:30", duration_minutes: 25,
+          },
+          t2: {
+            task_id: "t2", title: "Practice problems", start_min: 0, end_min: 20,
+            start: "2026-11-16T08:00:00+05:30", end: "2026-11-16T08:20:00+05:30", duration_minutes: 20,
+          },
+        },
+      },
     };
-    const summary = summarizeDraft(withSlots, { timeZone: "Asia/Kolkata" });
+    const summary = summarizeDraft(solved, { timeZone: "Asia/Kolkata", locale: "en-GB" });
     expect(summary.timed).toBe(true);
-    expect(summary.shown.map((t) => [t.title, t.when])).toEqual([
-      ["Review notes", "Sat 09:30"],
-      ["Graph DP set", "Sat 19:00"],
-      ["Mock contest", "Sat 20:00"],
+    expect(summary.shown).toEqual([
+      { title: "Practice problems", when: "Mon 08:00" },
+      { title: "Read ch1", when: "Mon 09:00" },
+      { title: "Not placed", when: "25 min" }, // the solver didn't place it: its length, no time
     ]);
+  });
+
+  it("the user's locale decides the clock style", () => {
+    const solved = {
+      tasks: [{ task_id: "t1", title: "Read ch1", duration_minutes: 25 }],
+      horizon_start: "2026-11-16T08:00:00+05:30",
+      schedule: {
+        horizon_start: "2026-11-16T08:00:00+05:30",
+        schedule: {
+          t1: {
+            task_id: "t1", title: "Read ch1", start_min: 660, end_min: 685,
+            start: "2026-11-16T19:00:00+05:30", end: "2026-11-16T19:25:00+05:30", duration_minutes: 25,
+          },
+        },
+      },
+    };
+    expect(summarizeDraft(solved, { timeZone: "Asia/Kolkata", locale: "en-GB" }).shown[0].when).toBe("Mon 19:00");
+    expect(summarizeDraft(solved, { timeZone: "Asia/Kolkata", locale: "en-US" }).shown[0].when).toMatch(/^Mon 07:00\sPM$/);
+  });
+
+  it("schedule null (a draft stored without slots) falls back to durations", () => {
+    const summary = summarizeDraft({ ...DRAFT, schedule: null }, { timeZone: "Asia/Kolkata" });
+    expect(summary.timed).toBe(false);
+    expect(summary.shown.map((t) => t.when)).toEqual(["25 min", "20 min", "25 min"]);
   });
 
   it("a task without a title still shows, as 'Untitled task'", () => {

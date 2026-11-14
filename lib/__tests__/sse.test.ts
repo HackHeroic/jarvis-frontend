@@ -295,3 +295,30 @@ describe("createStreamControl", () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe("complete frame: since_last_spoke", () => {
+  async function completeWith(value: unknown) {
+    let got: unknown = "not called";
+    await consumeSSE(
+      sseResponse(frame("complete", { ...COMPLETE, since_last_spoke: value })),
+      { onComplete: (r) => (got = r.since_last_spoke) },
+      "Stream error",
+    );
+    return got;
+  }
+
+  it("a new session's first turn carries the note, trimmed", async () => {
+    expect(await completeWith(" Since we last spoke (2 days ago): 3 done, 1 set aside. ")).toBe(
+      "Since we last spoke (2 days ago): 3 done, 1 set aside.",
+    );
+  });
+
+  it("null passes as null", async () => {
+    expect(await completeWith(null)).toBeNull();
+  });
+
+  it("a non-string value is ignored (null), and the turn still completes", async () => {
+    expect(await completeWith({ text: "x" })).toBeNull();
+    expect(await completeWith(7)).toBeNull();
+  });
+});

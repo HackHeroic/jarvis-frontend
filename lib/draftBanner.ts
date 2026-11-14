@@ -5,7 +5,7 @@
  */
 
 import { describeAcceptOutcome } from "./learning";
-import type { DraftState } from "./types";
+import type { DraftSlot, DraftState } from "./types";
 
 // ---------------------------------------------------------------------------
 // Which actions the banner offers
@@ -47,61 +47,60 @@ function finite(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-/** A task's start minute: on the task itself, or in a schedule map (flat or `{schedule: {...}}`). */
-function startMinOf(task: Record<string, unknown>, schedule: unknown): number | undefined {
-  const own = finite(task.start_min);
-  if (own !== undefined) return own;
-  if (!schedule || typeof schedule !== "object") return undefined;
-  const map = schedule as Record<string, unknown>;
-  const slots =
-    map.schedule && typeof map.schedule === "object" ? (map.schedule as Record<string, unknown>) : map;
-  const slot = typeof task.task_id === "string" ? slots[task.task_id] : undefined;
-  return slot && typeof slot === "object" ? finite((slot as Record<string, unknown>).start_min) : undefined;
+/** When a task's slot starts: the slot's own instant, else minute `start_min` from the horizon. */
+function slotStart(slot: DraftSlot | undefined, horizonStart: string | null | undefined): Date | undefined {
+  if (!slot) return undefined;
+  const own = new Date(slot.start);
+  if (!Number.isNaN(own.getTime())) return own;
+  const origin = horizonStart ? new Date(horizonStart) : null;
+  const minutes = finite(slot.start_min);
+  if (!origin || Number.isNaN(origin.getTime()) || minutes === undefined) return undefined;
+  return new Date(origin.getTime() + minutes * 60_000);
 }
 
-/** "Sat 19:00" on the given clock (the browser's when unset). */
-function formatSlot(instant: Date, timeZone?: string): string {
-  const options: Intl.DateTimeFormatOptions = {
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  };
+/** "Mon 19:00" in the user's locale (and zone), weekday and time only. */
+function formatSlot(instant: Date, locale?: string, timeZone?: string): string {
+  const options: Intl.DateTimeFormatOptions = { weekday: "short", hour: "2-digit", minute: "2-digit" };
   try {
-    return new Intl.DateTimeFormat("en-GB", { ...options, timeZone }).format(instant).replace(",", "");
+    return new Intl.DateTimeFormat(locale, { ...options, timeZone }).format(instant);
   } catch {
-    return new Intl.DateTimeFormat("en-GB", options).format(instant).replace(",", "");
+    // An unknown locale or zone: the browser's own.
+    return new Intl.DateTimeFormat(undefined, options).format(instant);
   }
 }
 
 /**
- * What a plan would add: the task count and the first few tasks. Each line has
- * its local time when the payload carries the solved slots (`start_min` on the
- * task, or a `schedule` map, from `horizon_start`); otherwise its duration —
- * never a made-up time.
+ * What a plan would add: the task count and the first few tasks. A task the
+ * solver placed shows its start (from `schedule`, `GET /drafts/{id}`) in the
+ * user's locale — "Mon 19:00" — earliest first. A task it did not place, or
+ * every task when `schedule` is null, shows its length instead: never a
+ * made-up time. `locale`/`timeZone` default to the browser's.
  */
 export function summarizeDraft(
   draft: Pick<DraftState, "tasks" | "horizon_start" | "schedule">,
-  opts: { limit?: number; timeZone?: string } = {},
+  opts: { limit?: number; locale?: string; timeZone?: string } = {},
 ): DraftSummary {
   const limit = opts.limit ?? SUMMARY_LIMIT;
   const tasks = Array.isArray(draft.tasks) ? draft.tasks : [];
-  const origin = draft.horizon_start ? new Date(draft.horizon_start) : null;
-  const hasOrigin = origin !== null && !Number.isNaN(origin.getTime());
+  const slots = draft.schedule?.schedule ?? {};
+  const horizon = draft.schedule?.horizon_start ?? draft.horizon_start;
 
   const lines = tasks.map((task, order) => {
-    const title = typeof task.title === "string" && task.title.trim() ? task.title.trim() : "Untitled task";
-    const startMin = hasOrigin ? startMinOf(task, draft.schedule) : undefined;
-    if (startMin !== undefined && origin) {
-      const at = new Date(origin.getTime() + startMin * 60_000);
-      return { title, when: formatSlot(at, opts.timeZone), at: at.getTime(), order };
+    const id = typeof task.task_id === "string" ? task.task_id : "";
+    const slot = id ? slots[id] : undefined;
+    const named = typeof task.title === "string" && task.title.trim() ? task.title.trim() : slot?.title?.trim();
+    const title = named || "Untitled task";
+    const start = slotStart(slot, horizon);
+    if (start) {
+      return { title, when: formatSlot(start, opts.locale, opts.timeZone), at: start.getTime(), order };
     }
-    const minutes = finite(task.duration_minutes);
+    const minutes = finite(task.duration_minutes) ?? finite(slot?.duration_minutes);
     return { title, when: minutes !== undefined ? `${minutes} min` : "", at: undefined, order };
   });
 
-  const timed = lines.length > 0 && lines.some((l) => l.at !== undefined);
+  const timed = lines.some((l) => l.at !== undefined);
   if (timed) {
+    // Placed tasks first, earliest first; the rest keep the plan's order.
     lines.sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity) || a.order - b.order);
   }
   return {

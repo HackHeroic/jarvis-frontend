@@ -12,6 +12,10 @@ import type {
   AutonomyMode,
   ConsentBehavior,
   ConsentOut,
+  DraftScheduleView,
+  DraftSlot,
+  DraftState,
+  DraftStatus,
   FocusProfile,
   HourFocus,
   MemoryOut,
@@ -278,5 +282,54 @@ export function parseRunTriggerResponse(value: unknown): RunTriggerResponse {
     status: oneOf(o, "status", RUN_STATUSES, where),
     suggestion: o.suggestion === null ? null : parseSuggestion(o.suggestion, `${where}.suggestion`),
     consent: o.consent === null ? null : parseConsent(o.consent, `${where}.consent`),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Drafts
+// ---------------------------------------------------------------------------
+
+function parseSlot(value: unknown, where: string): DraftSlot {
+  const o = obj(value, where);
+  return {
+    task_id: str(o, "task_id", where),
+    title: o.title === undefined ? null : strOrNull(o, "title", where),
+    start_min: num(o, "start_min", where),
+    end_min: num(o, "end_min", where),
+    start: str(o, "start", where),
+    end: str(o, "end", where),
+    duration_minutes: num(o, "duration_minutes", where),
+  };
+}
+
+function parseScheduleView(value: unknown, where: string): DraftScheduleView {
+  const o = obj(value, where);
+  const slots = obj(o.schedule, `${where}.schedule`);
+  return {
+    horizon_start: str(o, "horizon_start", where),
+    schedule: Object.fromEntries(
+      Object.entries(slots).map(([id, slot]) => [id, parseSlot(slot, `${where}.schedule.${id}`)]),
+    ),
+  };
+}
+
+/** `GET /drafts/{id}` (`DraftStateResponse`), with `schedule` null or its solved slots. */
+export function parseDraftState(value: unknown): DraftState {
+  const where = "draft";
+  const o = obj(value, where);
+  const optional = (key: string) => (o[key] === undefined ? null : strOrNull(o, key, where));
+  return {
+    draft_id: str(o, "draft_id", where),
+    user_id: str(o, "user_id", where),
+    goal_id: optional("goal_id"),
+    tasks: list(o, "tasks", where, (task, at) => obj(task, at)),
+    horizon_start: optional("horizon_start"),
+    status: str(o, "status", where) as DraftStatus,
+    rejection_reason: optional("rejection_reason"),
+    created_at: optional("created_at"),
+    schedule:
+      o.schedule === null || o.schedule === undefined
+        ? null
+        : parseScheduleView(o.schedule, `${where}.schedule`),
   };
 }
