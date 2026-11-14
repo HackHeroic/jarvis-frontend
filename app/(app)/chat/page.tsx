@@ -22,6 +22,7 @@ import { ModelModeSelector } from "@/components/app/ModelModeSelector";
 import { LearningToast } from "@/components/app/LearningToast";
 import { ChatSessionPanel } from "@/components/app/ChatSessionPanel";
 import MemoryPanel from "@/components/app/MemoryPanel";
+import { toListState } from "@/lib/learning";
 import type { MemoryRecord } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -103,15 +104,19 @@ function ChatPage() {
 
   // Independently-fetched memories for the panel
   const [panelMemories, setPanelMemories] = useState<MemoryRecord[]>([]);
+  const [memoriesError, setMemoriesError] = useState<unknown>(null);
 
   const refreshMemories = useCallback(async () => {
     try {
       const fresh = await listMemories();
       setPanelMemories(fresh);
-    } catch {
-      // Non-critical — panel will fall back to latestMemories
+      setMemoriesError(null);
+    } catch (err) {
+      // An outage (5xx) is never "no memories": the panel shows ErrorState with Retry.
+      setMemoriesError(err);
     }
   }, []);
+  const memoryList = toListState({ items: panelMemories, error: memoriesError });
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -459,6 +464,8 @@ function ChatPage() {
         onDeleteMemory={async (id: string) => { try { await deleteMemory(id); await refreshMemories(); } catch { /* silently handle */ } }}
         onConfirmPattern={async (id: string) => { try { await confirmMemory(id); await refreshMemories(); } catch { /* silently handle */ } }}
         onDismissPattern={async (id: string) => { try { await dismissMemory(id); await refreshMemories(); } catch { /* silently handle */ } }}
+        error={memoryList.kind === "error" ? memoryList.message : null}
+        onRetry={refreshMemories}
       />
     </div>
   );

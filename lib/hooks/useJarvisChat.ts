@@ -8,7 +8,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ApiError, chatStream, confirmScheduleStream, acceptDraft, acceptScheduleDirect, rejectDraft, loadConversation as loadConversationAPI } from "../api";
+import { ApiError, chatStream, confirmScheduleStream, acceptDraft, acceptScheduleDirect, rejectDraft, untilAborted, loadConversation as loadConversationAPI } from "../api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import type {
   JarvisMessage,
@@ -21,7 +21,7 @@ import type {
 } from "../types";
 import { useDevMode } from "./useDevMode";
 import { INITIAL_STREAM_STATE } from "../types";
-import { describeAcceptOutcome, shouldToast, toLearningMoment, type LearningMoment } from "../learning";
+import { describeAcceptOutcome, readPatternFrame, toLearningMoment, type LearningMoment } from "../learning";
 import {
   saveChatMessages,
   loadChatMessages,
@@ -133,6 +133,27 @@ export function useJarvisChat(): UseJarvisChatReturn {
   const toolUsesRef = useRef<ToolUseEvent[]>([]);
   const learningMomentsRef = useRef<LearningMoment[]>([]);
 
+  // Abort any in-flight stream on unmount, so its handlers (wrapped in
+  // untilAborted) cannot set state after the page is gone; chatStream and
+  // consumeSSE end quietly on an abort. The abort is deferred one tick:
+  // React StrictMode (reactStrictMode: true, dev) unmounts and remounts at
+  // once, and aborting then would kill a turn started on mount (/chat?prompt=)
+  // and leave the page stuck streaming. Only a real unmount is still
+  // unmounted a tick later.
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      setTimeout(() => {
+        if (mountedRef.current) return;
+        abortRef.current?.abort();
+        abortRef.current = null;
+        streamingMsg.current = null;
+      }, 0);
+    };
+  }, []);
+
   const abort = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -204,6 +225,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
       toolUsesRef.current = [];
       learningMomentsRef.current = [];
 
+      // Its handlers go quiet once aborted (Stop, or the page unmounting).
       const controller = new AbortController();
       abortRef.current = controller;
 
@@ -229,7 +251,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
           conversation_id: conversationId || undefined,
           ...(draftContext ? { draft_schedule: draftContext } : {}),
         },
-        {
+        untilAborted(controller.signal, {
           onPhase: (phase, data) => {
             const phaseEvent: PhaseEventData = { phase, timestamp: Date.now(), ...data };
             const intent = (data.intent as string) || null;
@@ -321,14 +343,17 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
           // Every observation is shown inline under this reply; only a strong,
           // recurring pattern also gets the toast.
+          // A frame with no usable content is skipped (never a blank row).
           onMemoryExtracted: (event) => {
-            addLearningMoment(toLearningMoment(event, "memory"));
+            const moment = toLearningMoment(event, "memory");
+            if (moment) addLearningMoment(moment);
           },
 
           onPatternDetected: (event) => {
-            addLearningMoment(toLearningMoment(event, "pattern"));
-            if (shouldToast(event)) {
-              setStreamState((s) => ({ ...s, latestPattern: { ...event, timestamp: Date.now() } }));
+            const { moment, toast } = readPatternFrame(event);
+            if (moment) addLearningMoment(moment);
+            if (toast) {
+              setStreamState((s) => ({ ...s, latestPattern: { ...toast, timestamp: Date.now() } }));
             }
           },
 
@@ -439,7 +464,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
             setIsStreaming(false);
             abortRef.current = null;
           },
-        },
+        }),
         { signal: controller.signal },
       );
     },
@@ -468,6 +493,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
       streamingMsg.current = assistantMsg;
       setMessages((m) => [...m, assistantMsg]);
 
+      // Its handlers go quiet once aborted (Stop, or the page unmounting).
       const controller = new AbortController();
       abortRef.current = controller;
 
@@ -486,7 +512,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
           goal_metadata: goalMetadata,
           model_mode: modelMode,
         },
-        {
+        untilAborted(controller.signal, {
           onPhase: (phase, data) => {
             const phaseEvent: PhaseEventData = { phase, ...data };
             const activeModel = (data.model as string) || null;
@@ -604,7 +630,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
             setIsStreaming(false);
             abortRef.current = null;
           },
-        },
+        }),
         { signal: controller.signal },
       );
     },

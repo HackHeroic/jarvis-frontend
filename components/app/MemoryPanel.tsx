@@ -5,6 +5,7 @@ import { X, CheckCircle, XCircle } from "lucide-react";
 import clsx from "clsx";
 import type { MemoryRecord } from "@/lib/types";
 import { hashCode, PALETTE_ROTATION, MEMORY_TYPE_COLORS } from "@/lib/constants";
+import { ErrorState } from "@/components/app/ErrorState";
 
 // ---------------------------------------------------------------------------
 // Importance weights — determines group sort order
@@ -71,6 +72,9 @@ interface MemoryPanelProps {
   onDeleteMemory?: (id: string) => void;
   onConfirmPattern?: (id: string) => void;
   onDismissPattern?: (id: string) => void;
+  /** Set when the memories could not be fetched (an outage) — shown instead of "No memories yet". */
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +88,8 @@ export default function MemoryPanel({
   onDeleteMemory,
   onConfirmPattern,
   onDismissPattern,
+  error,
+  onRetry,
 }: MemoryPanelProps) {
   // Group memories by memory_type, sorted by importance weight
   const groups = useMemo(() => {
@@ -134,7 +140,11 @@ export default function MemoryPanel({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
-          {memories.length === 0 ? (
+          {error ? (
+            <div className="flex h-full flex-col items-center justify-center px-2">
+              <ErrorState message={error} onRetry={onRetry} />
+            </div>
+          ) : memories.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4">
               <p className="text-sm text-secondary">No memories yet.</p>
               <p className="text-xs text-muted mt-1">

@@ -3,7 +3,28 @@
  * list fetch really returned. No React, no fetch — unit-tested with Vitest.
  */
 
-import type { MemoryExtractedEvent, PatternDetectedEvent } from "./types";
+import type { ConsentRequestEvent, MemoryExtractedEvent, PatternDetectedEvent } from "./types";
+
+// ---------------------------------------------------------------------------
+// Frames off the wire are untrusted: coerce, never assume
+// ---------------------------------------------------------------------------
+
+/** `Number(value)`, or undefined when that is NaN / not finite. */
+function finiteNumber(value: unknown): number | undefined {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** A non-blank trimmed string, or undefined. */
+function nonBlank(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+/** `String(value)` for scalars; '' for null, undefined, objects and arrays. */
+function scalarString(value: unknown): string {
+  if (value === null || value === undefined || typeof value === "object") return "";
+  return String(value);
+}
 
 // ---------------------------------------------------------------------------
 // Learning moments
@@ -30,23 +51,62 @@ export interface LearningMoment {
   action: string;
 }
 
-/** Normalise a memory_extracted or pattern_detected frame into a LearningMoment. */
+/**
+ * Normalise a memory_extracted or pattern_detected frame into a LearningMoment.
+ * Null unless the frame has non-blank string content (never a blank row).
+ * Numbers are coerced with `Number`: a NaN confidence reads as 0, a NaN
+ * occurrence count is left out.
+ */
 export function toLearningMoment(
   e: MemoryExtractedEvent | PatternDetectedEvent,
   kind: "memory" | "pattern",
-): LearningMoment {
+): LearningMoment | null {
+  const raw: Record<string, unknown> =
+    e && typeof e === "object" ? (e as unknown as Record<string, unknown>) : {};
+  const content = nonBlank(raw.content);
+  if (!content) return null;
   const moment: LearningMoment = {
     kind,
-    id: e.memory_id,
-    content: e.content,
+    id: scalarString(raw.memory_id),
+    content,
     provenance: kind === "memory" ? "said" : "inferred",
-    confidence: e.confidence,
-    action: e.action,
+    confidence: finiteNumber(raw.confidence) ?? 0,
+    action: scalarString(raw.action),
   };
-  if ("occurrence_count" in e && typeof e.occurrence_count === "number") {
-    moment.occurrences = e.occurrence_count;
-  }
+  const occurrences = finiteNumber(raw.occurrence_count);
+  if (occurrences !== undefined) moment.occurrences = occurrences;
   return moment;
+}
+
+/**
+ * What one pattern_detected frame does: an inline moment always (when the frame
+ * is usable), and a toast only when the pattern is strong and recurring. The
+ * toast copy carries the coerced numbers, so it never re-reads raw fields.
+ */
+export function readPatternFrame(e: PatternDetectedEvent): {
+  moment: LearningMoment | null;
+  toast: PatternDetectedEvent | null;
+} {
+  const moment = toLearningMoment(e, "pattern");
+  if (!moment) return { moment: null, toast: null };
+  const occurrence_count = moment.occurrences ?? 0;
+  const toast = shouldToast({ confidence: moment.confidence, occurrence_count })
+    ? { ...e, content: moment.content, confidence: moment.confidence, occurrence_count }
+    : null;
+  return { moment, toast };
+}
+
+/**
+ * A consent_request frame, or null when it has no usable reason (missing,
+ * blank, or not a scalar). Fields are coerced with `String`; an unusable
+ * module becomes ''.
+ */
+export function toConsentRequest(data: unknown): ConsentRequestEvent | null {
+  if (!data || typeof data !== "object") return null;
+  const raw = data as Record<string, unknown>;
+  const reason = scalarString(raw.reason).trim();
+  if (!reason) return null;
+  return { reason, module: scalarString(raw.module) };
 }
 
 // ---------------------------------------------------------------------------
@@ -75,7 +135,7 @@ export function describeAcceptOutcome(res: { status?: string; task_count?: numbe
   if (res.status === "empty") {
     return { ok: false, tone: "info", message: "Nothing in this plan could be scheduled." };
   }
-  return { ok: false, tone: "error", message: "Failed to save schedule. Try again." };
+  return { ok: false, tone: "error", message: "That didn't save. Try again." };
 }
 
 // ---------------------------------------------------------------------------
