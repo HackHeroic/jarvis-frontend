@@ -10,6 +10,7 @@ import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
 import { errorMessageOf } from "@/lib/you";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/app/EmptyState";
+import { ErrorState } from "@/components/app/ErrorState";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
 import {
   ArrowUpRight,
@@ -155,7 +156,7 @@ export default function SchedulePage() {
 function SchedulePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { tasks: allTasks, tasksLoading: loading, refreshTasks, showToast } = useJarvis();
+  const { tasks: allTasks, tasksLoading: loading, tasksError, refreshTasks, showToast } = useJarvis();
   const initialView = (searchParams.get("view") as ViewMode) || "day";
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
@@ -330,7 +331,14 @@ function SchedulePageInner() {
       )}
 
       {/* Empty state — only for day view when no tasks */}
-      {!loading && allTasks.length === 0 && (
+      {/* An outage is never "no tasks": say so, with a way to try again */}
+      {!loading && allTasks.length === 0 && tasksError && (
+        <Card className="px-6 py-12">
+          <ErrorState message="Couldn't load your schedule." onRetry={() => refreshTasks()} />
+        </Card>
+      )}
+
+      {!loading && allTasks.length === 0 && !tasksError && (
         <Card className="px-6 py-12">
           <EmptyState
             icon="📅"
