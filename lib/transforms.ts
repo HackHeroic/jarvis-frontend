@@ -30,6 +30,7 @@ export function apiTasksToScheduleTasks(
   return raw
     .map((t) => {
       let startTime: Date;
+      let unscheduled = false;
       if (t.start_time) {
         startTime = new Date(t.start_time as string);
       } else if (t.scheduled_start) {
@@ -40,12 +41,11 @@ export function apiTasksToScheduleTasks(
             (t.start_min as number) * 60_000,
         );
       } else {
+        // No slot yet: listed under "Not scheduled yet"; 8 AM today is only a placeholder.
         const today = new Date();
         today.setHours(8, 0, 0, 0);
         startTime = today;
-        console.warn(
-          `[transforms] Task "${t.title || t.task_id}" has no start time — defaulting to 8 AM today`,
-        );
+        unscheduled = true;
       }
 
       let dur = t.duration_minutes as number;
@@ -62,9 +62,8 @@ export function apiTasksToScheduleTasks(
           ? new Date(t.scheduled_end as string)
           : new Date(startTime.getTime() + dur * 60_000);
 
-      const VALID_STATUSES = new Set([
-        "pending", "in_progress", "completed", "skipped", "missed", "pacing_pushed",
-      ]);
+      // The backend's TaskStatus (app/domain/entities.py); anything else reads as pending.
+      const VALID_STATUSES = new Set(["pending", "completed", "skipped", "missed"]);
       const rawStatus = (t.status as string) || "pending";
       const status = VALID_STATUSES.has(rawStatus)
         ? (rawStatus as ScheduleTask["status"])
@@ -80,6 +79,7 @@ export function apiTasksToScheduleTasks(
         completed_at: t.completed_at
           ? new Date(t.completed_at as string)
           : undefined,
+        ...(unscheduled ? { unscheduled: true } : {}),
         goal_id: (t.goal_id as string) || undefined,
         color: colorForGoal((t.goal_id as string) || undefined),
         deadline_hint: (t.deadline_hint as string) || undefined,

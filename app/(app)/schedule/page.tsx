@@ -4,7 +4,9 @@ import { useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { completeTask, skipTask } from "@/lib/api";
 import { useJarvis } from "@/lib/context/JarvisContext";
-import { isSkippedStatus } from "@/lib/constants";
+import { isSetAside } from "@/lib/constants";
+import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
+import { errorMessageOf } from "@/lib/you";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/app/EmptyState";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
@@ -15,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  X,
 } from "lucide-react";
 import clsx from "clsx";
 import type { ScheduleTask } from "@/lib/types";
@@ -122,14 +125,15 @@ function dayNumber(d: Date): number {
 // Status config
 // ---------------------------------------------------------------------------
 
+/** Block colours by status. Skipped and missed are both "set aside": neutral, never alarming. */
 const STATUS_COLORS: Record<ScheduleTask["status"], string> = {
   completed: "bg-sage/20 border-sage",
-  in_progress: "bg-terra/20 border-terra",
   pending: "bg-surface-muted border-border",
-  skipped: "bg-surface-muted border-muted opacity-50",
-  pacing_pushed: "bg-surface-muted border-muted opacity-50",
-  missed: "bg-surface-muted border-border",
+  skipped: "bg-surface-muted border-muted opacity-60",
+  missed: "bg-surface-muted border-muted opacity-60",
 };
+
+const TRY_AGAIN = "That didn't go through. Try again.";
 
 // ---------------------------------------------------------------------------
 // Schedule Page
@@ -146,11 +150,15 @@ export default function SchedulePage() {
 function SchedulePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { tasks: allTasks, tasksLoading: loading, refreshTasks } = useJarvis();
+  const { tasks: allTasks, tasksLoading: loading, refreshTasks, showToast } = useJarvis();
   const initialView = (searchParams.get("view") as ViewMode) || "day";
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [ratingTaskId, setRatingTaskId] = useState<string | null>(null);
+  // The backend's own words after a skip (where the task could go, or that nothing changed).
+  const [skipNote, setSkipNote] = useState<string | null>(null);
+  // One request per task at a time: a double-click completes or skips once.
+  const { run, isBusy } = useSingleFlight();
 
   const now = useMemo(() => new Date(), []);
 
@@ -175,21 +183,30 @@ function SchedulePageInner() {
 
   // ---- Actions ----
   async function handleComplete(taskId: string, quality: number) {
+    const pending = run(taskId, () => completeTask(taskId, undefined, quality));
+    if (!pending) return;
     setRatingTaskId(null);
+    setSkipNote(null);
     try {
-      await completeTask(taskId, undefined, quality);
+      await pending;
+    } catch (err) {
+      showToast(errorMessageOf(err, TRY_AGAIN), "error");
+    } finally {
       await refreshTasks();
-    } catch {
-      // silently fail in demo
     }
   }
 
   async function handleSkip(taskId: string) {
+    const pending = run(taskId, () => skipTask(taskId));
+    if (!pending) return;
+    setSkipNote(null);
     try {
-      await skipTask(taskId);
+      const res = await pending;
+      if (res.message) setSkipNote(res.message);
+    } catch (err) {
+      showToast(errorMessageOf(err, TRY_AGAIN), "error");
+    } finally {
       await refreshTasks();
-    } catch {
-      // silently fail in demo
     }
   }
 
@@ -274,6 +291,24 @@ function SchedulePageInner() {
         </div>
       </div>
 
+      {/* After a skip: the backend's own note, quietly */}
+      {skipNote && (
+        <div
+          role="status"
+          className="flex items-start justify-between gap-3 rounded-lg border border-border bg-surface-card px-3.5 py-2.5"
+        >
+          <p className="min-w-0 text-xs text-secondary">{skipNote}</p>
+          <button
+            type="button"
+            onClick={() => setSkipNote(null)}
+            aria-label="Dismiss note"
+            className="shrink-0 rounded p-0.5 text-muted transition-colors hover:text-secondary"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Loading */}
       {loading && (
         <div className="flex flex-col items-center gap-3 py-12">
@@ -303,6 +338,7 @@ function SchedulePageInner() {
           showNowLine={showNowLine}
           nowTop={nowTop}
           ratingTaskId={ratingTaskId}
+          isBusy={isBusy}
           onTaskClick={(t) => {
             if (!t.constraint_applied) router.push(`/workspace/${t.task_id}`);
           }}
@@ -392,6 +428,8 @@ interface DayGridProps {
   showNowLine: boolean;
   nowTop: number;
   ratingTaskId: string | null;
+  /** True while a Complete or Skip for that task is in flight. */
+  isBusy: (taskId: string) => boolean;
   onTaskClick: (task: ScheduleTask) => void;
   onComplete: (taskId: string) => void;
   onSkip: (taskId: string) => void;
@@ -404,6 +442,7 @@ function DayGrid({
   showNowLine,
   nowTop,
   ratingTaskId,
+  isBusy,
   onTaskClick,
   onComplete,
   onSkip,
@@ -473,8 +512,10 @@ function DayGrid({
           const top = Math.max(0, (startMin - GRID_START_MINUTES) * PX_PER_MINUTE);
           const height = Math.max(task.duration_minutes * PX_PER_MINUTE, 28);
           const isBlocked = !!task.constraint_applied;
-          const isActionable =
-            task.status === "pending" || task.status === "in_progress" || task.status === "missed";
+          // Complete works from pending or missed; Skip only from pending (the backend's moves).
+          const isActionable = task.status === "pending" || task.status === "missed";
+          const canSkip = task.status === "pending";
+          const busy = isBusy(task.task_id);
           const showRating = ratingTaskId === task.task_id;
 
           return (
@@ -505,7 +546,7 @@ function DayGrid({
                     className={clsx(
                       "text-xs font-semibold text-primary truncate",
                       task.status === "completed" && "line-through opacity-60",
-                      isSkippedStatus(task.status) && "line-through opacity-40",
+                      isSetAside(task.status) && "opacity-60",
                     )}
                   >
                     {task.title}
@@ -521,7 +562,10 @@ function DayGrid({
                 </div>
 
                 {/* Action buttons */}
-                {isActionable && !isBlocked && !showRating && (
+                {isActionable && !isBlocked && !showRating && busy && (
+                  <Loader2 size={14} className="shrink-0 animate-spin text-muted" aria-label="Saving" />
+                )}
+                {isActionable && !isBlocked && !showRating && !busy && (
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={(e) => {
@@ -542,16 +586,19 @@ function DayGrid({
                     >
                       <CheckCircle2 size={16} />
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSkip(task.task_id);
-                      }}
-                      className="p-1 rounded-md hover:bg-gold/20 text-gold transition-colors"
-                      title="Skip"
-                    >
-                      <SkipForward size={16} />
-                    </button>
+                    {canSkip && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSkip(task.task_id);
+                        }}
+                        className="p-1 rounded-md hover:bg-gold/20 text-gold transition-colors"
+                        title="Set aside"
+                        aria-label="Set aside"
+                      >
+                        <SkipForward size={16} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -640,7 +687,7 @@ function WeekGrid({ allTasks, selectedDate, now, onSelectDay }: WeekGridProps) {
                       ? "border border-dashed border-muted text-muted"
                       : "text-primary",
                     task.status === "completed" && "line-through opacity-50",
-                    isSkippedStatus(task.status) && "line-through opacity-30",
+                    isSetAside(task.status) && "opacity-50",
                   )}
                   style={
                     !task.constraint_applied

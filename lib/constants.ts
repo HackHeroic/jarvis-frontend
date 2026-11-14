@@ -121,20 +121,30 @@ export const DEMO_LATENCY = 800;
 // Anti-guilt task status display (psychology framework)
 // ---------------------------------------------------------------------------
 
-export const TASK_STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
-  pending: { label: "Pending", color: "muted" },
-  completed: { label: "Completed", color: "sage" },
-  pacing_pushed: { label: "Adjusted — no stress", color: "sage" },
-  skipped: { label: "Rescheduled", color: "muted" },
-  missed: { label: "Still open — no stress", color: "muted" },
-  // NEVER use: "Overdue", "Failed", "Missed", "Late"
-};
-
-export function getTaskStatusDisplay(status: string): { label: string; color: string } {
-  return TASK_STATUS_DISPLAY[status] || { label: status.replace(/_/g, " "), color: "muted" };
+/** How a task's status reads on a chip. `badge` is a Badge colour. */
+export interface TaskStatusDisplay {
+  label: string;
+  kind: "pending" | "done" | "set_aside";
+  badge: "dusk" | "sage" | "ink";
 }
 
-/** pacing_pushed is what POST /tasks/{id}/skip writes (the anti-guilt skip): it renders as skipped. */
-export function isSkippedStatus(status: string): boolean {
-  return status === "skipped" || status === "pacing_pushed";
+const PENDING: TaskStatusDisplay = { label: "Pending", kind: "pending", badge: "dusk" };
+const DONE: TaskStatusDisplay = { label: "Done", kind: "done", badge: "sage" };
+const SET_ASIDE: TaskStatusDisplay = { label: "Set aside", kind: "set_aside", badge: "ink" };
+
+/**
+ * The one place a task status becomes words. The backend's statuses are pending,
+ * completed, skipped and missed (app/domain/entities.py TaskStatus). Skipped and
+ * missed both read "Set aside" in a neutral colour — never "Missed", "Overdue",
+ * "Failed" or "Late". Anything else reads as pending.
+ */
+export function taskStatusDisplay(status: string): TaskStatusDisplay {
+  if (status === "completed") return DONE;
+  if (status === "skipped" || status === "missed") return SET_ASIDE;
+  return PENDING;
+}
+
+/** Skipped or missed: the task was set aside. */
+export function isSetAside(status: string): boolean {
+  return taskStatusDisplay(status).kind === "set_aside";
 }

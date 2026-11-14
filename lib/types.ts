@@ -611,17 +611,10 @@ export interface FileAttachment {
 // ---------------------------------------------------------------------------
 
 /**
- * user_tasks.status. The backend writes pending | completed | skipped | missed |
- * pacing_pushed (pacing_pushed is the anti-guilt skip); in_progress is still
- * allowed by the table and used by the demo data.
+ * user_tasks.status: the backend's TaskStatus (app/domain/entities.py). Skipped and
+ * missed both read "Set aside"; every chip goes through `taskStatusDisplay`.
  */
-export type TaskStatus =
-  | "pending"
-  | "in_progress"
-  | "completed"
-  | "skipped"
-  | "missed"
-  | "pacing_pushed";
+export type TaskStatus = "pending" | "completed" | "skipped" | "missed";
 
 export interface ScheduleTask {
   task_id: string;
@@ -631,6 +624,11 @@ export interface ScheduleTask {
   duration_minutes: number;
   status: TaskStatus;
   completed_at?: Date;
+  /**
+   * True when the backend gave the task no slot yet. `start_time` is then only a
+   * placeholder (8 AM today): the dashboard lists it under "Not scheduled yet".
+   */
+  unscheduled?: boolean;
   goal_id?: string;
   color: string;
   deadline_hint?: string;
@@ -723,10 +721,13 @@ export interface MemoryExtractedEvent {
   timestamp?: number;
 }
 
-/** `event: pattern_detected` — one frame per pattern created or strengthened, before `complete`. */
+/**
+ * `event: pattern_detected` — one frame per pattern created or strengthened, before
+ * `complete`. `pattern_key` is optional in the backend (Pattern.pattern_key: str | None).
+ */
 export interface PatternDetectedEvent {
   memory_id: string;
-  pattern_key: string;
+  pattern_key?: string | null;
   type: string;
   content: string;
   confidence: number;

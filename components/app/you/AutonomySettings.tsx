@@ -108,6 +108,9 @@ export function AutonomySettings({ profile, onSaved, onStale }: AutonomySettings
                   )}
                 </span>
                 <span className="block text-xs text-secondary">{option.description}</span>
+                {option.note && (
+                  <span className="mt-1 block text-[11px] italic text-muted">{option.note}</span>
+                )}
               </span>
             </label>
           ))}
