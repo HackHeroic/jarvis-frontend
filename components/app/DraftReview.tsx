@@ -2,6 +2,7 @@
 
 import { SchedulePreview } from './SchedulePreview';
 
+import type { DraftCardState } from '@/lib/draftCard';
 import type { ChatResponse } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -12,7 +13,8 @@ interface DraftReviewProps {
   response: ChatResponse;
   onAcceptDraft: () => void;
   onRejectDraft: (reason?: string) => void;
-  isLoading?: boolean;
+  /** Live (the open draft's card) or read-only; absent: read-only, never a live button. */
+  state?: DraftCardState;
 }
 
 // ---------------------------------------------------------------------------
@@ -23,7 +25,7 @@ export function DraftReview({
   response,
   onAcceptDraft,
   onRejectDraft,
-  isLoading,
+  state,
 }: DraftReviewProps) {
   // Schedule preview — user reviews the OR-Tools generated schedule
   if (response.schedule_status === 'draft' && response.schedule) {
@@ -34,7 +36,7 @@ export function DraftReview({
         draftId={draftId}
         onAccept={onAcceptDraft}
         onReject={onRejectDraft}
-        isLoading={isLoading}
+        state={state}
       />
     );
   }

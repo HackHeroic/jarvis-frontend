@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 
+import type { DraftCardState } from '@/lib/draftCard';
 import type { SchedulePayload, TaskSchedule } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -15,7 +16,11 @@ interface SchedulePreviewProps {
   draftId: string;
   onAccept: () => void;
   onReject: (reason?: string) => void;
-  isLoading?: boolean;
+  /**
+   * Live — the open draft's card: Accept and Discard work, one request at a time
+   * (`busy`) — or read-only with a quiet note. Absent: read-only.
+   */
+  state?: DraftCardState;
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +175,7 @@ export function SchedulePreview({
   draftId,
   onAccept,
   onReject,
-  isLoading,
+  state,
 }: SchedulePreviewProps) {
   const entries = useMemo(() => {
     const horizonStart = schedule.horizon_start || new Date().toISOString();
@@ -263,41 +268,48 @@ export function SchedulePreview({
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex items-center gap-2 pt-1">
-        <button
-          type="button"
-          onClick={() => onAccept()}
-          disabled={isLoading}
-          className={clsx(
-            'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
-            'bg-terra text-white hover:bg-terra/90 active:scale-[0.98]',
-            'disabled:opacity-40 disabled:pointer-events-none',
-          )}
-        >
-          {isLoading ? (
-            <>
-              <Loader2 size={14} className="animate-spin" />
-              Saving...
-            </>
-          ) : (
-            'Accept All'
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            const reason = window.prompt("What would you like changed?");
-            if (reason !== null) {
-              onReject(reason || undefined);
-            }
-          }}
-          disabled={isLoading}
-          className="px-4 py-2.5 rounded-xl text-sm font-medium border border-red-400/30 text-red-400 hover:bg-red-400/10 hover:border-red-400/50 transition-all disabled:opacity-40"
-        >
-          Reject
-        </button>
-      </div>
+      {/* Action buttons: only on the open draft's card; any other shows why it is read-only */}
+      {state?.kind === 'active' ? (
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => onAccept()}
+            disabled={state.busy !== null}
+            aria-busy={state.busy === 'accept'}
+            className={clsx(
+              'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
+              'bg-terra text-white hover:bg-terra/90 active:scale-[0.98]',
+              'disabled:opacity-40 disabled:pointer-events-none',
+            )}
+          >
+            {state.busy === 'accept' ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Accept All'
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const reason = window.prompt("What would you like changed?");
+              if (reason !== null) {
+                onReject(reason || undefined);
+              }
+            }}
+            disabled={state.busy !== null}
+            aria-busy={state.busy === 'discard'}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium border border-red-400/30 text-red-400 hover:bg-red-400/10 hover:border-red-400/50 transition-all disabled:opacity-40 disabled:pointer-events-none"
+          >
+            {state.busy === 'discard' && <Loader2 size={14} className="animate-spin" />}
+            Discard
+          </button>
+        </div>
+      ) : (
+        state?.note && <p className="pt-1 text-[11px] text-muted">{state.note}</p>
+      )}
     </div>
   );
 }

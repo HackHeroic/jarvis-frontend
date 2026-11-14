@@ -8,7 +8,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ApiError, chatStream, acceptDraft, getDraftById, rejectDraft, untilAborted, createStreamControl, type StreamControl, loadConversation as loadConversationAPI } from "../api";
+import { chatStream, acceptDraft, getDraftById, rejectDraft, untilAborted, createStreamControl, type StreamControl, loadConversation as loadConversationAPI } from "../api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import type {
   JarvisMessage,
@@ -21,7 +21,18 @@ import type {
 import { useDevMode } from "./useDevMode";
 import { INITIAL_STREAM_STATE } from "../types";
 import { readPatternFrame, toLearningMoment, type LearningMoment } from "../learning";
-import { acceptFromCard, replaceDraftInMessages, withLatestDraft } from "../draftCard";
+import {
+  acceptFromCard,
+  discardFromCard,
+  draftCardState,
+  draftKey,
+  recordDraftOutcome,
+  replaceDraftInMessages,
+  withLatestDraft,
+  type DraftCardState,
+  type DraftOutcome,
+} from "../draftCard";
+import { useSingleFlight } from "./useSingleFlight";
 import { conversationLoadFailure } from "../sessions";
 import { toModelMode, type ModelMode } from "../modelModes";
 import {
@@ -31,6 +42,8 @@ import {
   saveDraftSchedule,
   loadDraftSchedule,
   clearDraftSchedule,
+  loadSettledDrafts,
+  saveSettledDrafts,
 } from "../store";
 import { USER_ID } from "../constants";
 
@@ -62,6 +75,11 @@ export type UseJarvisChatReturn = {
   acceptDraft: () => Promise<void>;
   acceptState: "idle" | "accepting" | "accepted";
   rejectDraft: (reason?: string) => void;
+  /**
+   * How a turn's review card shows: live (Accept/Discard work) only for the open
+   * draft — same draft id and version as the chat holds; read-only otherwise.
+   */
+  draftCardStateFor: (response: ChatResponse) => DraftCardState;
   conversationId: string | null;
   startNewConversation: () => void;
   loadConversation: (sessionId: string) => Promise<void>;
@@ -95,6 +113,12 @@ export function useJarvisChat(): UseJarvisChatReturn {
   const [conversationLoadError, setConversationLoadError] = useState<ConversationLoadError | null>(null);
   const [isReplanning, setIsReplanning] = useState(false);
   const [modelMode, setModelMode] = useState<ModelMode>("auto");
+  // How each draft the chat held was settled: every card for it stays read-only.
+  const [settledDrafts, setSettledDrafts] = useState<Record<string, DraftOutcome>>({});
+  // Accept and Discard share one in-flight guard per card (as the dashboard banner's
+  // buttons do): one click, one request. `draftAction` is the request in flight.
+  const { run: runDraftAction } = useSingleFlight();
+  const [draftAction, setDraftAction] = useState<"accept" | "discard" | null>(null);
 
   // Hydrate state from localStorage on mount
   useEffect(() => {
@@ -105,6 +129,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
     // A suggestion's plan has no card in chat (the dashboard banner acts on it),
     // so chat never adopts it as its own draft.
     if (savedDraft && savedDraft.draft_source !== "suggestion") setDraftScheduleResponse(savedDraft);
+    setSettledDrafts(loadSettledDrafts());
 
     const savedConversationId = localStorage.getItem("jarvis-conversation-id");
     if (savedConversationId) setConversationId(savedConversationId);
@@ -440,14 +465,36 @@ export function useJarvisChat(): UseJarvisChatReturn {
     [isStreaming, conversationId, modelMode, addLearningMoment, setDraft],
   );
 
+  /** Remember how a draft was settled, so every card for it turns read-only with that outcome. */
+  const settleDraft = useCallback((key: string | undefined, outcome: DraftOutcome) => {
+    if (!key) return;
+    setSettledDrafts((prev) => {
+      const next = recordDraftOutcome(prev, key, outcome);
+      saveSettledDrafts(next);
+      return next;
+    });
+  }, []);
+
   const acceptDraftFn = useCallback(async () => {
-    if (!draftScheduleResponse) return;
-    setAcceptState("accepting");
+    const card = draftScheduleResponse;
+    if (!card) return;
+    const key = draftKey(card);
     // The plan this card shows, by the version its turn handed over: a plan changed
     // since is refused (409 stale_version) and read as the dashboard banner reads it.
-    const outcome = await acceptFromCard(draftScheduleResponse, { accept: acceptDraft, reread: getDraftById });
+    // A second click (Accept or Discard) while this runs makes no request.
+    const pending = runDraftAction(key ?? "draft", () =>
+      acceptFromCard(card, { accept: acceptDraft, reread: getDraftById }),
+    );
+    if (!pending) return;
+    setDraftAction("accept");
+    setAcceptState("accepting");
+    // Never rejects (every failure is an outcome); the busy flag clears in the same
+    // update as the outcome, so the card never flickers live in between.
+    const outcome = await pending;
+    setDraftAction(null);
 
     if (outcome.accepted) {
+      settleDraft(key, "accepted");
       jarvis.clearDraft();
       setDraftScheduleResponse(null);
       setAcceptState("accepted");
@@ -468,7 +515,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
     if (latest) {
       // The plan changed since the card was drawn; nothing was written. Redraw the
       // card on the latest draft, whose version the next accept sends.
-      const redrawn = withLatestDraft(draftScheduleResponse, latest);
+      const redrawn = withLatestDraft(card, latest);
       setDraftScheduleResponse(redrawn);
       saveDraftSchedule(redrawn);
       jarvis.setDraft(redrawn);
@@ -476,36 +523,39 @@ export function useJarvisChat(): UseJarvisChatReturn {
     }
     if (outcome.refreshTasks) void jarvis.refreshTasks();
     if (outcome.clearDraft) {
+      settleDraft(key, "closed");
       jarvis.clearDraft();
       setDraftScheduleResponse(null);
     }
-  }, [draftScheduleResponse, jarvis, router]);
+  }, [draftScheduleResponse, jarvis, router, runDraftAction, settleDraft]);
 
   const rejectDraftFn = useCallback(async (reason?: string) => {
-    const draftId =
-      draftScheduleResponse?.draft_id ||
-      draftScheduleResponse?.schedule?.draft_id;
-    try {
-      if (draftId) {
-        await rejectDraft(draftId, ["tasks", "schedule"]);
-      }
-      jarvis.clearDraft();
-      setDraftScheduleResponse(null);
-      jarvis.showToast("Schedule rejected. Replanning...", "info");
-    } catch (err) {
-      jarvis.clearDraft();
-      setDraftScheduleResponse(null);
-      jarvis.showToast(
-        err instanceof ApiError && err.status === 409 && err.serverMessage
-          ? err.serverMessage
-          : "Failed to reject. Try again.",
-        "error",
-      );
-    }
+    const card = draftScheduleResponse;
+    if (!card) return;
+    const key = draftKey(card);
+    // Shares Accept's guard: one request at a time per card.
+    const pending = runDraftAction(key ?? "draft", () => discardFromCard(card, { reject: rejectDraft }));
+    if (!pending) return;
+    setDraftAction("discard");
+    // Never rejects (every failure is an outcome); the busy flag clears in the same
+    // update as the outcome, so the card never flickers live in between.
+    const outcome = await pending;
+    setDraftAction(null);
+    jarvis.showToast(outcome.message, outcome.tone);
+    if (outcome.settled) settleDraft(key, outcome.settled);
+    if (!outcome.clearDraft) return; // an outage: the plan stays open, the card live
+    jarvis.clearDraft();
+    setDraftScheduleResponse(null);
     if (reason) {
       sendMessage(`I rejected the schedule because: ${reason}. Please suggest a different approach.`);
     }
-  }, [draftScheduleResponse, sendMessage, jarvis]);
+  }, [draftScheduleResponse, sendMessage, jarvis, runDraftAction, settleDraft]);
+
+  const draftCardStateFor = useCallback(
+    (response: ChatResponse) =>
+      draftCardState(response, { current: draftScheduleResponse, settled: settledDrafts, busy: draftAction }),
+    [draftScheduleResponse, settledDrafts, draftAction],
+  );
 
   const startNewConversation = useCallback(() => {
     setConversationLoadError(null);
@@ -617,6 +667,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
     acceptDraft: acceptDraftFn,
     acceptState,
     rejectDraft: rejectDraftFn,
+    draftCardStateFor,
     conversationId,
     startNewConversation,
     loadConversation,
