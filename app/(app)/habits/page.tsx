@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getDueHabits, completeHabit, getBehavioralConstraints, deleteBehavioralConstraint, type BehavioralConstraint } from "@/lib/api";
+import { ApiError, getDueHabits, completeHabit, getBehavioralConstraints, deleteBehavioralConstraint, type BehavioralConstraint } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/app/EmptyState";
@@ -171,10 +171,16 @@ export default function HabitsPage() {
       const raw = await getDueHabits();
       setHabits(raw.map(parseHabit));
       setError(null);
-    } catch {
-      // Backend unavailable — show empty state, not error
+    } catch (err) {
+      // Couldn't load (e.g. 503: database down) — say so; an outage is never "nothing due".
       setHabits([]);
-      setError(null);
+      setError(
+        err instanceof ApiError && err.serverMessage
+          ? err.serverMessage
+          : err instanceof Error
+            ? err.message
+            : "Could not reach Jarvis.",
+      );
     } finally {
       setLoading(false);
     }

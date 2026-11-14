@@ -4,6 +4,7 @@ import { useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { completeTask, skipTask } from "@/lib/api";
 import { useJarvis } from "@/lib/context/JarvisContext";
+import { isSkippedStatus } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/app/EmptyState";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
@@ -121,11 +122,13 @@ function dayNumber(d: Date): number {
 // Status config
 // ---------------------------------------------------------------------------
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<ScheduleTask["status"], string> = {
   completed: "bg-sage/20 border-sage",
   in_progress: "bg-terra/20 border-terra",
   pending: "bg-surface-muted border-border",
   skipped: "bg-surface-muted border-muted opacity-50",
+  pacing_pushed: "bg-surface-muted border-muted opacity-50",
+  missed: "bg-surface-muted border-border",
 };
 
 // ---------------------------------------------------------------------------
@@ -471,7 +474,7 @@ function DayGrid({
           const height = Math.max(task.duration_minutes * PX_PER_MINUTE, 28);
           const isBlocked = !!task.constraint_applied;
           const isActionable =
-            task.status === "pending" || task.status === "in_progress";
+            task.status === "pending" || task.status === "in_progress" || task.status === "missed";
           const showRating = ratingTaskId === task.task_id;
 
           return (
@@ -502,7 +505,7 @@ function DayGrid({
                     className={clsx(
                       "text-xs font-semibold text-primary truncate",
                       task.status === "completed" && "line-through opacity-60",
-                      task.status === "skipped" && "line-through opacity-40",
+                      isSkippedStatus(task.status) && "line-through opacity-40",
                     )}
                   >
                     {task.title}
@@ -637,7 +640,7 @@ function WeekGrid({ allTasks, selectedDate, now, onSelectDay }: WeekGridProps) {
                       ? "border border-dashed border-muted text-muted"
                       : "text-primary",
                     task.status === "completed" && "line-through opacity-50",
-                    task.status === "skipped" && "line-through opacity-30",
+                    isSkippedStatus(task.status) && "line-through opacity-30",
                   )}
                   style={
                     !task.constraint_applied

@@ -195,10 +195,36 @@ export interface ChatResponse {
   conversation_id?: string;
   message_id?: string;
   memories?: MemoryRecord[];
-  draft_id?: string;
-  schedule_status?: 'draft' | 'accepted' | 'rejected';
+  /** Set only on the turn that produced a schedule; null on every other turn. */
+  draft_id?: string | null;
+  /** 'draft' only on the turn that produced a schedule; null on every other turn. */
+  schedule_status?: 'draft' | 'accepted' | 'rejected' | null;
   pearl_insights?: PearlInsight[];
   saved_constraints?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Draft state (GET /api/v1/drafts/{id} — a draft_schedules row)
+// ---------------------------------------------------------------------------
+
+/** draft_schedules.status. Only pending/modified drafts are open; the rest are closed for good. */
+export type DraftStatus =
+  | 'pending'
+  | 'modified'
+  | 'accepted'
+  | 'rejected'
+  | 'expired'
+  | 'superseded';
+
+export interface DraftState {
+  draft_id: string;
+  user_id: string;
+  goal_id?: string | null;
+  tasks: Record<string, unknown>[];
+  horizon_start?: string | null;
+  status: DraftStatus;
+  rejection_reason?: string | null;
+  created_at?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -378,13 +404,26 @@ export interface FileAttachment {
 // Schedule Task (rendered in schedule view)
 // ---------------------------------------------------------------------------
 
+/**
+ * user_tasks.status. The backend writes pending | completed | skipped | missed |
+ * pacing_pushed (pacing_pushed is the anti-guilt skip); in_progress is still
+ * allowed by the table and used by the demo data.
+ */
+export type TaskStatus =
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "skipped"
+  | "missed"
+  | "pacing_pushed";
+
 export interface ScheduleTask {
   task_id: string;
   title: string;
   start_time: Date;
   end_time: Date;
   duration_minutes: number;
-  status: "pending" | "in_progress" | "completed" | "skipped";
+  status: TaskStatus;
   completed_at?: Date;
   goal_id?: string;
   color: string;

@@ -8,7 +8,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { chatStream, confirmScheduleStream, acceptDraft, acceptScheduleDirect, rejectDraft, loadConversation as loadConversationAPI } from "../api";
+import { ApiError, chatStream, confirmScheduleStream, acceptDraft, acceptScheduleDirect, rejectDraft, loadConversation as loadConversationAPI } from "../api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import type {
   JarvisMessage,
@@ -632,6 +632,20 @@ export function useJarvisChat(): UseJarvisChatReturn {
     } catch (err) {
       console.error("[ACCEPT] Failed:", err);
       setAcceptState("idle");
+      if (err instanceof ApiError && err.status === 409) {
+        // The backend says why, in words meant for the user.
+        if (err.code === "invalid_state_transition") {
+          // Already locked in or closed: drop the draft so the panel stops
+          // offering an accept that can only fail again.
+          jarvis.clearDraft();
+          setDraftScheduleResponse(null);
+          jarvis.showToast(err.serverMessage || "This plan is already closed.", "info");
+        } else {
+          // `conflict`: the plan clashes with tasks you already have; the draft stays open.
+          jarvis.showToast(err.serverMessage || "This plan clashes with your existing tasks.", "error");
+        }
+        return;
+      }
       jarvis.showToast("Failed to save schedule. Try again.", "error");
     }
   }, [draftScheduleResponse, jarvis, router]);
@@ -647,10 +661,15 @@ export function useJarvisChat(): UseJarvisChatReturn {
       jarvis.clearDraft();
       setDraftScheduleResponse(null);
       jarvis.showToast("Schedule rejected. Replanning...", "info");
-    } catch {
+    } catch (err) {
       jarvis.clearDraft();
       setDraftScheduleResponse(null);
-      jarvis.showToast("Failed to reject. Try again.", "error");
+      jarvis.showToast(
+        err instanceof ApiError && err.status === 409 && err.serverMessage
+          ? err.serverMessage
+          : "Failed to reject. Try again.",
+        "error",
+      );
     }
     if (reason) {
       sendMessage(`I rejected the schedule because: ${reason}. Please suggest a different approach.`);
