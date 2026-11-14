@@ -5,6 +5,7 @@
  */
 
 import { API_BASE, IS_DEMO_MODE, USER_ID } from './constants';
+import { FILE_TOO_BIG, PROMPT_TOO_LONG } from './chatLimits';
 import { toConsentRequest, toSinceLastSpoke } from './learning';
 import {
   parseAcceptResponse,
@@ -71,12 +72,42 @@ function errorBodyOf(json: unknown): Partial<ApiErrorBody> | null {
   return error && typeof error === 'object' ? (error as Partial<ApiErrorBody>) : null;
 }
 
+/** pydantic's "String should have at most 64 characters" → 64. */
+const AT_MOST_CHARS = /at most (\d+) characters?/i;
+
 /**
- * The human-readable message in an error body: the envelope's `error.message`
- * first, then the legacy `detail` / `message` / string `error` fields, else `fallback`.
+ * Why a request failed validation, in a short sentence, from the envelope's
+ * `details` — for a request validation 422 that is `{errors: [{loc, msg, type}]}`
+ * (Jarvis-Engine app/api/error_handlers.py, `_handle_request_validation`). Covers
+ * the limits a person can hit: a chat message or a file too large, a text too
+ * long. Null for anything else, so the envelope's own message stands. Never a
+ * field path, an error type or JSON.
+ */
+export function validationReason(details: unknown): string | null {
+  const errors = (details as { errors?: unknown } | null | undefined)?.errors;
+  if (!Array.isArray(errors)) return null;
+  for (const error of errors) {
+    if (!error || typeof error !== 'object') continue;
+    const { loc, msg, type } = error as { loc?: unknown; msg?: unknown; type?: unknown };
+    const field = Array.isArray(loc) ? loc[loc.length - 1] : undefined;
+    const text = typeof msg === 'string' ? msg : '';
+    if (field === 'user_prompt' && type === 'string_too_long') return PROMPT_TOO_LONG;
+    if (field === 'file_base64' && /at most/i.test(text)) return FILE_TOO_BIG;
+    const limit = type === 'string_too_long' ? AT_MOST_CHARS.exec(text)?.[1] : undefined;
+    if (limit) return `That's too long — keep it under ${Number(limit).toLocaleString('en-US')} characters.`;
+  }
+  return null;
+}
+
+/**
+ * The human-readable message in an error body: a validation 422's reason in words
+ * (`validationReason`) first, then the envelope's `error.message`, then the legacy
+ * `detail` / `message` / string `error` fields, else `fallback`.
  */
 export function readApiError(json: unknown, fallback: string): string {
   const body = errorBodyOf(json);
+  const reason = validationReason(body?.details);
+  if (reason) return reason;
   if (typeof body?.message === 'string' && body.message) return body.message;
   if (json && typeof json === 'object') {
     const legacy = json as { detail?: unknown; message?: unknown; error?: unknown };
@@ -93,13 +124,20 @@ export function readApiErrorCode(json: unknown): string | undefined {
   return typeof code === 'string' ? code : undefined;
 }
 
-/** `readApiError` over a raw response body that may or may not be JSON. */
-function readApiErrorText(text: string): string {
+/**
+ * Why the chat stream refused a turn before it started: the envelope's words
+ * alone (a 422's reason, e.g. "That message is too long — …"), else the status
+ * and the raw body.
+ */
+function streamRefusal(status: number, text: string): string {
+  let json: unknown = null;
   try {
-    return readApiError(JSON.parse(text), text);
+    json = JSON.parse(text);
   } catch {
-    return text;
+    // not JSON — keep the raw text
   }
+  const message = readApiError(json, '');
+  return message || `Stream failed (${status}): ${text}`;
 }
 
 /** A non-2xx response from the backend, with its status and envelope code. */
@@ -369,7 +407,7 @@ export async function chatStream(
 
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '');
-    handlers.onError?.(new Error(`Stream failed (${res.status}): ${readApiErrorText(text)}`));
+    handlers.onError?.(new Error(streamRefusal(res.status, text)));
     return;
   }
 

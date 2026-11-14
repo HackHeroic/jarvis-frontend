@@ -25,6 +25,7 @@ import MemoryPanel from "@/components/app/MemoryPanel";
 import { isShapeError } from "@/lib/learning";
 import { toMemoryPanelState, toPanelMemory } from "@/lib/transforms";
 import { errorMessageOf, statusOf } from "@/lib/you";
+import { fileProblem, promptProblem } from "@/lib/chatLimits";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
 import type { MemoryOut, MemoryRecord } from "@/lib/types";
@@ -90,6 +91,8 @@ function ChatPage() {
 
   const [input, setInput] = useState("");
   const [attachment, setAttachment] = useState<FileAttachment | null>(null);
+  // Why the last file picked was not attached (over the backend's limit), if it wasn't.
+  const [fileNote, setFileNote] = useState<string | null>(null);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const isResizing = useRef(false);
@@ -175,9 +178,15 @@ function ChatPage() {
   }, [input]);
 
   // ---- Send ----
+  // The backend refuses a message over its limit (a 422); say so here and never send it.
+  // sendMessage sends the trimmed text, so that is what is measured.
+  const inputProblem = promptProblem(input.trim());
+  const inputNote = inputProblem ?? fileNote;
   const handleSend = useCallback(() => {
     if (!input.trim() && !attachment) return;
     if (isStreaming) return;
+    if (promptProblem(input.trim())) return;
+    setFileNote(null);
 
     const msg = input;
     setInput("");
@@ -210,6 +219,13 @@ function ChatPage() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      // Over the backend's upload limit: not attached, and the input says why.
+      const tooBig = fileProblem(file.size);
+      setFileNote(tooBig);
+      if (tooBig) {
+        e.target.value = "";
+        return;
+      }
       const reader = new FileReader();
       reader.onload = () => {
         const base64 = (reader.result as string).split(",")[1];
@@ -241,6 +257,7 @@ function ChatPage() {
     startNewConversation();
     setInput("");
     setAttachment(null);
+    setFileNote(null);
   }, [startNewConversation]);
 
   // Focus chat input for "Chat to modify" flow
@@ -447,6 +464,8 @@ function ChatPage() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={1}
+                aria-describedby={inputNote ? "chat-input-note" : undefined}
+                aria-invalid={inputProblem !== null}
                 placeholder="Tell Jarvis what's on your mind..."
                 className="min-w-0 flex-1 resize-none rounded-xl border border-border bg-surface-muted px-3.5 py-2.5 text-sm text-primary transition-colors placeholder:text-muted focus:border-terra/50 focus:outline-none sm:px-4"
                 style={{ maxHeight: "120px" }}
@@ -466,10 +485,10 @@ function ChatPage() {
                 <button
                   type="button"
                   onClick={handleSend}
-                  disabled={!input.trim() && !attachment}
+                  disabled={(!input.trim() && !attachment) || inputProblem !== null}
                   className={clsx(
                     "flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors",
-                    input.trim() || attachment
+                    (input.trim() || attachment) && !inputProblem
                       ? "bg-terra text-white hover:bg-terra/90"
                       : "bg-surface-muted text-muted cursor-not-allowed"
                   )}
@@ -479,6 +498,13 @@ function ChatPage() {
                 </button>
               )}
             </div>
+
+            {/* Over the backend's limit: why it won't send, before it is tried */}
+            {inputNote && (
+              <p id="chat-input-note" role="status" className="mt-1.5 px-1 text-xs text-gold">
+                {inputNote}
+              </p>
+            )}
           </div>
         </div>
       </div>
