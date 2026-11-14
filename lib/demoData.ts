@@ -129,6 +129,8 @@ Status: OPTIMAL.
     {
       insight: "This is your first multi-goal plan. I've front-loaded DL tasks since the contest deadline is earlier. After Friday, I'll automatically shift focus to calculus.",
       confidence: 0.88,
+      occurrences: 1,
+      memory_id: "demo-insight-1",
     },
   ],
 };
@@ -290,6 +292,8 @@ Status: OPTIMAL.
     {
       insight: "Your new habit matches what I've observed -- you complete 92% of tasks scheduled after 2 PM, but only 35% before 10 AM. I've made 'no work before 2 PM' a permanent scheduling rule.",
       confidence: 0.92,
+      occurrences: 5,
+      memory_id: "demo-insight-2",
     },
   ],
 };

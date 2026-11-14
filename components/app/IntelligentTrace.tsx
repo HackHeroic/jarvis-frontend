@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
-import { getPhaseDisplayName } from "@/lib/constants";
 import { getStableVerb, getVerbCycle } from "@/lib/spinnerVerbs";
 import type { PhaseEventData, ToolUseEvent, MemoryExtractedEvent } from "@/lib/types";
 

@@ -20,6 +20,7 @@ import type {
   ToolUseEvent,
   MemoryExtractedEvent,
   PatternDetectedEvent,
+  ConsentRequestEvent,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -137,6 +138,8 @@ export interface StreamHandlers {
   onToolUse?: (event: ToolUseEvent) => void;
   onMemoryExtracted?: (event: MemoryExtractedEvent) => void;
   onPatternDetected?: (event: PatternDetectedEvent) => void;
+  /** The turn paused for consent. There is no resume path yet: the UI only explains why. */
+  onConsentRequest?: (event: ConsentRequestEvent) => void;
 }
 
 export interface StreamOptions {
@@ -147,7 +150,18 @@ export interface StreamOptions {
 // SSE line-by-line parser (shared by chatStream & confirmScheduleStream)
 // ---------------------------------------------------------------------------
 
-async function consumeSSE(
+/** One handler call per frame; a frame carrying a list (older backends) is one call per item. */
+function eachItem<T>(data: unknown, handler: ((item: T) => void) | undefined): void {
+  if (!handler) return;
+  for (const item of Array.isArray(data) ? data : [data]) handler(item as T);
+}
+
+/**
+ * Read an SSE response to the end, dispatching each `event:`/`data:` pair to
+ * `handlers` in stream order. A malformed data line is skipped; an abort ends
+ * quietly; any other read error goes to `onError`.
+ */
+export async function consumeSSE(
   res: Response,
   handlers: StreamHandlers,
   errorLabel: string,
@@ -189,9 +203,11 @@ async function consumeSSE(
             } else if (currentEvent === 'tool_use') {
               handlers.onToolUse?.(data as ToolUseEvent);
             } else if (currentEvent === 'memory_extracted') {
-              handlers.onMemoryExtracted?.(data as MemoryExtractedEvent);
+              eachItem<MemoryExtractedEvent>(data, handlers.onMemoryExtracted);
             } else if (currentEvent === 'pattern_detected') {
-              handlers.onPatternDetected?.(data as PatternDetectedEvent);
+              eachItem<PatternDetectedEvent>(data, handlers.onPatternDetected);
+            } else if (currentEvent === 'consent_request') {
+              handlers.onConsentRequest?.(data as ConsentRequestEvent);
             }
           } catch {
             // malformed data line — skip
@@ -539,8 +555,9 @@ export async function listDocuments(
   const res = await fetch(
     `${API_BASE}/api/v1/documents/?user_id=${encodeURIComponent(userId)}`,
   );
-  if (res.status === 404 || res.status === 503) return [];
-  if (!res.ok) throw new Error(`Failed to list documents: ${res.status}`);
+  if (res.status === 404) return [];
+  // A 5xx is an outage, never "no documents".
+  if (!res.ok) throw await apiError(res, 'Failed to list documents');
   const data = await res.json();
   return data.documents ?? [];
 }
@@ -575,7 +592,7 @@ export async function getDraftById(draftId: string): Promise<DraftState> {
  */
 export async function acceptDraft(
   draftId: string,
-): Promise<{ status: string }> {
+): Promise<{ status: string; draft_id?: string; task_count?: number }> {
   const res = await fetch(
     `${API_BASE}/api/v1/drafts/${encodeURIComponent(draftId)}/accept`,
     {
@@ -668,8 +685,9 @@ export async function listTasks(): Promise<Record<string, unknown>[]> {
   const res = await fetch(
     `${API_BASE}/api/v1/tasks/?user_id=${encodeURIComponent(USER_ID)}`,
   );
-  if (res.status === 404 || res.status === 503) return [];
-  if (!res.ok) throw new Error(`Failed to list tasks: ${res.status}`);
+  if (res.status === 404) return [];
+  // A 5xx is an outage, never "nothing planned".
+  if (!res.ok) throw await apiError(res, 'Failed to list tasks');
   const data = await res.json();
   return data.tasks ?? data;
 }
@@ -741,6 +759,8 @@ export async function getBehavioralConstraints(): Promise<BehavioralConstraint[]
   const res = await fetch(
     `${API_BASE}/api/v1/habits/constraints?user_id=${encodeURIComponent(USER_ID)}`,
   );
+  // A 5xx is an outage, never "no constraints".
+  if (res.status >= 500) throw await apiError(res, 'Failed to get constraints');
   if (!res.ok) return [];
   const data = await res.json();
   return data.constraints ?? [];
@@ -807,6 +827,8 @@ export async function rejectCalendar(id: string, userId: string = USER_ID): Prom
 
 export async function listMemories(): Promise<MemoryRecord[]> {
   const res = await fetch(`${API_BASE}/api/v1/memories/?user_id=${USER_ID}`);
+  // A 5xx is an outage, never "no memories".
+  if (res.status >= 500) throw await apiError(res, 'Failed to list memories');
   if (!res.ok) return [];
   const data = await res.json();
   return data.memories || [];

@@ -6,78 +6,13 @@ import { useJarvis } from "@/lib/context/JarvisContext";
 import DailyGreeting from "@/components/app/DailyGreeting";
 import StatsStrip from "@/components/app/StatsStrip";
 import ScheduleTimeline from "@/components/app/ScheduleTimeline";
+import { EmptyState } from "@/components/app/EmptyState";
+import { ErrorState } from "@/components/app/ErrorState";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ArrowRight, Sparkles, Send } from "lucide-react";
-import type { ScheduleTask, PearlInsight } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Demo fallback data
-// ---------------------------------------------------------------------------
-
-const today = new Date();
-function timeToday(hour: number, minute: number): Date {
-  const d = new Date(today);
-  d.setHours(hour, minute, 0, 0);
-  return d;
-}
-
-const DEMO_TASKS: ScheduleTask[] = [
-  {
-    task_id: "t1",
-    title: "Calculus Review",
-    start_time: timeToday(9, 0),
-    end_time: timeToday(9, 30),
-    duration_minutes: 30,
-    status: "completed",
-    completed_at: timeToday(9, 23),
-    goal_id: "calc-101",
-    color: "#6B7FB5",
-  },
-  {
-    task_id: "t2",
-    title: "History Research",
-    start_time: timeToday(9, 30),
-    end_time: timeToday(10, 0),
-    duration_minutes: 30,
-    status: "completed",
-    completed_at: timeToday(9, 52),
-    goal_id: "hist-201",
-    color: "#4A7B6B",
-  },
-  {
-    task_id: "t3",
-    title: "Calculus Practice",
-    start_time: timeToday(10, 0),
-    end_time: timeToday(10, 30),
-    duration_minutes: 30,
-    status: "in_progress",
-    goal_id: "calc-101",
-    color: "#6B7FB5",
-  },
-  {
-    task_id: "t4",
-    title: "History Write Intro",
-    start_time: timeToday(10, 30),
-    end_time: timeToday(11, 0),
-    duration_minutes: 30,
-    status: "pending",
-    goal_id: "hist-201",
-    color: "#D4775A",
-    deadline_hint: "Essay due Thursday",
-  },
-  {
-    task_id: "t5",
-    title: "Calculus Integration",
-    start_time: timeToday(11, 0),
-    end_time: timeToday(11, 30),
-    duration_minutes: 30,
-    status: "pending",
-    goal_id: "calc-101",
-    color: "#6B7FB5",
-    deadline_hint: "Exam Friday",
-  },
-];
+import { toListState } from "@/lib/learning";
+import type { PearlInsight } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Dashboard Page
@@ -85,9 +20,14 @@ const DEMO_TASKS: ScheduleTask[] = [
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { tasks: contextTasks, draftResponse } = useJarvis();
-  const tasks = contextTasks.length > 0 ? contextTasks : DEMO_TASKS;
-  const isLive = contextTasks.length > 0;
+  const { tasks, tasksLoading, tasksError, refreshTasks, draftResponse } = useJarvis();
+  // Real tasks only: an outage shows ErrorState, a 200 with [] shows EmptyState.
+  // While a fetch (or a Retry) is in flight with nothing to show, it is loading.
+  const taskList = toListState({
+    items: tasksLoading && tasks.length === 0 ? undefined : tasks,
+    error: tasksLoading ? null : tasksError,
+  });
+  const isLive = taskList.kind === "ready" || taskList.kind === "empty";
   const activeDraftId = draftResponse?.draft_id || draftResponse?.schedule?.draft_id || null;
   const [pearlInsights, setPearlInsights] = useState<PearlInsight[]>([]);
   const [brainDump, setBrainDump] = useState("");
@@ -100,17 +40,6 @@ export default function DashboardPage() {
         const parsed = JSON.parse(chatRaw);
         if (parsed.pearl_insights && parsed.pearl_insights.length > 0) {
           setPearlInsights(parsed.pearl_insights);
-        } else if (parsed.memories && parsed.memories.length > 0) {
-          // Fall back to memory patterns
-          setPearlInsights(
-            parsed.memories
-              .filter((m: Record<string, unknown>) => m.content)
-              .slice(0, 3)
-              .map((m: Record<string, unknown>) => ({
-                insight: m.content as string,
-                confidence: (m.confidence as number) || 0.5,
-              })),
-          );
         }
       }
     } catch {
@@ -232,8 +161,26 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Schedule Timeline */}
-      <ScheduleTimeline tasks={tasks} />
+      {/* Schedule Timeline — or why there is none */}
+      {taskList.kind === "loading" && (
+        <div className="h-40 rounded-card bg-surface-muted animate-pulse" />
+      )}
+      {taskList.kind === "error" && (
+        <Card className="px-4 py-8 sm:px-5">
+          <ErrorState message={taskList.message} onRetry={() => refreshTasks()} />
+        </Card>
+      )}
+      {taskList.kind === "empty" && (
+        <Card className="px-4 py-8 sm:px-5">
+          <EmptyState
+            icon="💭"
+            headline="Nothing planned yet — tell Jarvis what's on your mind."
+            ctaLabel="Go to Chat"
+            onCta={() => router.push("/chat")}
+          />
+        </Card>
+      )}
+      {taskList.kind === "ready" && <ScheduleTimeline tasks={taskList.items} />}
 
       {/* Quick Brain Dump */}
       <Card className="px-4 py-4 sm:px-5">

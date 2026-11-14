@@ -18,11 +18,10 @@ import type {
   ChatResponse,
   PreviewTask,
   ToolUseEvent,
-  MemoryExtractedEvent,
-  PatternDetectedEvent,
 } from "../types";
 import { useDevMode } from "./useDevMode";
 import { INITIAL_STREAM_STATE } from "../types";
+import { describeAcceptOutcome, shouldToast, toLearningMoment, type LearningMoment } from "../learning";
 import {
   saveChatMessages,
   loadChatMessages,
@@ -70,6 +69,8 @@ export type UseJarvisChatReturn = {
   setModelMode: (mode: ModelMode) => void;
   devMode: boolean;
   toggleDevMode: () => void;
+  /** Clear the learning toast (streamState.latestPattern). */
+  dismissLearningToast: () => void;
 };
 
 export function useJarvisChat(): UseJarvisChatReturn {
@@ -130,7 +131,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
   const reasoningDurationRef = useRef<number | null>(null);
   const phaseHistoryRef = useRef<PhaseEventData[]>([]);
   const toolUsesRef = useRef<ToolUseEvent[]>([]);
-  const memoriesExtractedRef = useRef<MemoryExtractedEvent[]>([]);
+  const learningMomentsRef = useRef<LearningMoment[]>([]);
 
   const abort = useCallback(() => {
     abortRef.current?.abort();
@@ -146,6 +147,19 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
     setStreamState((s) => ({ ...s, phase: "aborted" }));
     setIsStreaming(false);
+  }, []);
+
+  /** Append a learning moment to the streaming message, so it renders under its own reply. */
+  const addLearningMoment = useCallback((moment: LearningMoment) => {
+    learningMomentsRef.current = [...learningMomentsRef.current, moment];
+    if (streamingMsg.current) {
+      streamingMsg.current.learningMoments = [...learningMomentsRef.current];
+      setMessages((m) => [...m.slice(0, -1), { ...streamingMsg.current! }]);
+    }
+  }, []);
+
+  const dismissLearningToast = useCallback(() => {
+    setStreamState((s) => (s.latestPattern ? { ...s, latestPattern: null } : s));
   }, []);
 
   const sendMessage = useCallback(
@@ -188,7 +202,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
       reasoningDurationRef.current = null;
       phaseHistoryRef.current = [];
       toolUsesRef.current = [];
-      memoriesExtractedRef.current = [];
+      learningMomentsRef.current = [];
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -305,17 +319,23 @@ export function useJarvisChat(): UseJarvisChatReturn {
             }
           },
 
+          // Every observation is shown inline under this reply; only a strong,
+          // recurring pattern also gets the toast.
           onMemoryExtracted: (event) => {
-            memoriesExtractedRef.current = [...memoriesExtractedRef.current, { ...event, timestamp: Date.now() }];
-            if (streamingMsg.current) {
-              streamingMsg.current.memoriesExtracted = [...memoriesExtractedRef.current];
-              setMessages((m) => [...m.slice(0, -1), { ...streamingMsg.current! }]);
-            }
+            addLearningMoment(toLearningMoment(event, "memory"));
           },
 
           onPatternDetected: (event) => {
-            if (event.confidence >= 0.7 && event.occurrence_count >= 3) {
+            addLearningMoment(toLearningMoment(event, "pattern"));
+            if (shouldToast(event)) {
               setStreamState((s) => ({ ...s, latestPattern: { ...event, timestamp: Date.now() } }));
+            }
+          },
+
+          onConsentRequest: (event) => {
+            if (streamingMsg.current) {
+              streamingMsg.current.consentRequest = { reason: event.reason, module: event.module };
+              setMessages((m) => [...m.slice(0, -1), { ...streamingMsg.current! }]);
             }
           },
 
@@ -423,7 +443,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
         { signal: controller.signal },
       );
     },
-    [isStreaming, conversationId, draftScheduleResponse, modelMode],
+    [isStreaming, conversationId, draftScheduleResponse, modelMode, addLearningMoment],
   );
 
   const confirmTasks = useCallback(
@@ -605,17 +625,27 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
     setAcceptState("accepting");
     try {
+      let result: { status?: string; task_count?: number };
       if (draftId) {
-        await acceptDraft(draftId);
+        result = await acceptDraft(draftId);
       } else {
         const tasks = draftScheduleResponse.execution_graph?.decomposition || [];
         const schedule = draftScheduleResponse.schedule;
-        await acceptScheduleDirect(
+        result = await acceptScheduleDirect(
           tasks,
           schedule ? { schedule: schedule.schedule, horizon_start: schedule.horizon_start } : null,
           schedule?.horizon_start,
           draftScheduleResponse.execution_graph?.goal_metadata,
         );
+      }
+
+      // Only `accepted` with tasks saved is a success. `empty` (nothing could be
+      // scheduled) and anything else keep the draft open.
+      const outcome = describeAcceptOutcome(result);
+      if (!outcome.ok) {
+        setAcceptState("idle");
+        jarvis.showToast(outcome.message, outcome.tone);
+        return;
       }
 
       jarvis.clearDraft();
@@ -624,7 +654,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
       await jarvis.refreshTasks();
 
-      jarvis.showToast("Schedule saved!", "success");
+      jarvis.showToast(outcome.message, outcome.tone);
       setTimeout(() => {
         setAcceptState("idle");
         router.push("/schedule");
@@ -646,7 +676,8 @@ export function useJarvisChat(): UseJarvisChatReturn {
         }
         return;
       }
-      jarvis.showToast("Failed to save schedule. Try again.", "error");
+      const fallback = describeAcceptOutcome({});
+      jarvis.showToast(fallback.message, fallback.tone);
     }
   }, [draftScheduleResponse, jarvis, router]);
 
@@ -790,5 +821,6 @@ export function useJarvisChat(): UseJarvisChatReturn {
     setModelMode,
     devMode,
     toggleDevMode,
+    dismissLearningToast,
   };
 }

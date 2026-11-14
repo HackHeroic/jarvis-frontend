@@ -65,6 +65,7 @@ function ChatPage() {
     rejectDraft,
     devMode,
     toggleDevMode,
+    dismissLearningToast,
   } = useJarvisChat();
 
   const searchParams = useSearchParams();
@@ -345,6 +346,7 @@ function ChatPage() {
                         onAcceptDraft={() => acceptDraft()}
                         onRejectDraft={(reason) => rejectDraft(reason)}
                         onChatModify={handleChatModify}
+                        onSendMessage={(text) => sendMessage(text)}
                       />
                     </div>
                   </div>
@@ -443,10 +445,10 @@ function ChatPage() {
         </div>
       </div>
 
-      {/* PEARL Learning Toast */}
+      {/* PEARL Learning Toast — strong, recurring patterns only (shouldToast) */}
       <LearningToast
         pattern={streamState.latestPattern ?? null}
-        onDismiss={() => {}}
+        onDismiss={dismissLearningToast}
       />
 
       {/* Memory Panel */}
