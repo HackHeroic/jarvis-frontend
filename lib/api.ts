@@ -5,6 +5,7 @@
  */
 
 import { API_BASE, IS_DEMO_MODE, USER_ID, DEMO_LATENCY } from './constants';
+import { toConsentRequest } from './learning';
 
 // The only chat path: v2 (LangGraph orchestrator). v1 (/chat/stream) is deprecated.
 const CHAT_STREAM_PATH = '/api/v1/chat/v2/stream';
@@ -146,14 +147,40 @@ export interface StreamOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * The same handlers, silenced once `signal` aborts. A stream the user stopped,
+ * or one whose page unmounted, then cannot set state or surface an error.
+ */
+export function untilAborted(signal: AbortSignal, handlers: StreamHandlers): StreamHandlers {
+  const guarded: Record<string, unknown> = {};
+  for (const [name, handler] of Object.entries(handlers)) {
+    if (typeof handler !== 'function') continue;
+    guarded[name] = (...args: unknown[]) => {
+      if (!signal.aborted) (handler as (...a: unknown[]) => void)(...args);
+    };
+  }
+  return guarded as StreamHandlers;
+}
+
 // ---------------------------------------------------------------------------
 // SSE line-by-line parser (shared by chatStream & confirmScheduleStream)
 // ---------------------------------------------------------------------------
 
-/** One handler call per frame; a frame carrying a list (older backends) is one call per item. */
+/**
+ * One handler call per frame; a frame carrying a list (older backends) is one
+ * call per item. An item that is not an object is skipped, and a handler that
+ * throws on one item does not drop the items after it.
+ */
 function eachItem<T>(data: unknown, handler: ((item: T) => void) | undefined): void {
   if (!handler) return;
-  for (const item of Array.isArray(data) ? data : [data]) handler(item as T);
+  for (const item of Array.isArray(data) ? data : [data]) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    try {
+      handler(item as T);
+    } catch {
+      // one bad item — skip it, keep the rest
+    }
+  }
 }
 
 /**
@@ -207,7 +234,9 @@ export async function consumeSSE(
             } else if (currentEvent === 'pattern_detected') {
               eachItem<PatternDetectedEvent>(data, handlers.onPatternDetected);
             } else if (currentEvent === 'consent_request') {
-              handlers.onConsentRequest?.(data as ConsentRequestEvent);
+              // No usable reason (missing, blank, object-valued): nothing to show.
+              const consent = toConsentRequest(data);
+              if (consent) handlers.onConsentRequest?.(consent);
             }
           } catch {
             // malformed data line — skip
