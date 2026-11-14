@@ -56,7 +56,6 @@ export function ModelModeSelector({
 
   if (status) {
     const primaryName = shortModelName(status.primary_model || "");
-    const fastName = shortModelName(status.fast_model || "");
 
     modes.push({
       value: "auto",

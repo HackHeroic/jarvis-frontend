@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { ApiError, getDueHabits, completeHabit, getBehavioralConstraints, deleteBehavioralConstraint, type BehavioralConstraint } from "@/lib/api";
+import { getDueHabits, completeHabit, getBehavioralConstraints, deleteBehavioralConstraint, type BehavioralConstraint } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/app/EmptyState";
+import { ErrorState } from "@/components/app/ErrorState";
+import { toListState } from "@/lib/learning";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
 import {
   Target,
@@ -161,35 +163,53 @@ function HabitCard({
 // ---------------------------------------------------------------------------
 
 export default function HabitsPage() {
-  const [habits, setHabits] = useState<HabitRecord[]>([]);
-  const [constraints, setConstraints] = useState<BehavioralConstraint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // undefined until the first fetch answers.
+  const [habits, setHabits] = useState<HabitRecord[] | undefined>(undefined);
+  const [habitsError, setHabitsError] = useState<unknown>(null);
+  const [constraints, setConstraints] = useState<BehavioralConstraint[] | undefined>(undefined);
+  const [constraintsError, setConstraintsError] = useState<unknown>(null);
 
   const fetchHabits = useCallback(async () => {
     try {
       const raw = await getDueHabits();
       setHabits(raw.map(parseHabit));
-      setError(null);
+      setHabitsError(null);
     } catch (err) {
       // Couldn't load (e.g. 503: database down) — say so; an outage is never "nothing due".
-      setHabits([]);
-      setError(
-        err instanceof ApiError && err.serverMessage
-          ? err.serverMessage
-          : err instanceof Error
-            ? err.message
-            : "Could not reach Jarvis.",
-      );
-    } finally {
-      setLoading(false);
+      setHabitsError(err);
+    }
+  }, []);
+
+  const fetchConstraints = useCallback(async () => {
+    try {
+      setConstraints(await getBehavioralConstraints());
+      setConstraintsError(null);
+    } catch (err) {
+      setConstraintsError(err);
     }
   }, []);
 
   useEffect(() => {
     fetchHabits();
-    getBehavioralConstraints().then(setConstraints).catch(() => setConstraints([]));
-  }, [fetchHabits]);
+    fetchConstraints();
+  }, [fetchHabits, fetchConstraints]);
+
+  /** Retry everything that could not be fetched. */
+  const retry = useCallback(() => {
+    if (habitsError) {
+      setHabitsError(null);
+      setHabits(undefined);
+      fetchHabits();
+    }
+    if (constraintsError) {
+      setConstraintsError(null);
+      setConstraints(undefined);
+      fetchConstraints();
+    }
+  }, [habitsError, constraintsError, fetchHabits, fetchConstraints]);
+
+  const habitList = toListState({ items: habits, error: habitsError });
+  const constraintList = toListState({ items: constraints, error: constraintsError });
 
   async function handleComplete(id: string, quality: number) {
     await completeHabit(id, quality);
@@ -207,15 +227,22 @@ export default function HabitsPage() {
         </p>
       </div>
 
+      {/* Constraints could not be fetched — one notice when habits are down too */}
+      {constraintList.kind === "error" && habitList.kind !== "error" && (
+        <Card className="px-4 py-3">
+          <ErrorState compact message={constraintList.message} onRetry={retry} />
+        </Card>
+      )}
+
       {/* Behavioral constraints — saved from chat, applied to every schedule */}
-      {constraints.length > 0 && (
+      {constraintList.kind === "ready" && (
         <div className="rounded-card border border-border bg-surface p-4">
           <h2 className="text-sm font-semibold text-primary">Active constraints</h2>
           <p className="mt-0.5 text-xs text-secondary">
             Saved from your conversations — every schedule respects these.
           </p>
           <ul className="mt-2 space-y-1.5">
-            {constraints.map((c) => (
+            {constraintList.items.map((c) => (
               <li key={c.id} className="group flex items-center gap-2 text-sm text-primary">
                 <span className="text-sage text-xs">&#x25CF;</span>
                 <span>{c.raw_text}</span>
@@ -227,7 +254,7 @@ export default function HabitsPage() {
                   title="Remove constraint"
                   onClick={async () => {
                     await deleteBehavioralConstraint(c.id);
-                    setConstraints((prev) => prev.filter((x) => x.id !== c.id));
+                    setConstraints((prev) => prev?.filter((x) => x.id !== c.id));
                   }}
                   className="rounded-button p-1 text-muted opacity-0 transition-all
                     group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-500"
@@ -241,7 +268,7 @@ export default function HabitsPage() {
       )}
 
       {/* Loading */}
-      {loading && (
+      {habitList.kind === "loading" && (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-24 rounded-card bg-surface-muted animate-pulse" />
@@ -249,20 +276,15 @@ export default function HabitsPage() {
         </div>
       )}
 
-      {/* Error */}
-      {error && !loading && (
-        <Card className="px-5 py-4">
-          <div className="flex items-center gap-2 text-sm text-red-500">
-            <span>Failed to load habits: {error}</span>
-            <Button variant="ghost" size="sm" onClick={fetchHabits}>
-              Retry
-            </Button>
-          </div>
+      {/* Outage — never "nothing due" */}
+      {habitList.kind === "error" && (
+        <Card className="px-6 py-12">
+          <ErrorState message={habitList.message} onRetry={retry} />
         </Card>
       )}
 
       {/* Empty state */}
-      {!loading && !error && habits.length === 0 && (
+      {habitList.kind === "empty" && (
         <Card className="px-6 py-12">
           <EmptyState
             icon="🎯"
@@ -273,9 +295,9 @@ export default function HabitsPage() {
       )}
 
       {/* Habit cards */}
-      {!loading && habits.length > 0 && (
+      {habitList.kind === "ready" && (
         <div className="space-y-2">
-          {habits.map((habit) => (
+          {habitList.items.map((habit) => (
             <HabitCard
               key={habit.id}
               habit={habit}

@@ -20,6 +20,8 @@ import { ReplanBanner } from './ReplanBanner';
 import { ActionProposalCards } from './ActionProposalCards';
 import { PendingCalendarApproval } from './PendingCalendarApproval';
 import { DraftReview } from './DraftReview';
+import { LearningMoments } from './LearningMoments';
+import { ConsentNotice } from './ConsentNotice';
 
 import type {
   JarvisMessage,
@@ -44,7 +46,14 @@ interface JarvisResponseProps {
   onAcceptDraft?: () => void;
   onRejectDraft?: (reason?: string) => void;
   onChatModify?: () => void;
+  /** Send a chat message on the user's behalf (the infeasible-scope choices). */
+  onSendMessage?: (text: string) => void;
 }
+
+// What each infeasible-scope choice says to Jarvis.
+const REDUCE_SCOPE_MESSAGE = "Let's reduce the scope";
+const EXTEND_DEADLINE_MESSAGE = "Let's extend the deadline";
+const INCREASE_CAP_MESSAGE = "I can do more each day";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -224,6 +233,7 @@ export function JarvisResponse({
   onAcceptDraft,
   onRejectDraft,
   onChatModify,
+  onSendMessage,
 }: JarvisResponseProps) {
   const {
     content,
@@ -250,10 +260,12 @@ export function JarvisResponse({
   // Constraints the backend actually persisted this turn (store_constraint node)
   const savedConstraints = response?.saved_constraints ?? [];
 
-  // Detect infeasible schedule
-  const isInfeasible =
-    schedule?.schedule_status?.toUpperCase().includes('INFEASIBLE') ||
-    (typeof scheduleStatus === 'string' && scheduleStatus.toUpperCase().includes('INFEASIBLE'));
+  // Every horizon was tried and the scope still did not fit (complete.schedule_status).
+  const isInfeasible = scheduleStatus === 'infeasible';
+  const conflictSummary = response?.conflict_summary ?? undefined;
+
+  const learningMoments = message.learningMoments ?? [];
+  const consentRequest = message.consentRequest;
 
   // Detect pending calendar entries from ingestion result
   const pendingCalendarId = response?.ingestion_result?.pending_calendar_id as string | undefined;
@@ -270,7 +282,6 @@ export function JarvisResponse({
         isStreaming={message.isStreaming || false}
         devMode={devMode}
         toolUses={message.toolUses || []}
-        memoriesExtracted={message.memoriesExtracted || []}
       />
 
       {/* 2. Intent Badge */}
@@ -309,6 +320,14 @@ export function JarvisResponse({
             <span className="animate-pulse text-terra text-sm">&#x258C;</span>
           )}
         </div>
+      )}
+
+      {/* 4b. What Jarvis learned this turn — every observation, inline under its reply */}
+      {learningMoments.length > 0 && <LearningMoments moments={learningMoments} />}
+
+      {/* 4c. The turn paused for consent — explained, no approve button (no resume path yet) */}
+      {consentRequest && (
+        <ConsentNotice reason={consentRequest.reason} module={consentRequest.module} />
       )}
 
       {/* 5. Saved behavioral constraints — real persisted values, not response prose */}
@@ -358,10 +377,13 @@ export function JarvisResponse({
         <ReplanBanner onReplan={onReplan} isReplanning={isReplanning} />
       )}
 
-      {/* 11. Infeasible Guidance */}
+      {/* 11. Infeasible Guidance — each choice sends its message to Jarvis */}
       {!isStreaming && isInfeasible && (
         <InfeasibleGuidance
-          conflictSummary={schedule?.conflict_summary}
+          conflictSummary={conflictSummary}
+          onReduceScope={() => onSendMessage?.(REDUCE_SCOPE_MESSAGE)}
+          onExtendDeadline={() => onSendMessage?.(EXTEND_DEADLINE_MESSAGE)}
+          onIncreaseCap={() => onSendMessage?.(INCREASE_CAP_MESSAGE)}
         />
       )}
 

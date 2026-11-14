@@ -9,6 +9,7 @@ import { USER_ID } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
+import { WoopCard } from "@/components/app/WoopCard";
 import type { TaskWorkspace, StudyAsset, ImplementationIntention } from "@/lib/types";
 import {
   ArrowLeft,
@@ -382,21 +383,12 @@ export default function WorkspacePage() {
 
       {/* WOOP: Implementation Intention */}
       {woop && (
-        <Card className="border-l-[3px] border-dusk px-5 py-4">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-dusk">
-            Implementation Intention (WOOP)
-          </h2>
-          <div className="space-y-2">
-            <div className="rounded-lg bg-surface-subtle px-3 py-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">IF</span>
-              <p className="mt-0.5 text-sm text-primary">{woop.obstacle_trigger}</p>
-            </div>
-            <div className="rounded-lg bg-surface-subtle px-3 py-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">THEN</span>
-              <p className="mt-0.5 text-sm text-primary">{woop.behavioral_response}</p>
-            </div>
-          </div>
-        </Card>
+        <WoopCard
+          wish={workspace?.task_title ?? ""}
+          obstacle={woop.obstacle_trigger}
+          plan={woop.behavioral_response}
+          taskId={taskId}
+        />
       )}
 
       {/* Complete Task Section */}

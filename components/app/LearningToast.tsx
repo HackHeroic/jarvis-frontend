@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Brain, X } from "lucide-react";
 import clsx from "clsx";
 import type { PatternDetectedEvent } from "@/lib/types";
+import { shouldToast } from "@/lib/learning";
 
 interface LearningToastProps {
   pattern: PatternDetectedEvent | null;
@@ -19,7 +20,8 @@ export function LearningToast({ pattern, onDismiss, onUndo }: LearningToastProps
       setVisible(false);
       return;
     }
-    if (pattern.confidence < 0.7 || pattern.occurrence_count < 3) {
+    // Weaker observations still show inline under their reply; only these toast.
+    if (!shouldToast(pattern)) {
       return;
     }
     setVisible(true);
@@ -49,11 +51,9 @@ export function LearningToast({ pattern, onDismiss, onUndo }: LearningToastProps
           <p className="text-xs text-muted leading-relaxed">
             {pattern.content}
           </p>
-          {pattern.action && pattern.action !== "none" && (
-            <p className="text-[10px] text-muted/60 mt-1">
-              Action taken: {pattern.action.replace(/_/g, " ")}
-            </p>
-          )}
+          <p className="text-[10px] text-muted/60 mt-1">
+            Seen {pattern.occurrence_count} times
+          </p>
           <div className="flex gap-2 mt-3">
             <button
               onClick={() => { setVisible(false); onDismiss(); }}

@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/app/EmptyState";
+import { ErrorState } from "@/components/app/ErrorState";
+import { toListState } from "@/lib/learning";
 import {
   Upload,
   Trash2,
@@ -108,8 +110,9 @@ function DeleteDialog({
 // ---------------------------------------------------------------------------
 
 export default function DocumentsPage() {
-  const [documents, setDocuments] = useState<IngestionDocument[]>([]);
-  const [loading, setLoading] = useState(true);
+  // undefined until the first fetch answers.
+  const [documents, setDocuments] = useState<IngestionDocument[] | undefined>(undefined);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<IngestionDocument | null>(null);
@@ -122,19 +125,24 @@ export default function DocumentsPage() {
     try {
       const docs = await listDocuments();
       setDocuments(docs);
-      setError(null);
-    } catch {
-      // Backend unavailable — show empty state, not error
-      setDocuments([]);
-      setError(null);
-    } finally {
-      setLoading(false);
+      setLoadError(null);
+    } catch (err) {
+      // An outage (5xx) is never "no documents": show ErrorState with Retry.
+      setLoadError(err);
     }
   }, []);
 
   useEffect(() => {
     fetchDocs();
   }, [fetchDocs]);
+
+  const retryDocs = useCallback(() => {
+    setLoadError(null);
+    setDocuments(undefined);
+    fetchDocs();
+  }, [fetchDocs]);
+
+  const docList = toListState({ items: documents, error: loadError });
 
   // ---- Upload handler ----
   async function handleUpload(file: File) {
@@ -268,7 +276,7 @@ export default function DocumentsPage() {
       )}
 
       {/* Loading */}
-      {loading && (
+      {docList.kind === "loading" && (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-20 rounded-card bg-surface-muted animate-pulse" />
@@ -276,8 +284,15 @@ export default function DocumentsPage() {
         </div>
       )}
 
+      {/* Outage */}
+      {docList.kind === "error" && (
+        <Card className="px-6 py-12">
+          <ErrorState message={docList.message} onRetry={retryDocs} />
+        </Card>
+      )}
+
       {/* Empty state */}
-      {!loading && documents.length === 0 && (
+      {docList.kind === "empty" && (
         <Card className="px-6 py-12">
           <EmptyState
             icon="📄"
@@ -288,9 +303,9 @@ export default function DocumentsPage() {
       )}
 
       {/* Document list */}
-      {!loading && documents.length > 0 && (
+      {docList.kind === "ready" && (
         <div className="space-y-2">
-          {documents.map((doc) => (
+          {docList.items.map((doc) => (
             <Card
               key={doc.id}
               className="cursor-pointer px-4 py-3 transition-colors hover:border-border-strong"

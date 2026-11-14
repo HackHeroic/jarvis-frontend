@@ -4,6 +4,8 @@
  * Supports both pipeline phase events and Voice of Jarvis token streaming.
  */
 
+import type { LearningMoment } from "./learning";
+
 // ---------------------------------------------------------------------------
 // Environment constants
 // ---------------------------------------------------------------------------
@@ -139,9 +141,12 @@ export interface GoalSummary {
 // PEARL Insights
 // ---------------------------------------------------------------------------
 
+/** One confirmed pattern on a `complete` frame (`pearl_insights`). */
 export interface PearlInsight {
   insight: string;
-  confidence?: number;
+  confidence: number;
+  occurrences: number;
+  memory_id: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -191,15 +196,21 @@ export interface ChatResponse {
   generation_metrics?: GenerationMetrics;
   awaiting_task_confirmation?: boolean;
   clarification_options?: string[];
-  suggested_action?: string;
+  /** 'replan' when the turn saved a constraint or set an anti-guilt message; null otherwise. */
+  suggested_action?: 'replan' | null;
   conversation_id?: string;
   message_id?: string;
   memories?: MemoryRecord[];
   /** Set only on the turn that produced a schedule; null on every other turn. */
   draft_id?: string | null;
-  /** 'draft' only on the turn that produced a schedule; null on every other turn. */
-  schedule_status?: 'draft' | 'accepted' | 'rejected' | null;
-  pearl_insights?: PearlInsight[];
+  /**
+   * 'draft' on the turn that produced a schedule; 'infeasible' when every horizon
+   * was tried and the scope still did not fit; null on every other turn.
+   */
+  schedule_status?: 'draft' | 'infeasible' | null;
+  /** That turn's clarification text, sent with schedule_status 'infeasible'. */
+  conflict_summary?: string | null;
+  pearl_insights?: PearlInsight[] | null;
   saved_constraints?: string[];
 }
 
@@ -378,8 +389,10 @@ export interface JarvisMessage {
   message_id?: string;
   timestamp: number;
   toolUses?: ToolUseEvent[];
-  memoriesExtracted?: MemoryExtractedEvent[];
-  patternsDetected?: PatternDetectedEvent[];
+  /** What Jarvis learned on this turn (memory_extracted / pattern_detected frames), in arrival order. */
+  learningMoments?: LearningMoment[];
+  /** Set when the turn paused for consent (a consent_request frame). */
+  consentRequest?: ConsentRequestEvent;
 }
 
 export interface ChatResponseSessionFields {
@@ -502,20 +515,37 @@ export interface ToolUseEvent {
   timestamp?: number;
 }
 
+/**
+ * `event: memory_extracted` — one frame per memory created, reinforced or
+ * superseded this turn, always before `complete`. A suppressed memory (one the
+ * user asked Jarvis to forget) sends no frame.
+ */
 export interface MemoryExtractedEvent {
+  memory_id: string;
   type: string;
   content: string;
   confidence: number;
+  provenance: "said";
+  action: "created" | "reinforced" | "superseded";
   timestamp?: number;
 }
 
+/** `event: pattern_detected` — one frame per pattern created or strengthened, before `complete`. */
 export interface PatternDetectedEvent {
+  memory_id: string;
+  pattern_key: string;
   type: string;
   content: string;
   confidence: number;
   occurrence_count: number;
-  action: string;
+  action: "created" | "strengthened";
   timestamp?: number;
+}
+
+/** `event: consent_request` — the turn paused before an action that needs the user's say-so. */
+export interface ConsentRequestEvent {
+  reason: string;
+  module: string;
 }
 
 // ---------------------------------------------------------------------------

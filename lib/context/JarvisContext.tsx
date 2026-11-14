@@ -38,6 +38,8 @@ export interface Toast {
 interface JarvisContextValue {
   tasks: ScheduleTask[];
   tasksLoading: boolean;
+  /** The last task fetch's error (an outage, e.g. a 5xx); null once a fetch succeeds. */
+  tasksError: Error | null;
   refreshTasks: () => Promise<void>;
   draftResponse: ChatResponse | null;
   setDraft: (response: ChatResponse) => void;
@@ -71,6 +73,7 @@ const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export function JarvisProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<ScheduleTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
+  const [tasksError, setTasksError] = useState<Error | null>(null);
   const lastFetchRef = useRef(0);
 
   const refreshTasks = useCallback(async () => {
@@ -78,8 +81,10 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     try {
       const raw = await listTasks();
       setTasks(apiTasksToScheduleTasks(raw));
-    } catch {
-      // Keep existing tasks on error
+      setTasksError(null);
+    } catch (err) {
+      // An outage is never "nothing planned": keep the error so pages can say so.
+      setTasksError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       lastFetchRef.current = Date.now();
       setTasksLoading(false);
@@ -183,11 +188,11 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<JarvisContextValue>(() => ({
-    tasks, tasksLoading, refreshTasks,
+    tasks, tasksLoading, tasksError, refreshTasks,
     draftResponse, setDraft, clearDraft,
     conversationId, setConversationId,
     toasts, showToast, dismissToast,
-  }), [tasks, tasksLoading, refreshTasks, draftResponse, setDraft, clearDraft, conversationId, setConversationId, toasts, showToast, dismissToast]);
+  }), [tasks, tasksLoading, tasksError, refreshTasks, draftResponse, setDraft, clearDraft, conversationId, setConversationId, toasts, showToast, dismissToast]);
 
   return <JarvisContext.Provider value={value}>{children}</JarvisContext.Provider>;
 }
