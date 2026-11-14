@@ -204,17 +204,46 @@ function parseReceipt(value: unknown, where: string): Receipt {
   };
 }
 
+/**
+ * One card per `pattern_key`, the first of each, in order. The key is the
+ * pattern's identity: the You page keys its cards by it and removes by it, and
+ * the dashboard's Patterns tile counts this same list, so the two cannot differ.
+ */
+function onePerKey(patterns: PatternShown[]): PatternShown[] {
+  const seen = new Set<string>();
+  return patterns.filter((p) => {
+    if (seen.has(p.pattern_key)) return false;
+    seen.add(p.pattern_key);
+    return true;
+  });
+}
+
+/**
+ * `streak_days`: a non-negative integer when sent. A backend that does not send
+ * it yet leaves it undefined — unknown, never 0.
+ */
+function streakDays(o: Obj, where: string): number | undefined {
+  if (o.streak_days === undefined) return undefined;
+  const value = num(o, "streak_days", where);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new ContractError(`${where}.streak_days`, "a non-negative integer");
+  }
+  return value;
+}
+
 /** `GET /you`. */
 export function parseYouResponse(value: unknown): YouResponse {
   const where = "you";
   const o = obj(value, where);
+  const streak = streakDays(o, where);
   return {
     profile: parseYouProfile(o.profile, `${where}.profile`),
-    patterns: list(o, "patterns", where, parsePattern),
+    patterns: onePerKey(list(o, "patterns", where, parsePattern)),
     rules: list(o, "rules", where, parseRule),
     memories: list(o, "memories", where, parseMemoryOut),
     focus: parseFocus(o.focus, `${where}.focus`),
     receipt: parseReceipt(o.receipt, `${where}.receipt`),
+    ...(streak === undefined ? {} : { streak_days: streak }),
   };
 }
 

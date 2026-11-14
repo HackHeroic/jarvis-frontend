@@ -5,6 +5,7 @@
  */
 
 import { taskStatusDisplay } from "./constants";
+import { unscheduledPending } from "./schedule";
 import type { ScheduleTask } from "./types";
 
 export type DashboardRange = "today" | "week" | "month";
@@ -62,7 +63,7 @@ export interface RangeView {
   days: DayGroup[];
   /** Every slotted task in the range, sorted by start time. */
   inRange: ScheduleTask[];
-  /** Pending tasks with no slot yet, listed last as "Not scheduled yet". */
+  /** Pending tasks with no slot yet, by title, listed last as "Not scheduled yet". */
   unscheduled: ScheduleTask[];
 }
 
@@ -86,10 +87,7 @@ export function tasksInRange(tasks: ScheduleTask[], range: DashboardRange, now: 
     if (last?.key === key) last.tasks.push(task);
     else days.push({ key, date: startOfDay(task.start_time), tasks: [task] });
   }
-  const unscheduled = tasks.filter(
-    (t) => t.unscheduled && taskStatusDisplay(t.status).kind === "pending",
-  );
-  return { days, inRange, unscheduled };
+  return { days, inRange, unscheduled: unscheduledPending(tasks) };
 }
 
 export interface RangeStats {
@@ -145,25 +143,13 @@ export function focusMinutesToday(tasks: ScheduleTask[], now: Date): number {
 }
 
 /**
- * Consecutive local days with at least one task done, counted back from today.
- * Today is not over: with nothing done yet today, the count runs back from
- * yesterday, so an evening streak is not reset at breakfast.
+ * The Streak tile: "—" until GET /you has answered, then "1 day" / "N days". The
+ * number is the backend's `streak_days` (the coach's count, from the outcome
+ * history, on the user's clock), shown as it is.
  */
-export function completionStreak(tasks: ScheduleTask[], now: Date): number {
-  const days = new Set<string>();
-  for (const t of tasks) {
-    if (taskStatusDisplay(t.status).kind !== "done") continue;
-    const day = doneDay(t);
-    if (day) days.add(day);
-  }
-  let day = startOfDay(now);
-  if (!days.has(localDayKey(day))) day = addDays(day, -1);
-  let streak = 0;
-  while (days.has(localDayKey(day))) {
-    streak += 1;
-    day = addDays(day, -1);
-  }
-  return streak;
+export function streakLabel(days: number | null): string {
+  if (days === null) return "—";
+  return days === 1 ? "1 day" : `${days} days`;
 }
 
 /** The pending task whose slot is running right now, if any. */

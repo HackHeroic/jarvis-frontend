@@ -7,12 +7,12 @@
 import { describe, expect, it } from "vitest";
 import {
   activeTaskId,
-  completionStreak,
   dayHeading,
   focusMinutesToday,
   rangeBounds,
   rangeHeading,
   rangeStats,
+  streakLabel,
   tasksInRange,
 } from "@/lib/dashboard";
 import { isSetAside, taskStatusDisplay } from "@/lib/constants";
@@ -219,34 +219,12 @@ describe("focusMinutesToday", () => {
   });
 });
 
-describe("completionStreak (consecutive local days with something done)", () => {
-  it("runs back from today while each day has a completion", () => {
-    const tasks = [task(at(14, 9), "completed"), task(at(13, 19), "completed"), task(at(12, 19), "completed")];
-    expect(completionStreak(tasks, NOW)).toBe(3);
-  });
-
-  it("today is not over: with nothing done yet today it still counts back from yesterday", () => {
-    const tasks = [task(at(13, 19), "completed"), task(at(12, 19), "completed"), task(at(14, 9), "pending")];
-    expect(completionStreak(tasks, NOW)).toBe(2);
-  });
-
-  it("a day with only set-aside work ends the streak", () => {
-    const tasks = [
-      task(at(13, 19), "completed"),
-      task(at(12, 9), "skipped"),
-      task(at(11, 19), "completed"),
-    ];
-    expect(completionStreak(tasks, NOW)).toBe(1);
-  });
-
-  it("a completion's day is when it was done, when the backend says", () => {
-    const tasks = [task(at(10, 19), "completed", { completed_at: at(14, 1) })];
-    expect(completionStreak(tasks, NOW)).toBe(1);
-  });
-
-  it("nothing done yesterday or today is a streak of 0", () => {
-    expect(completionStreak([task(at(11, 19), "completed")], NOW)).toBe(0);
-    expect(completionStreak([], NOW)).toBe(0);
+describe("streakLabel (the Streak tile: the number GET /you sends, as it is)", () => {
+  it("streakLabel shows — until /you answers, then 1 day / N days", () => {
+    expect(streakLabel(null)).toBe("—");
+    expect(streakLabel(0)).toBe("0 days");
+    expect(streakLabel(1)).toBe("1 day");
+    expect(streakLabel(12)).toBe("12 days");
   });
 });
 

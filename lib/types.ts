@@ -266,6 +266,12 @@ export interface YouResponse {
   memories: MemoryOut[];
   focus: FocusProfile;
   receipt: Receipt;
+  /**
+   * Consecutive days, ending today on the user's clock, with a task completed — the
+   * coach's count. A day is not over until it ends: the number is shown as sent.
+   * Absent from a backend that does not send it yet (unknown, never 0).
+   */
+  streak_days?: number;
 }
 
 /** `PATCH /you/settings`: settings left out stay as they are; an unknown key is a 422. */
