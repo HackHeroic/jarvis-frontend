@@ -9,11 +9,12 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
 import { toListState } from "@/lib/learning";
+import { errorMessageOf } from "@/lib/you";
 import {
   Upload,
   Trash2,
   FileText,
-  Image,
+  Image as ImageIcon,
   Loader2,
   X,
   AlertTriangle,
@@ -159,7 +160,8 @@ export default function DocumentsPage() {
       await processDocument(base64, mediaType);
       await fetchDocs();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      // The backend's reason in words when it gave one (a file over the limit: 422 or 413).
+      setError(errorMessageOf(err, err instanceof Error ? err.message : "Upload failed"));
     } finally {
       setUploading(false);
     }
@@ -315,7 +317,7 @@ export default function DocumentsPage() {
               {/* Icon */}
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-subtle">
                 {doc.media_type?.includes("image") ? (
-                  <Image size={18} className="text-dusk" />
+                  <ImageIcon size={18} className="text-dusk" />
                 ) : (
                   <FileText size={18} className="text-terra" />
                 )}

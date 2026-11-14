@@ -18,6 +18,7 @@ import { JarvisResponse } from "@/components/app/JarvisResponse";
 import { listMemories, deleteMemory, confirmMemory, dismissMemory } from "@/lib/api";
 import { PromptSelector } from "@/components/app/PromptSelector";
 import { EmptyState } from "@/components/app/EmptyState";
+import { ErrorState } from "@/components/app/ErrorState";
 import { ModelModeSelector } from "@/components/app/ModelModeSelector";
 import { LearningToast } from "@/components/app/LearningToast";
 import { ChatSessionPanel } from "@/components/app/ChatSessionPanel";
@@ -64,6 +65,7 @@ function ChatPage() {
     conversationId,
     startNewConversation,
     loadConversation,
+    conversationLoadError,
     triggerReplan,
     isReplanning,
     acceptDraft,
@@ -315,7 +317,7 @@ function ChatPage() {
             <button
               type="button"
               onClick={handleNewChat}
-              disabled={isStreaming || messages.length === 0}
+              disabled={isStreaming || (messages.length === 0 && !conversationLoadError)}
               className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-secondary transition-colors hover:bg-surface-muted hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:px-2.5"
             >
               <SquarePen size={14} />
@@ -354,7 +356,16 @@ function ChatPage() {
           ref={scrollRef}
           className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6"
         >
-          {isEmpty ? (
+          {isEmpty && conversationLoadError ? (
+            // An outage while opening a conversation: never "it may have been deleted".
+            <div className="flex flex-col items-center justify-center h-full">
+              <ErrorState
+                headline={conversationLoadError.headline}
+                message={conversationLoadError.detail}
+                onRetry={() => loadConversation(conversationLoadError.sessionId)}
+              />
+            </div>
+          ) : isEmpty ? (
             <div className="flex flex-col items-center justify-center h-full">
               <EmptyState
                 icon="💬"

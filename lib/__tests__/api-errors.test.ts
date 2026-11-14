@@ -6,7 +6,7 @@
  * field path. The chat input refuses the same sends before they leave.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, chatStream, readApiError, updateYouSettings, validationReason } from "@/lib/api";
+import { ApiError, chatStream, processDocument, readApiError, updateYouSettings, validationReason } from "@/lib/api";
 import {
   FILE_TOO_BIG,
   MAX_CHAT_PROMPT_CHARS,
@@ -122,6 +122,66 @@ describe("readApiError and ApiError surface the reason", () => {
     const errors: string[] = [];
     await chatStream({ user_prompt: "x", user_id: USER_ID }, { onError: (e) => errors.push(e.message) });
     expect(errors).toEqual([PROMPT_TOO_LONG]);
+  });
+});
+
+/**
+ * A body past the backend's cap (Jarvis-Engine app/api/request_limits.py, on the chat
+ * stream and the upload route) is refused before it is read: 413 in the one envelope
+ * (app/schemas/errors.py), code `payload_too_large`, `details.max_bytes` the cap. It
+ * names no field: the cap leaves room for the longest valid message, so it is the file
+ * when one was sent, else the message.
+ */
+const TOO_LARGE = {
+  error: {
+    code: "payload_too_large",
+    message: "The request is too large.",
+    details: { max_bytes: 14_158_552 },
+    request_id: "3f9c0e2a6b1d4c7e8f0a1b2c3d4e5f60",
+  },
+};
+
+function respondWith(status: number, body: unknown) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })),
+  );
+}
+
+describe("a 413 reads as the reason, through readApiError like a 422", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("readApiError: the file, unless the request carried none — then the message", () => {
+    expect(readApiError(TOO_LARGE, "fallback")).toBe(FILE_TOO_BIG);
+    expect(readApiError(TOO_LARGE, "fallback", { file: true })).toBe(FILE_TOO_BIG);
+    expect(readApiError(TOO_LARGE, "fallback", { file: false })).toBe(PROMPT_TOO_LONG);
+    expect(looksRaw(readApiError(TOO_LARGE, "fallback"))).toBe(false);
+  });
+
+  it("a chat turn with a file refused with a 413 ends with the file's reason alone", async () => {
+    respondWith(413, TOO_LARGE);
+    const errors: string[] = [];
+    await chatStream(
+      { user_prompt: "summarise this", user_id: USER_ID, file_base64: "AAAA", media_type: "pdf" },
+      { onError: (e) => errors.push(e.message) },
+    );
+    expect(errors).toEqual([FILE_TOO_BIG]);
+  });
+
+  it("a chat turn without a file refused with a 413 says the message is too long", async () => {
+    respondWith(413, TOO_LARGE);
+    const errors: string[] = [];
+    await chatStream({ user_prompt: "x", user_id: USER_ID }, { onError: (e) => errors.push(e.message) });
+    expect(errors).toEqual([PROMPT_TOO_LONG]);
+  });
+
+  it("an upload refused with a 413 is an ApiError whose serverMessage is the file's reason", async () => {
+    respondWith(413, TOO_LARGE);
+    const err = await processDocument("AAAA", "pdf").catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(413);
+    expect(err.code).toBe("payload_too_large");
+    expect(err.serverMessage).toBe(FILE_TOO_BIG);
   });
 });
 

@@ -77,3 +77,49 @@ export const STALE_ACCEPT_409 = {
     request_id: "20674e85a6964b07bb15bd9df63bfeb4",
   },
 };
+
+/**
+ * The chat stream's `complete` frame for a turn that hands over a draft, literally as
+ * backend 25a7eab's tests/golden/sse/scripted_planning_turn.sse records it (test_sse_golden.py
+ * feeds the turn draft_version "0123456789abcdef"; the golden masks it and the timings,
+ * restored here). `draft_version` sits next to `draft_id` and is present only with it.
+ */
+export const PLANNING_COMPLETE_FRAME = {
+  intent: "PLAN_DAY",
+  message: "Here's the plan, sir.",
+  schedule: { horizon_start: "2026-11-16T08:00:00+05:30", schedule: { t1: { start_min: 0, end_min: 25 } } },
+  execution_graph: { decomposition: [{ task_id: "t1", title: "Graphs" }] },
+  ingestion_result: null,
+  action_proposals: null,
+  search_result: null,
+  suggested_action: "replan",
+  thinking_process: "Three tasks fit before noon.",
+  schedule_status: "draft",
+  conflict_summary: null,
+  draft_id: "draft-1",
+  draft_version: "0123456789abcdef",
+  saved_constraints: ["never before 11 AM"],
+  conversation_id: "sess-1",
+  message_id: "msg-reply",
+  clarification_options: null,
+  memories: null,
+  since_last_spoke: null,
+  pearl_insights: null,
+  generation_metrics: { total_tokens: 1, total_time_s: 0.01, tok_per_sec: 100.0, ttft_ms: null, model: "none (structured response)" },
+};
+
+/**
+ * A `complete` frame for a turn that hands over no draft (tests/golden/sse/streamed_chat_turn_cloud.sse,
+ * the fields that matter): `draft_id` null and no `draft_version` key at all.
+ */
+export const CHAT_COMPLETE_FRAME = {
+  intent: "CHAT",
+  message: "Hello there.",
+  schedule_status: null,
+  conflict_summary: null,
+  draft_id: null,
+  saved_constraints: null,
+  conversation_id: "sess-2",
+  message_id: "msg-2",
+  pearl_insights: null,
+};

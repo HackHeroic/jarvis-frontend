@@ -343,6 +343,21 @@ function parseScheduleView(value: unknown, where: string): DraftScheduleView {
 }
 
 /**
+ * The chat `complete` frame's `draft_version` (Jarvis-Engine app/schemas/chat_stream.py
+ * `ChatCompletePayload`): the handed-over draft's version, as `GET /drafts/{id}` reports
+ * it, sent only with `draft_id`. Absent (or null): undefined. Anything but a non-empty
+ * string is drift and throws — the review card must never accept a plan it cannot name.
+ */
+export function parseCompleteDraftVersion(frame: unknown): string | undefined {
+  const where = "complete";
+  const o = obj(frame, where);
+  if (o.draft_version === undefined || o.draft_version === null) return undefined;
+  const version = str(o, "draft_version", where);
+  if (!version) throw new ContractError(`${where}.draft_version`, "a non-empty string");
+  return version;
+}
+
+/**
  * `GET /drafts/{id}` (`DraftStateResponse`), with `schedule` null or its solved
  * slots, and the `version` the read saw (required: the accept sends it back).
  * Also the `draft` a stale accept's 409 carries in its details.

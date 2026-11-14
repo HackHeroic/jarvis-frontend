@@ -29,6 +29,11 @@ export function draftBannerActions(source: "chat" | "suggestion" | undefined): D
   return { reviewInChat: true, lockIn: false, discard: false };
 }
 
+/** Only a pending or modified draft is open; accepted, rejected, expired and superseded are closed for good. */
+export function isOpenDraft(draft: Pick<DraftState, "status">): boolean {
+  return draft.status === "pending" || draft.status === "modified";
+}
+
 // ---------------------------------------------------------------------------
 // What the plan would add
 // ---------------------------------------------------------------------------

@@ -16,12 +16,11 @@ import {
   bannerDiscardOutcome,
   bannerErrorOutcome,
   draftBannerActions,
+  isOpenDraft,
   summarizeDraft,
   type BannerOutcome,
   type DraftSummary,
 } from "@/lib/draftBanner";
-
-const OPEN = new Set(["pending", "modified"]);
 
 /**
  * The dashboard's "pending schedule" banner. A chat turn's plan links to its
@@ -76,7 +75,7 @@ function SuggestionDraftBanner({ draftId, message }: { draftId: string; message:
   /** Show a draft as read; a closed one has nothing left to decide. */
   const show = useCallback(
     (draft: DraftState) => {
-      if (!OPEN.has(draft.status)) {
+      if (!isOpenDraft(draft)) {
         clearDraft(); // locked in or closed elsewhere
         return;
       }

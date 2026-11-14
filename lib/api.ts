@@ -8,7 +8,9 @@ import { API_BASE, IS_DEMO_MODE, USER_ID } from './constants';
 import { FILE_TOO_BIG, PROMPT_TOO_LONG } from './chatLimits';
 import { toConsentRequest, toSinceLastSpoke } from './learning';
 import {
+  ContractError,
   parseAcceptResponse,
+  parseCompleteDraftVersion,
   parseDraftState,
   parseMemoryList,
   parseMemoryOut,
@@ -55,7 +57,7 @@ function delay(ms: number): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * The backend's error body: every HTTP error (and every v2 SSE `error` frame) is
+ * The backend's error body: every HTTP error (and every chat stream `error` frame) is
  * `{"error": {"code", "message", "details", "request_id"}}` — see
  * Jarvis-Engine/app/api/error_handlers.py. The old shape was `{"detail": ...}`.
  */
@@ -99,14 +101,33 @@ export function validationReason(details: unknown): string | null {
   return null;
 }
 
+/** What the request carried, for a reason its error cannot name (a 413 names no field). */
+export interface SentRequest {
+  /** True when the request carried a file. Unknown (undefined) reads as a file. */
+  file?: boolean;
+}
+
+/**
+ * Why a body past the backend's cap was refused: 413 `payload_too_large`
+ * (Jarvis-Engine app/api/request_limits.py, on the chat stream and the upload route),
+ * before the body is read, so it names no field. The cap leaves room for the longest
+ * valid message, so with a file it is the file; without one, the message. Null for
+ * any other code.
+ */
+function tooLargeReason(code: unknown, sent?: SentRequest): string | null {
+  if (code !== 'payload_too_large') return null;
+  return sent?.file === false ? PROMPT_TOO_LONG : FILE_TOO_BIG;
+}
+
 /**
  * The human-readable message in an error body: a validation 422's reason in words
- * (`validationReason`) first, then the envelope's `error.message`, then the legacy
+ * (`validationReason`) or a 413's (`tooLargeReason`, with `sent` saying whether the
+ * request carried a file) first, then the envelope's `error.message`, then the legacy
  * `detail` / `message` / string `error` fields, else `fallback`.
  */
-export function readApiError(json: unknown, fallback: string): string {
+export function readApiError(json: unknown, fallback: string, sent?: SentRequest): string {
   const body = errorBodyOf(json);
-  const reason = validationReason(body?.details);
+  const reason = validationReason(body?.details) ?? tooLargeReason(body?.code, sent);
   if (reason) return reason;
   if (typeof body?.message === 'string' && body.message) return body.message;
   if (json && typeof json === 'object') {
@@ -126,17 +147,17 @@ export function readApiErrorCode(json: unknown): string | undefined {
 
 /**
  * Why the chat stream refused a turn before it started: the envelope's words
- * alone (a 422's reason, e.g. "That message is too long — …"), else the status
- * and the raw body.
+ * alone (a 422's or a 413's reason, e.g. "That message is too long — …"), else
+ * the status and the raw body.
  */
-function streamRefusal(status: number, text: string): string {
+function streamRefusal(status: number, text: string, sent: SentRequest): string {
   let json: unknown = null;
   try {
     json = JSON.parse(text);
   } catch {
     // not JSON — keep the raw text
   }
-  const message = readApiError(json, '');
+  const message = readApiError(json, '', sent);
   return message || `Stream failed (${status}): ${text}`;
 }
 
@@ -269,6 +290,23 @@ export function untilAborted(signal: AbortSignal, handlers: StreamHandlers): Str
 // ---------------------------------------------------------------------------
 
 /**
+ * The `complete` frame as the UI keeps it: `since_last_spoke` normalised (only a
+ * non-empty string counts) and `draft_version` read strictly — kept with the draft
+ * when present, absent otherwise. Throws `ContractError` on a malformed version.
+ */
+function completeFrame(data: unknown): ChatResponse {
+  const complete = data as ChatResponse;
+  if (!complete || typeof complete !== 'object') return complete;
+  if ('since_last_spoke' in complete) {
+    complete.since_last_spoke = toSinceLastSpoke(complete.since_last_spoke);
+  }
+  const version = parseCompleteDraftVersion(complete);
+  if (version === undefined) delete complete.draft_version;
+  else complete.draft_version = version;
+  return complete;
+}
+
+/**
  * One handler call per frame; a frame carrying a list (older backends) is one
  * call per item. An item that is not an object is skipped, and a handler that
  * throws on one item does not drop the items after it.
@@ -325,14 +363,18 @@ export async function consumeSSE(
             } else if (currentEvent === 'message') {
               handlers.onMessageToken?.(data.token);
             } else if (currentEvent === 'complete') {
-              // since_last_spoke is shown as its own note: only a non-empty string counts.
-              const complete = data as ChatResponse;
-              if (complete && typeof complete === 'object' && 'since_last_spoke' in complete) {
-                complete.since_last_spoke = toSinceLastSpoke(complete.since_last_spoke);
+              let complete: ChatResponse | ContractError;
+              try {
+                complete = completeFrame(data);
+              } catch (e) {
+                // A drifted frame fails loudly: the turn ends with the contract error.
+                if (!(e instanceof ContractError)) throw e;
+                complete = e;
               }
-              handlers.onComplete?.(complete);
+              if (complete instanceof ContractError) handlers.onError?.(complete);
+              else handlers.onComplete?.(complete);
             } else if (currentEvent === 'error') {
-              // v2 frames carry the error envelope ({error: {message, ...}}); v1 frames a bare string.
+              // The frame carries the error envelope ({error: {message, ...}}); a bare string is read too.
               handlers.onError?.(new Error(readApiError(data, errorLabel)));
             } else if (currentEvent === 'tool_use') {
               handlers.onToolUse?.(data as ToolUseEvent);
@@ -418,7 +460,7 @@ export async function chatStream(
 
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '');
-    handlers.onError?.(new Error(streamRefusal(res.status, text)));
+    handlers.onError?.(new Error(streamRefusal(res.status, text, { file: Boolean(request.file_base64) })));
     return;
   }
 
@@ -488,6 +530,11 @@ export async function listSessions(
   return data.sessions ?? [];
 }
 
+/**
+ * A conversation's messages. Throws `ApiError`, told apart by status and code: 404
+ * `not_found` (not the caller's, or gone) and 503 `persistence_unavailable` (the
+ * database cannot be reached) — an outage is never "deleted" and never empty.
+ */
 export async function loadConversation(
   sessionId: string,
   userId: string = USER_ID,
@@ -497,8 +544,7 @@ export async function loadConversation(
   const res = await fetch(
     `${API_BASE}/api/v1/sessions/${encodeURIComponent(sessionId)}?${params}`,
   );
-  if (res.status === 404) return [];
-  if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Failed to load conversation');
   const data = await res.json();
   return data.messages ?? [];
 }
@@ -661,29 +707,6 @@ export async function rejectDraft(
   return res.json();
 }
 
-/**
- * Edit one task in a draft (`user_id` is a required query parameter). Throws
- * `ApiError` (409 `invalid_state_transition` when the draft is no longer open).
- */
-export async function editDraftTask(
-  draftId: string,
-  taskId: string,
-  updates: Record<string, unknown>,
-  userId: string = USER_ID,
-): Promise<{ status: string }> {
-  const params = new URLSearchParams({ user_id: userId });
-  const res = await fetch(
-    `${API_BASE}/api/v1/drafts/${encodeURIComponent(draftId)}/tasks/${encodeURIComponent(taskId)}?${params}`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    },
-  );
-  if (!res.ok) throw await apiError(res, 'Failed to edit draft task');
-  return res.json();
-}
-
 // ---------------------------------------------------------------------------
 // Tasks (new)
 // ---------------------------------------------------------------------------
@@ -717,6 +740,10 @@ export async function getWorkspace(taskId: string): Promise<TaskWorkspace | null
 // Ingestion (new)
 // ---------------------------------------------------------------------------
 
+/**
+ * Upload a document. Throws `ApiError`: a file over the limit (422, or 413 when the
+ * body is past the cap) carries the reason in words as its `serverMessage`.
+ */
 export async function processDocument(
   fileBase64: string,
   mediaType: string,
@@ -730,7 +757,7 @@ export async function processDocument(
       user_id: USER_ID,
     }),
   });
-  if (!res.ok) throw new Error(`Document processing failed: ${res.status}`);
+  if (!res.ok) throw await apiError(res, 'Document processing failed');
   return res.json();
 }
 
@@ -800,18 +827,6 @@ export async function completeHabit(
 // ---------------------------------------------------------------------------
 // Calendar (new)
 // ---------------------------------------------------------------------------
-
-/** The caller's pending calendar updates. Throws `ApiError` on failure (503 when the database is down). */
-export async function getPendingCalendars(
-  userId: string = USER_ID,
-): Promise<Record<string, unknown>[]> {
-  if (IS_DEMO_MODE) return [];
-  const params = new URLSearchParams({ user_id: userId });
-  const res = await fetch(`${API_BASE}/api/v1/ingestion/pending-calendar?${params}`);
-  if (!res.ok) throw await apiError(res, 'Failed to get pending calendars');
-  const data = await res.json();
-  return data.pending ?? [];
-}
 
 export async function approveCalendar(id: string, userId: string = USER_ID): Promise<void> {
   if (IS_DEMO_MODE) return;
