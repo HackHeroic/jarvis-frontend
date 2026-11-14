@@ -1,4 +1,4 @@
-import type { ScheduleTask } from "./types";
+import type { MemoryRecord, ScheduleTask } from "./types";
 
 // ---------------------------------------------------------------------------
 // Color palette for auto-assigning goal colors (deterministic hash)
@@ -86,4 +86,30 @@ export function apiTasksToScheduleTasks(
       } satisfies ScheduleTask;
     })
     .sort((a, b) => a.start_time.getTime() - b.start_time.getTime());
+}
+
+// ---------------------------------------------------------------------------
+// Panel memories from a chat `complete` frame
+// ---------------------------------------------------------------------------
+
+/**
+ * One `complete` frame panel memory — `{memory_id, memory_type, content,
+ * confidence, provenance}` — as a `MemoryRecord`, or null when it has no
+ * content. Older backends send no `memory_id`/`provenance`: the memory still
+ * shows, with `memory_id` null, so it offers no confirm/forget actions.
+ */
+export function toPanelMemory(raw: unknown): MemoryRecord | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const m = raw as Record<string, unknown>;
+  const content = typeof m.content === "string" ? m.content.trim() : "";
+  if (!content) return null;
+  const confidence = Number(m.confidence);
+  const memory: MemoryRecord = {
+    memory_id: typeof m.memory_id === "string" && m.memory_id ? m.memory_id : null,
+    memory_type: typeof m.memory_type === "string" && m.memory_type ? m.memory_type : "fact",
+    content,
+    confidence: Number.isFinite(confidence) ? confidence : 0,
+  };
+  if (m.provenance === "said" || m.provenance === "inferred") memory.provenance = m.provenance;
+  return memory;
 }

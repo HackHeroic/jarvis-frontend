@@ -114,9 +114,9 @@ Status: OPTIMAL.
     schedule_status: "OPTIMAL",
   },
   memories: [
-    { id: "m1", memory_type: "goal", content: "DL contest on Friday", confidence: 0.95 },
-    { id: "m2", memory_type: "goal", content: "Calculus exam on Monday", confidence: 0.95 },
-    { id: "m3", memory_type: "fact", content: "Studying CNNs, backpropagation, optimization", confidence: 0.8 },
+    { memory_id: "m1", memory_type: "goal", content: "DL contest on Friday", confidence: 0.95 },
+    { memory_id: "m2", memory_type: "goal", content: "Calculus exam on Monday", confidence: 0.95 },
+    { memory_id: "m3", memory_type: "fact", content: "Studying CNNs, backpropagation, optimization", confidence: 0.8 },
   ],
   generation_metrics: {
     model: "qwen-27b",
@@ -226,8 +226,8 @@ Status: OPTIMAL.
     schedule_status: "OPTIMAL",
   },
   memories: [
-    { id: "m4", memory_type: "fact", content: "User is learning graph algorithms", confidence: 0.85 },
-    { id: "m5", memory_type: "goal", content: "Learn Dijkstra's algorithm", confidence: 0.95 },
+    { memory_id: "m4", memory_type: "fact", content: "User is learning graph algorithms", confidence: 0.85 },
+    { memory_id: "m5", memory_type: "goal", content: "Learn Dijkstra's algorithm", confidence: 0.95 },
   ],
   generation_metrics: {
     model: "qwen-27b",
@@ -277,9 +277,9 @@ Status: OPTIMAL.
     schedule_status: "OPTIMAL",
   },
   memories: [
-    { id: "m6", memory_type: "constraint", content: "No work before 2 PM", confidence: 0.95 },
-    { id: "m7", memory_type: "constraint", content: "1-hour breaks between study sessions", confidence: 0.95 },
-    { id: "m8", memory_type: "behavioral_pattern", content: "Completes 92% of tasks after 2 PM", confidence: 0.92 },
+    { memory_id: "m6", memory_type: "constraint", content: "No work before 2 PM", confidence: 0.95 },
+    { memory_id: "m7", memory_type: "constraint", content: "1-hour breaks between study sessions", confidence: 0.95 },
+    { memory_id: "m8", memory_type: "behavioral_pattern", content: "Completes 92% of tasks after 2 PM", confidence: 0.92 },
   ],
   generation_metrics: {
     model: "qwen-27b",
@@ -326,8 +326,8 @@ Top matches: dl_1 (CNNs, sim=0.82), dl_2 (backprop, sim=0.79), dl_4 (implement, 
     "Show me the extracted topics",
   ],
   memories: [
-    { id: "m9", memory_type: "fact", content: "Uploaded practice problems for DL contest", confidence: 0.8 },
-    { id: "m10", memory_type: "fact", content: "PDF contains 10 problems on CNNs and backpropagation", confidence: 0.9 },
+    { memory_id: "m9", memory_type: "fact", content: "Uploaded practice problems for DL contest", confidence: 0.8 },
+    { memory_id: "m10", memory_type: "fact", content: "PDF contains 10 problems on CNNs and backpropagation", confidence: 0.9 },
   ],
   generation_metrics: {
     model: "qwen-4b",

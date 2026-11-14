@@ -10,6 +10,7 @@ export const NAV_ITEMS: NavItem[] = [
   // Workspace is accessed per-task via /workspace/[taskId], not directly navigable
   { id: "documents", label: "Documents", shortLabel: "Docs", icon: "FileText", href: "/documents" },
   { id: "habits", label: "Habits", icon: "Target", href: "/habits" },
+  { id: "you", label: "You", icon: "User", href: "/you" },
 ];
 
 export const DEMO_USER = {

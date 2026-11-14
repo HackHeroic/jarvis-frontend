@@ -153,17 +153,177 @@ export interface PearlInsight {
 // Memory Records
 // ---------------------------------------------------------------------------
 
+/** 'said': the user's own words. 'inferred': Jarvis noticed it from what happened. */
+export type Provenance = "said" | "inferred";
+
+/**
+ * One memory as the Memory panel shows it. `GET /memories/` sends the full
+ * `MemoryOut`; a chat `complete` frame's `memories` carry only some fields, and
+ * no `memory_id` on older backends (null here: shown, but no actions).
+ */
 export interface MemoryRecord {
-  id: string;
+  memory_id: string | null;
   memory_type: string;   // Dynamic — not hardcoded enum
   content: string;
   confidence: number;
-  strength?: number;
-  stability?: number;
-  source?: string;
-  observation_count?: number;
-  superseded_by?: string;
-  created_at?: string;
+  provenance?: Provenance;
+  /** When it was first stored (ISO). */
+  noted_at?: string;
+  /** Strength now: 1 when just learned or confirmed, falling while unused. */
+  freshness?: number;
+}
+
+/** `MemoryOut` (app/api/v1/endpoints/memories.py): the memories API and the You page. */
+export interface MemoryOut extends MemoryRecord {
+  memory_id: string;
+  provenance: Provenance;
+  freshness: number;
+  noted_at: string;
+  last_confirmed_at: string | null;
+  observation_count: number;
+  pattern_key: string | null;
+}
+
+/** A chat `complete` frame's panel memory, as it arrives (normalised by `toPanelMemory`). */
+export interface PanelMemoryFrame {
+  memory_id?: string;
+  memory_type: string;
+  content: string;
+  confidence?: number;
+  provenance?: Provenance;
+}
+
+// ---------------------------------------------------------------------------
+// The You page (GET /api/v1/you — app/api/v1/endpoints/you.py)
+// ---------------------------------------------------------------------------
+
+export type AutonomyMode = "suggest_only" | "ask_first" | "auto_low_risk";
+
+export interface YouProfile {
+  display_name: string | null;
+  /** IANA zone the user's day runs in. */
+  timezone: string;
+  /** Usual local wake-up time, HH:MM. */
+  wake_time: string;
+  autonomy_mode: AutonomyMode;
+}
+
+/** A pattern PEARL sees now, with its evidence (already worded "set aside" / "done"). */
+export interface PatternShown {
+  /** The memory to confirm or dismiss; null when the pattern is not remembered. */
+  memory_id: string | null;
+  pattern_key: string;
+  detector: string;
+  description: string;
+  confidence: number;
+  occurrences: number;
+  evidence: string[];
+  confirmed: boolean;
+}
+
+/** A rule the user's plans respect (a behavioral constraint). */
+export interface RuleShown {
+  id: string;
+  text: string;
+  provenance: Provenance;
+  /** Null for a rule older than the stamp. */
+  created_at: string | null;
+}
+
+export interface HourFocus {
+  hour: number;
+  score: number;
+  done: number;
+  not_done: number;
+}
+
+export interface FocusProfile {
+  /** 'learned' once there are enough outcomes; 'prior' is the starting assumption. */
+  source: "prior" | "learned";
+  observations: number;
+  /** 24 entries; index == local hour. */
+  hours: HourFocus[];
+}
+
+/** The privacy receipt: where the user's model calls ran, since `since` (a 30-day window). */
+export interface Receipt {
+  since: string;
+  /** True when the store stopped at its read bound: the counts may be short ("at least"). */
+  truncated: boolean;
+  on_device_calls: number;
+  cloud_calls: number;
+  pii_redactions: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface YouResponse {
+  profile: YouProfile;
+  patterns: PatternShown[];
+  rules: RuleShown[];
+  /** Memories in use, oldest first; a pattern's memory only when the pattern is not shown above. */
+  memories: MemoryOut[];
+  focus: FocusProfile;
+  receipt: Receipt;
+}
+
+/** `PATCH /you/settings`: settings left out stay as they are; an unknown key is a 422. */
+export interface SettingsUpdate {
+  autonomy_mode?: AutonomyMode;
+  wake_time?: string;
+  timezone?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Suggestions (app/api/v1/endpoints/anticipation.py)
+// ---------------------------------------------------------------------------
+
+export type ConsentBehavior = "allow" | "ask" | "deny";
+
+export interface SuggestionOut {
+  id: string;
+  /** Trigger that made it, e.g. morning_brief, pattern_rule. */
+  trigger: string;
+  kind: string;
+  title: string;
+  body: string;
+  /** pending | accepted | dismissed | expired | auto_applied */
+  status: string;
+  consent_behavior: ConsentBehavior;
+  /** Which consent rule decided; null on older suggestions. */
+  consent_kind: string | null;
+  /** Why, in words the user can read. */
+  consent_reason: string;
+  created_at: string;
+  expires_at: string | null;
+  /** The action accepting it would run, as stored. */
+  details: Record<string, unknown>;
+}
+
+export interface ActionResultOut {
+  kind: string;
+  message: string;
+  tasks_written: number | null;
+  draft_id: string | null;
+}
+
+export interface AcceptSuggestionResponse {
+  suggestion: SuggestionOut;
+  result: ActionResultOut;
+}
+
+export interface ConsentOut {
+  behavior: ConsentBehavior;
+  kind: string;
+  message: string;
+}
+
+export type TriggerName = "morning_brief" | "pattern_rule";
+
+export interface RunTriggerResponse {
+  status: "created" | "already_done" | "not_due" | "nothing_to_say" | "denied";
+  suggestion: SuggestionOut | null;
+  consent: ConsentOut | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -200,7 +360,8 @@ export interface ChatResponse {
   suggested_action?: 'replan' | null;
   conversation_id?: string;
   message_id?: string;
-  memories?: MemoryRecord[];
+  /** The panel's memories: `{memory_id, memory_type, content, confidence, provenance}` (older backends omit id/provenance). */
+  memories?: PanelMemoryFrame[] | null;
   /** Set only on the turn that produced a schedule; null on every other turn. */
   draft_id?: string | null;
   /**
