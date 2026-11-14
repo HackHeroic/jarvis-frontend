@@ -70,6 +70,7 @@ function ChatPage() {
     isReplanning,
     acceptDraft,
     rejectDraft,
+    draftCardStateFor,
     devMode,
     toggleDevMode,
     dismissLearningToast,
@@ -412,6 +413,7 @@ function ChatPage() {
                         isReplanning={isReplanning}
                         onAcceptDraft={() => acceptDraft()}
                         onRejectDraft={(reason) => rejectDraft(reason)}
+                        draftCard={msg.response ? draftCardStateFor(msg.response) : undefined}
                         onSendMessage={(text) => sendMessage(text)}
                       />
                     </div>

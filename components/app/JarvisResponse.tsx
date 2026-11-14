@@ -25,6 +25,7 @@ import { SinceLastSpoke } from './SinceLastSpoke';
 import { toSinceLastSpoke } from '@/lib/learning';
 import { ConsentNotice } from './ConsentNotice';
 
+import type { DraftCardState } from '@/lib/draftCard';
 import type {
   JarvisMessage,
   ChatResponse,
@@ -46,6 +47,8 @@ interface JarvisResponseProps {
   onCalendarRejected?: (id: string) => void;
   onAcceptDraft?: () => void;
   onRejectDraft?: (reason?: string) => void;
+  /** Whether this turn's review card is live (the open draft's) or read-only, and why. */
+  draftCard?: DraftCardState;
   /** Send a chat message on the user's behalf (the infeasible-scope choices). */
   onSendMessage?: (text: string) => void;
 }
@@ -231,6 +234,7 @@ export function JarvisResponse({
   onCalendarRejected,
   onAcceptDraft,
   onRejectDraft,
+  draftCard,
   onSendMessage,
 }: JarvisResponseProps) {
   const {
@@ -354,6 +358,7 @@ export function JarvisResponse({
           response={response}
           onAcceptDraft={onAcceptDraft || (() => {})}
           onRejectDraft={onRejectDraft || (() => {})}
+          state={draftCard}
         />
       )}
 

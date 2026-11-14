@@ -1,12 +1,13 @@
 /**
- * Pure logic for the chat review card: accept the plan it shows, by the version its
- * turn handed over (the `complete` frame's `draft_version`), and redraw it on the
- * latest draft when that plan changed since. A failed accept reads exactly as the
- * dashboard banner reads it (`bannerErrorOutcome`, lib/draftBanner.ts). No React;
- * the requests come in as arguments.
+ * Pure logic for the chat review card: which card is live (only the latest open
+ * draft's), accept or discard the plan it shows — by the version its turn handed over
+ * (the `complete` frame's `draft_version`) — and redraw it on the latest draft when
+ * that plan changed since. A failed accept or discard reads exactly as the dashboard
+ * banner reads it (`bannerErrorOutcome`, lib/draftBanner.ts). No React; the requests
+ * come in as arguments.
  */
 
-import { bannerAcceptOutcome, bannerErrorOutcome, isOpenDraft } from "./draftBanner";
+import { bannerAcceptOutcome, bannerDiscardOutcome, bannerErrorOutcome, isOpenDraft } from "./draftBanner";
 import { noDraftToAccept } from "./learning";
 import type { ChatResponse, DraftState, JarvisMessage, TaskSchedule } from "./types";
 
@@ -35,6 +36,84 @@ export interface CardAcceptOutcome {
 /** The draft a card shows: its turn's `draft_id` (older payloads carried it on the schedule). */
 export function cardDraftId(card: Pick<ChatResponse, "draft_id" | "schedule">): string | undefined {
   return card.draft_id || card.schedule?.draft_id || undefined;
+}
+
+/**
+ * The card's identity: its draft id, else (a plan the turn could not store) its
+ * turn's message id. Keys the remembered outcomes and the one in-flight guard that
+ * Accept and Discard share.
+ */
+export function draftKey(card: Pick<ChatResponse, "draft_id" | "schedule" | "message_id">): string | undefined {
+  return cardDraftId(card) ?? (card.message_id || undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Which card is live
+// ---------------------------------------------------------------------------
+
+/** How a draft the chat held was settled: locked in, discarded, or closed or gone on the backend. */
+export type DraftOutcome = "accepted" | "discarded" | "closed";
+
+export type DraftCardState =
+  /** The latest open draft's card: Accept and Discard work. `busy`: the request in flight. */
+  | { kind: "active"; busy: "accept" | "discard" | null }
+  /** Any other card: the plan shows, read-only, with a quiet note why. */
+  | { kind: "read-only"; note: string };
+
+const OUTCOME_NOTE: Record<DraftOutcome, string> = {
+  accepted: "Accepted — it's on your schedule",
+  discarded: "Discarded — nothing was added",
+  closed: "This plan is closed",
+};
+
+/**
+ * Which card is live, from the state — never from message order: only the card
+ * whose draft id and version are the open draft's (`current`, the chat's draft) has
+ * working buttons. A draft accepted or discarded makes every card for it read-only
+ * with its outcome; while another plan is open, the rest say a newer plan replaced
+ * them; with none open, they are no longer up for review.
+ */
+export function draftCardState(
+  card: ChatResponse,
+  s: {
+    current: ChatResponse | null;
+    settled: Readonly<Record<string, DraftOutcome>>;
+    busy?: "accept" | "discard" | null;
+  },
+): DraftCardState {
+  const key = draftKey(card);
+  const outcome = key ? s.settled[key] : undefined;
+  if (outcome) return { kind: "read-only", note: OUTCOME_NOTE[outcome] };
+  if (s.current) {
+    const live = key !== undefined && key === draftKey(s.current) && card.draft_version === s.current.draft_version;
+    return live ? { kind: "active", busy: s.busy ?? null } : { kind: "read-only", note: "A newer plan replaced this one" };
+  }
+  return { kind: "read-only", note: "This plan is no longer up for review" };
+}
+
+const KEPT_OUTCOMES = 50;
+const OUTCOMES: readonly DraftOutcome[] = ["accepted", "discarded", "closed"];
+
+/** `settled` with `key`'s outcome recorded as the newest; only the newest `keep` are kept. */
+export function recordDraftOutcome(
+  settled: Readonly<Record<string, DraftOutcome>>,
+  key: string,
+  outcome: DraftOutcome,
+  keep: number = KEPT_OUTCOMES,
+): Record<string, DraftOutcome> {
+  const entries = Object.entries(settled).filter(([k]) => k !== key);
+  entries.push([key, outcome]);
+  return Object.fromEntries(entries.slice(-keep));
+}
+
+/** The remembered outcomes as stored (anything may be there): only the entries it understands. */
+export function readSettledDrafts(value: unknown): Record<string, DraftOutcome> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, DraftOutcome] =>
+      (OUTCOMES as readonly unknown[]).includes(entry[1]),
+    ),
+  );
 }
 
 /**
@@ -75,6 +154,40 @@ export async function acceptFromCard(card: ChatResponse, deps: CardAcceptDeps): 
     if (!latest) return settled; // unreadable now: the card stays as it was, and open
     if (!isOpenDraft(latest)) return { ...settled, clearDraft: true, refreshTasks: true };
     return { ...settled, latest };
+  }
+}
+
+export interface CardDiscardDeps {
+  /** `POST /drafts/{id}/reject` (lib/api.ts `rejectDraft`). */
+  reject: (draftId: string, components: string[]) => Promise<unknown>;
+}
+
+export interface CardDiscardOutcome {
+  tone: "success" | "info" | "error";
+  message: string;
+  /** The plan is discarded, closed or gone: the chat drops its draft. */
+  clearDraft: boolean;
+  /** What to remember for every card of this draft; absent when it stays open. */
+  settled?: DraftOutcome;
+}
+
+/**
+ * Discard the plan the card shows, read as the banner reads a discard: done, or
+ * 409/404 (already closed, or gone) — the draft clears; an outage keeps it open and
+ * says so. A plan the turn could not store has nothing to discard: no request.
+ */
+export async function discardFromCard(card: ChatResponse, deps: CardDiscardDeps): Promise<CardDiscardOutcome> {
+  const draftId = cardDraftId(card);
+  const done = bannerDiscardOutcome();
+  if (!draftId) return { tone: done.tone, message: done.message, clearDraft: true };
+  try {
+    await deps.reject(draftId, ["tasks", "schedule"]);
+    return { tone: done.tone, message: done.message, clearDraft: true, settled: "discarded" };
+  } catch (err) {
+    const outcome = bannerErrorOutcome(err, "discard");
+    return outcome.clearBanner
+      ? { tone: outcome.tone, message: outcome.message, clearDraft: true, settled: "closed" }
+      : { tone: outcome.tone, message: outcome.message, clearDraft: false };
   }
 }
 

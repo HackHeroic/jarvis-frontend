@@ -6,7 +6,19 @@
  * one, the card open, never success.
  */
 import { describe, expect, it, vi } from "vitest";
-import { acceptFromCard, replaceDraftInMessages, withLatestDraft, type CardAcceptDeps } from "@/lib/draftCard";
+import {
+  acceptFromCard,
+  discardFromCard,
+  draftCardState,
+  draftKey,
+  readSettledDrafts,
+  recordDraftOutcome,
+  replaceDraftInMessages,
+  withLatestDraft,
+  type CardAcceptDeps,
+  type DraftOutcome,
+} from "@/lib/draftCard";
+import { createSingleFlight } from "@/lib/you";
 import { parseDraftState } from "@/lib/contracts";
 import type { ChatResponse, DraftState, JarvisMessage } from "@/lib/types";
 import { DRAFT_READ, PLANNING_COMPLETE_FRAME, STALE_ACCEPT_409 } from "./draft-samples";
@@ -203,5 +215,142 @@ describe("replaceDraftInMessages", () => {
     expect(m.response?.draft_version).toBe(LATEST_VERSION);
     expect(m.response?.schedule?.schedule.t1.title).toBe("Read ch1 slowly");
     expect(m.content).toBe("Plan");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Which card is live: only the latest open draft's, decided by draft id + version
+// ---------------------------------------------------------------------------
+
+const NONE: Readonly<Record<string, DraftOutcome>> = {};
+
+describe("draftCardState", () => {
+  it("the card for the open draft (same id and version as the state's) is live", () => {
+    expect(draftCardState(card(), { current: card(), settled: NONE })).toEqual({ kind: "active", busy: null });
+    expect(draftCardState(card(), { current: card(), settled: NONE, busy: "accept" })).toEqual({
+      kind: "active",
+      busy: "accept",
+    });
+  });
+
+  it("an earlier plan's card is read-only: a newer plan replaced it", () => {
+    const earlier = card({ draft_id: "older-draft", draft_version: "aaaaaaaaaaaaaaaa", message_id: "m-1" });
+    expect(draftCardState(earlier, { current: card(), settled: NONE })).toEqual({
+      kind: "read-only",
+      note: "A newer plan replaced this one",
+    });
+  });
+
+  it("the version decides, not the message order: same draft id, another version, is not live", () => {
+    const stale = card({ draft_version: "ffffffffffffffff" });
+    expect(draftCardState(stale, { current: card(), settled: NONE }).kind).toBe("read-only");
+    // and a card later in the list is not live just for being later
+    const cards = [card(), card({ draft_id: "older-draft", draft_version: "aaaaaaaaaaaaaaaa" })];
+    expect(cards.map((c) => draftCardState(c, { current: card(), settled: NONE }).kind)).toEqual(["active", "read-only"]);
+  });
+
+  it("once a draft is accepted or discarded, every card for it is read-only with its outcome", () => {
+    for (const [outcome, note] of [
+      ["accepted", "Accepted — it's on your schedule"],
+      ["discarded", "Discarded — nothing was added"],
+      ["closed", "This plan is closed"],
+    ] as const) {
+      const settled = { [DRAFT_ID]: outcome };
+      // even while the state still holds it, and for an older version's card too
+      expect(draftCardState(card(), { current: card(), settled })).toEqual({ kind: "read-only", note });
+      expect(draftCardState(card({ draft_version: "ffffffffffffffff" }), { current: null, settled })).toEqual({
+        kind: "read-only",
+        note,
+      });
+    }
+  });
+
+  it("no open draft and no known outcome: read-only, never a dead button", () => {
+    expect(draftCardState(card(), { current: null, settled: NONE })).toEqual({
+      kind: "read-only",
+      note: "This plan is no longer up for review",
+    });
+  });
+
+  it("a plan the turn could not store (no draft id) is live only on its own turn's card", () => {
+    const unstored = card({ draft_id: null, draft_version: undefined, message_id: "msg-9" });
+    expect(draftCardState(unstored, { current: unstored, settled: NONE }).kind).toBe("active");
+    expect(draftCardState(card({ draft_id: null, message_id: "msg-8" }), { current: unstored, settled: NONE }).kind).toBe(
+      "read-only",
+    );
+  });
+});
+
+describe("draftKey and the one guard for Accept and Discard", () => {
+  it("is the draft id, else the turn's message id", () => {
+    expect(draftKey(card())).toBe(DRAFT_ID);
+    expect(draftKey(card({ draft_id: null, message_id: "msg-9" }))).toBe("msg-9");
+  });
+
+  it("one click, one request: Accept and Discard on a card share its key", async () => {
+    const flight = createSingleFlight();
+    let release!: () => void;
+    const accept = vi.fn(() => new Promise<{ status: string; task_count: number }>((r) => (release = () => r({ status: "accepted", task_count: 2 }))));
+    const reject = vi.fn(async () => ({ status: "rejected" }));
+    const first = flight.run(draftKey(card())!, () => acceptFromCard(card(), { accept, reread: async () => LATEST }));
+    expect(flight.run(draftKey(card())!, () => acceptFromCard(card(), { accept, reread: async () => LATEST }))).toBeNull();
+    expect(flight.run(draftKey(card())!, () => discardFromCard(card(), { reject }))).toBeNull();
+    release();
+    await first;
+    expect(accept).toHaveBeenCalledTimes(1);
+    expect(reject).not.toHaveBeenCalled();
+  });
+});
+
+describe("discardFromCard: read as the banner reads a discard", () => {
+  it("discards the plan the card shows: the draft clears, outcome discarded", async () => {
+    const reject = vi.fn(async () => ({ status: "rejected" }));
+    const outcome = await discardFromCard(card(), { reject });
+    expect(reject).toHaveBeenCalledWith(DRAFT_ID, ["tasks", "schedule"]);
+    expect(outcome).toEqual({
+      tone: "info",
+      message: "Discarded. Nothing was added to your schedule.",
+      clearDraft: true,
+      settled: "discarded",
+    });
+  });
+
+  it("409 or 404: already closed or gone — the draft clears, outcome closed", async () => {
+    for (const err of [apiError(409, "invalid_state_transition", "This draft is no longer open."), apiError(404, "not_found")]) {
+      const outcome = await discardFromCard(card(), { reject: async () => { throw err; } });
+      expect(outcome.clearDraft).toBe(true);
+      expect(outcome.settled).toBe("closed");
+    }
+  });
+
+  it("an outage: the plan stays open, the card stays live, and it says so", async () => {
+    const outcome = await discardFromCard(card(), { reject: async () => { throw apiError(503, "persistence_unavailable"); } });
+    expect(outcome.clearDraft).toBe(false);
+    expect(outcome.settled).toBeUndefined();
+    expect(outcome.tone).toBe("error");
+  });
+
+  it("a plan the turn could not store: no request, the draft clears", async () => {
+    const reject = vi.fn(async () => ({ status: "rejected" }));
+    const outcome = await discardFromCard(card({ draft_id: null, schedule: { horizon_start: "x", schedule: {} } }), { reject });
+    expect(reject).not.toHaveBeenCalled();
+    expect(outcome.clearDraft).toBe(true);
+  });
+});
+
+describe("the remembered outcomes", () => {
+  it("records an outcome; a repeat moves it to the newest; only the newest are kept", () => {
+    let settled = recordDraftOutcome({}, "d1", "accepted", 3);
+    settled = recordDraftOutcome(settled, "d2", "discarded", 3);
+    settled = recordDraftOutcome(settled, "d1", "closed", 3);
+    expect(Object.entries(settled)).toEqual([["d2", "discarded"], ["d1", "closed"]]);
+    settled = recordDraftOutcome(settled, "d3", "accepted", 3);
+    settled = recordDraftOutcome(settled, "d4", "accepted", 3);
+    expect(Object.keys(settled)).toEqual(["d1", "d3", "d4"]);
+  });
+
+  it("reads back from storage only what it understands", () => {
+    expect(readSettledDrafts({ d1: "accepted", d2: "nope", d3: 7, d4: "discarded" })).toEqual({ d1: "accepted", d4: "discarded" });
+    for (const junk of [null, "x", 3, ["accepted"]]) expect(readSettledDrafts(junk)).toEqual({});
   });
 });

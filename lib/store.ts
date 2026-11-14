@@ -1,4 +1,5 @@
 import type { ChatResponse, TaskSchedule, ScheduleTask, JarvisMessage } from './types';
+import { readSettledDrafts, type DraftOutcome } from './draftCard';
 
 // ---------------------------------------------------------------------------
 // LocalStorage keys
@@ -7,6 +8,7 @@ import type { ChatResponse, TaskSchedule, ScheduleTask, JarvisMessage } from './
 const CHAT_KEY = 'jarvis-chat-messages';
 const CONVERSATION_KEY = 'jarvis-conversation-id';
 const DRAFT_KEY = 'jarvis-draft-schedule';
+const SETTLED_DRAFTS_KEY = 'jarvis-settled-drafts';
 const LAST_RESPONSE_KEY = 'jarvis-last-chat-response';
 const ONBOARDED_KEY = 'jarvis-onboarded';
 const MAX_PERSISTED_MESSAGES = 50;
@@ -99,6 +101,29 @@ export function loadDraftSchedule(): ChatResponse | null {
 export function clearDraftSchedule(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(DRAFT_KEY);
+}
+
+// ---------------------------------------------------------------------------
+// How the chat's drafts were settled (so their cards stay read-only after a reload)
+// ---------------------------------------------------------------------------
+
+export function saveSettledDrafts(settled: Record<string, DraftOutcome>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(SETTLED_DRAFTS_KEY, JSON.stringify(settled));
+  } catch {
+    // localStorage full or unavailable
+  }
+}
+
+export function loadSettledDrafts(): Record<string, DraftOutcome> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(SETTLED_DRAFTS_KEY);
+    return raw ? readSettledDrafts(JSON.parse(raw)) : {};
+  } catch {
+    return {};
+  }
 }
 
 // ---------------------------------------------------------------------------
