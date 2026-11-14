@@ -173,6 +173,34 @@ export interface StreamOptions {
 export type RequestOptions = StreamOptions;
 
 /**
+ * The two ways a chat stream can end early, kept apart:
+ * - `stop()`, the user's Stop: cancels the request (`requestSignal`) and
+ *   silences the handlers (`deliverySignal`).
+ * - `detach()`, the page unmounting: silences the handlers only. The request
+ *   keeps reading to its end in the background, so the server finishes the
+ *   turn and the user's message gets its reply in history.
+ * Wrap the handlers with `untilAborted(deliverySignal, …)` and pass
+ * `{ signal: requestSignal }` to the stream call.
+ */
+export function createStreamControl() {
+  const request = new AbortController();
+  const delivery = new AbortController();
+  return {
+    requestSignal: request.signal,
+    deliverySignal: delivery.signal,
+    stop(): void {
+      delivery.abort();
+      request.abort();
+    },
+    detach(): void {
+      delivery.abort();
+    },
+  };
+}
+
+export type StreamControl = ReturnType<typeof createStreamControl>;
+
+/**
  * The same handlers, silenced once `signal` aborts. A stream the user stopped,
  * or one whose page unmounted, then cannot set state or surface an error.
  */
@@ -928,8 +956,16 @@ export async function dismissMemory(memoryId: string): Promise<MemoryOut> {
 // The You page
 // ---------------------------------------------------------------------------
 
-/** Everything Jarvis knows about the user, in one read. Throws `ApiError` (503 when the database is down). */
+/**
+ * Everything Jarvis knows about the user, in one read. Throws `ApiError` (503
+ * when the database is down). In demo mode: labelled sample data, no request.
+ */
 export async function getYou(options?: RequestOptions): Promise<YouResponse> {
+  if (IS_DEMO_MODE) {
+    // No backend: a small sample, labelled as such on the page — never the outage state.
+    const { getDemoYou } = await import('./demoData');
+    return getDemoYou();
+  }
   const res = await fetch(`${API_BASE}/api/v1/you?${userQuery()}`, { signal: options?.signal });
   if (!res.ok) throw await apiError(res, 'Failed to load the You page');
   return parseYouResponse(await res.json());

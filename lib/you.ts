@@ -4,12 +4,12 @@
  * accepted suggestion read. No React, no fetch — unit-tested with Vitest.
  */
 
-import { shouldToast } from "./learning";
 import type {
   ActionResultOut,
   AutonomyMode,
+  ChatResponse,
+  DraftState,
   FocusProfile,
-  PatternDetectedEvent,
   Provenance,
   Receipt,
   SuggestionOut,
@@ -141,28 +141,36 @@ export function acceptResultMessage(r: ActionResultOut): string {
   return r.message;
 }
 
+/** The suggestion kind (the trigger's name) whose accept can draft a plan for review. */
+const PATTERN_RULE_KIND = "pattern_rule";
+
 /**
- * A pattern_rule suggestion as a LearningToast payload, or null. It toasts only
- * when its `details` carry a confidence ≥ 0.7 and at least 3 occurrences
- * (`shouldToast`); details without those numbers never toast.
+ * The draft an accept leaves for the user to review, or null. Only a
+ * pattern-rule accept does (it saves the rule, then drafts a plan that keeps
+ * the hour free). Decided by the suggestion's kind, never by `draft_id` alone:
+ * the morning brief's accept also returns its draft_id, already applied —
+ * tasks written always win.
  */
-export function patternToastOf(s: SuggestionOut): PatternDetectedEvent | null {
-  if (s.trigger !== "pattern_rule") return null;
-  const d = s.details;
-  const confidence = Number(d.confidence);
-  const occurrence_count = Number(d.occurrences ?? d.occurrence_count);
-  if (d.confidence == null || !Number.isFinite(confidence) || !Number.isFinite(occurrence_count)) {
-    return null;
-  }
-  if (!shouldToast({ confidence, occurrence_count })) return null;
+export function draftAwaitingReview(s: SuggestionOut, r: ActionResultOut): string | null {
+  if (s.kind !== PATTERN_RULE_KIND) return null;
+  if ((r.tasks_written ?? 0) > 0) return null;
+  return r.draft_id || null;
+}
+
+const OPEN_DRAFT_STATUSES: ReadonlySet<string> = new Set(["pending", "modified"]);
+
+/**
+ * An open draft (`GET /drafts/{id}`) as the draft response the dashboard's
+ * "pending schedule" banner reads, carrying the backend's own words. Null for a
+ * closed draft (accepted, rejected, expired, superseded): nothing to review.
+ */
+export function draftToChatResponse(draft: DraftState, message: string): ChatResponse | null {
+  if (typeof draft?.draft_id !== "string" || !OPEN_DRAFT_STATUSES.has(draft.status)) return null;
   return {
-    memory_id: typeof d.memory_id === "string" ? d.memory_id : "",
-    pattern_key: typeof d.pattern_key === "string" ? d.pattern_key : "",
-    type: "behavioral_pattern",
-    content: s.body || s.title,
-    confidence,
-    occurrence_count,
-    action: "created",
+    intent: "PLAN_DAY",
+    message,
+    draft_id: draft.draft_id,
+    schedule_status: "draft",
   };
 }
 

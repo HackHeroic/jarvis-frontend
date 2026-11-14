@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consumeSSE, untilAborted, type StreamHandlers } from "@/lib/api";
+import { consumeSSE, createStreamControl, untilAborted, type StreamHandlers } from "@/lib/api";
 import { toLearningMoment, type LearningMoment } from "@/lib/learning";
 
 function frame(event: string, data: unknown): string {
@@ -228,7 +228,7 @@ describe("untilAborted", () => {
     expect(calls).toEqual(["memory_extracted", "complete"]);
   });
 
-  it("after an abort (Stop, or the page unmounting) no handler runs — not even onError", async () => {
+  it("after its signal aborts (Stop, or the page detaching) no handler runs — not even onError", async () => {
     const calls: string[] = [];
     const controller = new AbortController();
     const handlers = untilAborted(controller.signal, {
@@ -243,6 +243,55 @@ describe("untilAborted", () => {
       "Stream error",
     );
     handlers.onError?.(new Error("Stream read error"));
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("createStreamControl", () => {
+  it("Stop cancels the request and silences the handlers", () => {
+    const control = createStreamControl();
+    control.stop();
+    expect(control.requestSignal.aborted).toBe(true);
+    expect(control.deliverySignal.aborted).toBe(true);
+  });
+
+  it("leaving the page detaches: handlers go quiet but the request is never cancelled", () => {
+    const control = createStreamControl();
+    control.detach();
+    expect(control.deliverySignal.aborted).toBe(true);
+    expect(control.requestSignal.aborted).toBe(false);
+  });
+
+  it("a detached stream is read to its end in the background, delivering nothing", async () => {
+    const chunks = [
+      frame("memory_extracted", MEMORY),
+      frame("pattern_detected", PATTERN),
+      frame("complete", COMPLETE),
+    ];
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (pulled < chunks.length) {
+          c.enqueue(new TextEncoder().encode(chunks[pulled]));
+          pulled += 1;
+        } else {
+          c.close();
+        }
+      },
+    });
+    const calls: string[] = [];
+    const control = createStreamControl();
+    const handlers = untilAborted(control.deliverySignal, {
+      onMemoryExtracted: () => calls.push("memory_extracted"),
+      onPatternDetected: () => calls.push("pattern_detected"),
+      onComplete: () => calls.push("complete"),
+      onError: () => calls.push("error"),
+    });
+
+    control.detach(); // the page unmounted before the first frame
+    await consumeSSE(new Response(body), handlers, "Stream error");
+
+    expect(pulled).toBe(chunks.length); // the server's whole reply was read: the turn finished
     expect(calls).toEqual([]);
   });
 });

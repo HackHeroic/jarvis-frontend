@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { confirmMemory, deleteMemory } from "@/lib/api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
+import { isShapeError } from "@/lib/learning";
 import { errorMessageOf, freshnessLabel, provenanceLabel, removeWithRollback, statusOf } from "@/lib/you";
 import type { MemoryOut } from "@/lib/types";
 
@@ -39,7 +40,9 @@ export function MemoryList({ memories, setMemories, timeZone, onStale }: MemoryL
       setMemories((all) => all.map((m) => (m.memory_id === id ? confirmed : m)));
       showToast("Confirmed — Jarvis will keep this in mind.", "success");
     } catch (err) {
-      if (statusOf(err) === 409) {
+      if (isShapeError(err)) {
+        onStale(); // it answered 2xx in a shape this page can't read: re-read to show it
+      } else if (statusOf(err) === 409) {
         showToast(errorMessageOf(err, "This memory changed in the meantime."), "info");
         onStale();
       } else {

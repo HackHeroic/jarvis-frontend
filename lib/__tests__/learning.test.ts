@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { ContractError } from "@/lib/contracts";
 import {
+  LIST_ERROR_MESSAGE,
+  SHAPE_ERROR_MESSAGE,
   describeAcceptOutcome,
+  describeError,
   readPatternFrame,
   shouldToast,
   toConsentRequest,
@@ -72,6 +76,38 @@ describe("toListState", () => {
 
   it("no items and no error yet is loading", () => {
     expect(toListState({}).kind).toBe("loading");
+  });
+
+  it("an outage's headline is 'Can't reach Jarvis right now'", () => {
+    const state = toListState({ error: new Error("503") });
+    expect(state.kind === "error" && state.headline).toBe(LIST_ERROR_MESSAGE);
+  });
+
+  it("a response in an unexpected shape has its own headline", () => {
+    const state = toListState({ error: new ContractError("you.receipt.since", "a string") });
+    expect(state.kind === "error" && state.headline).toBe(SHAPE_ERROR_MESSAGE);
+  });
+});
+
+describe("describeError", () => {
+  it("an outage: can't reach, with the backend's own words as detail", () => {
+    const outage = Object.assign(new Error("Failed (503)"), {
+      status: 503,
+      serverMessage: "Could not reach the database.",
+    });
+    expect(describeError(outage)).toEqual({
+      headline: LIST_ERROR_MESSAGE,
+      detail: "Could not reach the database.",
+      shape: false,
+    });
+  });
+
+  it("shape drift is not an outage: it says the page doesn't understand the answer", () => {
+    const described = describeError(new ContractError("suggestion.details", "an object"));
+    expect(described.shape).toBe(true);
+    expect(described.headline).toBe(SHAPE_ERROR_MESSAGE);
+    expect(described.headline).not.toBe(LIST_ERROR_MESSAGE);
+    expect(described.detail).toMatch(/refresh/i);
   });
 });
 

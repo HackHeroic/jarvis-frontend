@@ -3,6 +3,7 @@
  * list fetch really returned. No React, no fetch — unit-tested with Vitest.
  */
 
+import { ContractError } from "./contracts";
 import type { ConsentRequestEvent, MemoryExtractedEvent, PatternDetectedEvent } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -144,12 +145,16 @@ export function describeAcceptOutcome(res: { status?: string; task_count?: numbe
 
 export type ListState<T> =
   | { kind: "loading" }
-  | { kind: "error"; message: string }
+  /** `headline` says what kind of failure; `message` is the detail under it. */
+  | { kind: "error"; headline: string; message: string }
   | { kind: "empty" }
   | { kind: "ready"; items: T[] };
 
 /** Shown when a list could not be fetched. */
 export const LIST_ERROR_MESSAGE = "Can't reach Jarvis right now";
+/** Shown when Jarvis answered, but in a shape this page can't read (a `ContractError`). */
+export const SHAPE_ERROR_MESSAGE = "Jarvis answered in a shape this page doesn't understand";
+const SHAPE_ERROR_DETAIL = "Refresh the page, or update the app.";
 
 /** The backend's user-facing message (`ApiError.serverMessage`), if the error carries one. */
 function userMessageOf(error: unknown): string | undefined {
@@ -158,12 +163,32 @@ function userMessageOf(error: unknown): string | undefined {
   return typeof message === "string" && message ? message : undefined;
 }
 
+/** True when the backend answered (2xx) but the body did not match its documented shape. */
+export function isShapeError(error: unknown): boolean {
+  return error instanceof ContractError;
+}
+
+/**
+ * How a failed read reads to the user. An outage: "Can't reach Jarvis right
+ * now", with the backend's own message as detail. Shape drift is not an
+ * outage — Jarvis answered — so it says the page doesn't understand the answer.
+ */
+export function describeError(error: unknown): { headline: string; detail?: string; shape: boolean } {
+  if (isShapeError(error)) {
+    return { headline: SHAPE_ERROR_MESSAGE, detail: SHAPE_ERROR_DETAIL, shape: true };
+  }
+  return { headline: LIST_ERROR_MESSAGE, detail: userMessageOf(error), shape: false };
+}
+
 /**
  * The state of a list fetch. An error wins over any items; no items and no
  * error yet is still loading; a 200 with `[]` is empty.
  */
 export function toListState<T>(r: { items?: T[]; error?: unknown }): ListState<T> {
-  if (r.error) return { kind: "error", message: userMessageOf(r.error) ?? LIST_ERROR_MESSAGE };
+  if (r.error) {
+    const { headline, detail } = describeError(r.error);
+    return { kind: "error", headline, message: detail ?? headline };
+  }
   if (!r.items) return { kind: "loading" };
   if (r.items.length === 0) return { kind: "empty" };
   return { kind: "ready", items: r.items };

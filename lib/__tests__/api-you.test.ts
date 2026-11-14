@@ -53,7 +53,7 @@ function envelope(code: string, message: string, details: Record<string, unknown
 const SUGGESTION = {
   id: "s-1",
   trigger: "morning_brief",
-  kind: "apply_plan",
+  kind: "morning_brief",
   title: "Today is ready",
   body: "4 tasks are planned for today.",
   status: "pending",
@@ -166,7 +166,7 @@ describe("suggestions", () => {
   it("acceptSuggestion POSTs to /accept and parses the result", async () => {
     respond(200, {
       suggestion: { ...SUGGESTION, status: "accepted" },
-      result: { kind: "apply_plan", message: "Today's plan is saved.", tasks_written: 4, draft_id: null },
+      result: { kind: "apply_plan", message: "Done — today's plan is in place.", tasks_written: 4, draft_id: "d-1" },
     });
     const accepted = await acceptSuggestion("s-1");
     expect(calls[0]).toEqual({
@@ -222,10 +222,12 @@ describe("memories", () => {
   });
 
   it("confirmMemory on a dismissed memory is a 409 ApiError", async () => {
-    respond(409, envelope("conflict", "That memory was let go of and can't be confirmed."));
+    respond(409, envelope("conflict", "This memory was dismissed, so it can't be confirmed."));
     const err = await confirmMemory("m-1").catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(409);
+    expect(err.code).toBe("conflict");
+    expect(err.serverMessage).toBe("This memory was dismissed, so it can't be confirmed.");
   });
 
   it("dismissMemory POSTs to /dismiss", async () => {
@@ -250,5 +252,28 @@ describe("rules", () => {
     expect(calls[0]).toMatchObject({ url: `${API_BASE}/api/v1/habits/constraints/r-1?${userParam}`, method: "DELETE" });
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(404);
+  });
+});
+
+describe("demo mode", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("getYou answers with labelled sample data and never touches the network", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.resetModules();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const api = await import("@/lib/api");
+    const { parseYouResponse } = await import("@/lib/contracts");
+
+    const you = await api.getYou();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(parseYouResponse(you)).toEqual(you); // the sample is the real shape
+    expect(you.profile.display_name).toMatch(/sample/i);
+    expect(you.focus.source).toBe("prior"); // nothing is claimed as learned
   });
 });

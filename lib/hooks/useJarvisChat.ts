@@ -8,7 +8,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ApiError, chatStream, confirmScheduleStream, acceptDraft, acceptScheduleDirect, rejectDraft, untilAborted, loadConversation as loadConversationAPI } from "../api";
+import { ApiError, chatStream, confirmScheduleStream, acceptDraft, acceptScheduleDirect, rejectDraft, untilAborted, createStreamControl, type StreamControl, loadConversation as loadConversationAPI } from "../api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import type {
   JarvisMessage,
@@ -125,7 +125,8 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
   const [devMode, toggleDevMode] = useDevMode();
 
-  const abortRef = useRef<AbortController | null>(null);
+  // The stream in flight: stop() is the user's Stop, detach() is leaving the page.
+  const streamRef = useRef<StreamControl | null>(null);
   const streamingMsg = useRef<JarvisMessage | null>(null);
   const reasoningStartTime = useRef<number | null>(null);
   const reasoningDurationRef = useRef<number | null>(null);
@@ -133,13 +134,16 @@ export function useJarvisChat(): UseJarvisChatReturn {
   const toolUsesRef = useRef<ToolUseEvent[]>([]);
   const learningMomentsRef = useRef<LearningMoment[]>([]);
 
-  // Abort any in-flight stream on unmount, so its handlers (wrapped in
-  // untilAborted) cannot set state after the page is gone; chatStream and
-  // consumeSSE end quietly on an abort. The abort is deferred one tick:
-  // React StrictMode (reactStrictMode: true, dev) unmounts and remounts at
-  // once, and aborting then would kill a turn started on mount (/chat?prompt=)
-  // and leave the page stuck streaming. Only a real unmount is still
-  // unmounted a tick later.
+  // Leaving the page mid-turn detaches the stream: its handlers (wrapped in
+  // untilAborted on the delivery signal) stop running, so nothing sets state
+  // or shows an error after the page is gone — but the request is NOT
+  // cancelled. It reads on to the end in the background, the server finishes
+  // the turn, and the reply is in the conversation's history when the user
+  // comes back. Only the user's Stop (abort below) cancels the request.
+  // The detach is deferred one tick: React StrictMode (reactStrictMode: true,
+  // dev) unmounts and remounts at once, and detaching then would silence a
+  // turn started on mount (/chat?prompt=) and leave the page stuck streaming.
+  // Only a real unmount is still unmounted a tick later.
   const mountedRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
@@ -147,16 +151,16 @@ export function useJarvisChat(): UseJarvisChatReturn {
       mountedRef.current = false;
       setTimeout(() => {
         if (mountedRef.current) return;
-        abortRef.current?.abort();
-        abortRef.current = null;
+        streamRef.current?.detach();
+        streamRef.current = null;
         streamingMsg.current = null;
       }, 0);
     };
   }, []);
 
   const abort = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
+    streamRef.current?.stop();
+    streamRef.current = null;
 
     // Finalize partial message
     if (streamingMsg.current) {
@@ -225,9 +229,9 @@ export function useJarvisChat(): UseJarvisChatReturn {
       toolUsesRef.current = [];
       learningMomentsRef.current = [];
 
-      // Its handlers go quiet once aborted (Stop, or the page unmounting).
-      const controller = new AbortController();
-      abortRef.current = controller;
+      // Stop cancels it; leaving the page only detaches its handlers.
+      const control = createStreamControl();
+      streamRef.current = control;
 
       // Build draft_schedule context if we have an active draft
       const draftContext = draftScheduleResponse
@@ -251,7 +255,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
           conversation_id: conversationId || undefined,
           ...(draftContext ? { draft_schedule: draftContext } : {}),
         },
-        untilAborted(controller.signal, {
+        untilAborted(control.deliverySignal, {
           onPhase: (phase, data) => {
             const phaseEvent: PhaseEventData = { phase, timestamp: Date.now(), ...data };
             const intent = (data.intent as string) || null;
@@ -426,7 +430,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
                 phase: "awaiting_confirmation",
               }));
               setIsStreaming(false);
-              abortRef.current = null;
+              streamRef.current = null;
               return;
             }
 
@@ -442,7 +446,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
             setStreamState((s) => ({ ...s, phase: "complete" }));
             setIsStreaming(false);
-            abortRef.current = null;
+            streamRef.current = null;
           },
 
           onError: (err) => {
@@ -462,10 +466,10 @@ export function useJarvisChat(): UseJarvisChatReturn {
               error: errorMsg,
             }));
             setIsStreaming(false);
-            abortRef.current = null;
+            streamRef.current = null;
           },
         }),
-        { signal: controller.signal },
+        { signal: control.requestSignal },
       );
     },
     [isStreaming, conversationId, draftScheduleResponse, modelMode, addLearningMoment],
@@ -493,9 +497,9 @@ export function useJarvisChat(): UseJarvisChatReturn {
       streamingMsg.current = assistantMsg;
       setMessages((m) => [...m, assistantMsg]);
 
-      // Its handlers go quiet once aborted (Stop, or the page unmounting).
-      const controller = new AbortController();
-      abortRef.current = controller;
+      // Stop cancels it; leaving the page only detaches its handlers.
+      const control = createStreamControl();
+      streamRef.current = control;
 
       await confirmScheduleStream(
         {
@@ -512,7 +516,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
           goal_metadata: goalMetadata,
           model_mode: modelMode,
         },
-        untilAborted(controller.signal, {
+        untilAborted(control.deliverySignal, {
           onPhase: (phase, data) => {
             const phaseEvent: PhaseEventData = { phase, ...data };
             const activeModel = (data.model as string) || null;
@@ -608,7 +612,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
             setStreamState((s) => ({ ...s, phase: "complete" }));
             setIsStreaming(false);
-            abortRef.current = null;
+            streamRef.current = null;
           },
 
           onError: (err) => {
@@ -628,10 +632,10 @@ export function useJarvisChat(): UseJarvisChatReturn {
               error: errorMsg,
             }));
             setIsStreaming(false);
-            abortRef.current = null;
+            streamRef.current = null;
           },
         }),
-        { signal: controller.signal },
+        { signal: control.requestSignal },
       );
     },
     [modelMode],

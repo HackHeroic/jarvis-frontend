@@ -5,57 +5,37 @@ import { Check, Loader2, Sparkles, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/app/ErrorState";
-import { LearningToast } from "@/components/app/LearningToast";
-import { acceptSuggestion, dismissSuggestion, listSuggestions } from "@/lib/api";
+import { acceptSuggestion, dismissSuggestion, getDraftById, listSuggestions } from "@/lib/api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
-import { LIST_ERROR_MESSAGE } from "@/lib/learning";
+import { describeError, isShapeError } from "@/lib/learning";
 import {
   acceptResultMessage,
+  draftAwaitingReview,
+  draftToChatResponse,
   errorMessageOf,
-  patternToastOf,
   removeWithRollback,
   statusOf,
 } from "@/lib/you";
-import type { PatternDetectedEvent, SuggestionOut } from "@/lib/types";
+import type { SuggestionOut } from "@/lib/types";
 
 const POLL_MS = 30_000;
 const TRY_AGAIN = "That didn't go through. Try again.";
-/** Suggestion ids that already raised the learning toast, so a revisit doesn't repeat it. */
-const TOASTED_KEY = "jarvis-toasted-suggestions";
-
-function readToasted(): Set<string> {
-  try {
-    const raw = localStorage.getItem(TOASTED_KEY);
-    const ids: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function rememberToasted(ids: Set<string>): void {
-  try {
-    localStorage.setItem(TOASTED_KEY, JSON.stringify(Array.from(ids).slice(-50)));
-  } catch {
-    // storage unavailable: the toast may show again on a later visit, nothing worse
-  }
-}
 
 /**
  * "While you were away": what Jarvis prepared on its own (pending suggestions),
  * to accept or dismiss. Polled every 30 s while the tab is visible. Renders
  * nothing when there is nothing pending; an outage is said, never shown as empty.
+ * The card is the dashboard's surface for what Jarvis noticed: the learning
+ * toast belongs to the chat's pattern_detected frames only.
  */
 export function WhileYouWereAway() {
-  const { showToast, refreshTasks } = useJarvis();
+  const { showToast, refreshTasks, setDraft } = useJarvis();
   // undefined until the first read answers.
   const [items, setItems] = useState<SuggestionOut[] | undefined>(undefined);
   const [error, setError] = useState<unknown>(null);
-  const [toast, setToast] = useState<PatternDetectedEvent | null>(null);
   const { run, isBusy } = useSingleFlight();
   const controllerRef = useRef<AbortController | null>(null);
-  const toastedRef = useRef<Set<string> | null>(null);
   // Suggestions settled here (accepted, dismissed, found already handled): a poll that
   // started before the settle must not bring their cards back.
   const settledRef = useRef<Set<string>>(new Set());
@@ -69,17 +49,6 @@ export function WhileYouWereAway() {
       if (controller.signal.aborted) return;
       setItems(fresh.filter((s) => !settledRef.current.has(s.id)));
       setError(null);
-      // A strong, recurring pattern_rule suggestion seen for the first time raises the toast.
-      const toasted = (toastedRef.current ??= readToasted());
-      for (const s of fresh) {
-        if (toasted.has(s.id)) continue;
-        const pattern = patternToastOf(s);
-        if (!pattern) continue;
-        toasted.add(s.id);
-        rememberToasted(toasted);
-        setToast(pattern);
-        break;
-      }
     } catch (err) {
       if (controller.signal.aborted) return;
       setError(err);
@@ -103,6 +72,16 @@ export function WhileYouWereAway() {
     setItems((list) => list?.filter((s) => s.id !== id));
   };
 
+  /** Put a drafted plan where the dashboard's "pending schedule" banner shows it. */
+  async function offerDraft(draftId: string, message: string) {
+    try {
+      const response = draftToChatResponse(await getDraftById(draftId), message);
+      if (response) setDraft(response);
+    } catch {
+      showToast("The rule is saved, but its drafted plan couldn't be loaded here.", "info");
+    }
+  }
+
   async function accept(s: SuggestionOut) {
     // Accept and Dismiss share the suggestion's key: one request per card at a time.
     const pending = run(s.id, () => acceptSuggestion(s.id));
@@ -112,8 +91,18 @@ export function WhileYouWereAway() {
       settle(s.id);
       showToast(acceptResultMessage(result), "success");
       void refreshTasks(); // an accepted brief writes tasks
+      // A pattern rule's plan waits for review; the brief's draft is already applied.
+      const draftId = draftAwaitingReview(s, result);
+      if (draftId) void offerDraft(draftId, result.message);
     } catch (err) {
-      if (statusOf(err) === 409) {
+      if (isShapeError(err)) {
+        // The accept answered 2xx, in a shape this page can't read: it happened.
+        // Not a failure — show what changed by re-reading.
+        showToast("Accepted. Refreshing to show what changed.", "info");
+        settle(s.id);
+        void refreshTasks();
+        void load();
+      } else if (statusOf(err) === 409) {
         // Already handled, or out of date: the backend says which. Never a success.
         showToast(errorMessageOf(err, "This suggestion was already handled."), "info");
         settle(s.id);
@@ -135,6 +124,7 @@ export function WhileYouWereAway() {
         setItems: (update) => setItems((list) => (list ? update(list) : list)),
         request: () => dismissSuggestion(s.id),
         isGone: (err) => {
+          if (isShapeError(err)) return true; // answered 2xx: it is dismissed
           if (statusOf(err) !== 409 && statusOf(err) !== 404) return false;
           outcome.stale = err;
           return true;
@@ -154,10 +144,6 @@ export function WhileYouWereAway() {
     }
   }
 
-  const dismissToast = useCallback(() => setToast(null), []);
-
-  const learning = <LearningToast pattern={toast} onDismiss={dismissToast} />;
-
   // First read in flight: a slim placeholder, so loading never reads as "nothing happened".
   if (items === undefined && error === null) {
     return (
@@ -168,7 +154,8 @@ export function WhileYouWereAway() {
   }
 
   // Nothing pending: nothing to show.
-  if (!items?.length && error === null) return learning;
+  if (!items?.length && error === null) return null;
+  const failure = error !== null ? describeError(error) : null;
 
   return (
     <section aria-labelledby="while-away-title" className="space-y-2">
@@ -182,9 +169,9 @@ export function WhileYouWereAway() {
         </h2>
       </div>
 
-      {error !== null && (
+      {failure && (
         <Card className="px-4 py-3">
-          <ErrorState compact message={errorMessageOf(error, LIST_ERROR_MESSAGE)} onRetry={load} />
+          <ErrorState compact headline={failure.headline} message={failure.detail} onRetry={load} />
         </Card>
       )}
 
@@ -214,7 +201,6 @@ export function WhileYouWereAway() {
           </Card>
         );
       })}
-      {learning}
     </section>
   );
 }

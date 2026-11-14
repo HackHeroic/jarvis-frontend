@@ -2,16 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   acceptResultMessage,
   createSingleFlight,
+  draftAwaitingReview,
+  draftToChatResponse,
   focusCaption,
   freshnessLabel,
-  patternToastOf,
   provenanceLabel,
   receiptLine,
   receiptWindow,
   reinsert,
   removeWithRollback,
 } from "@/lib/you";
-import type { ActionResultOut, FocusProfile, Receipt, SuggestionOut } from "@/lib/types";
+import type { ActionResultOut, DraftState, FocusProfile, Receipt, SuggestionOut } from "@/lib/types";
 
 const NOW = new Date("2026-11-14T10:00:00Z"); // 15:30 IST
 
@@ -40,11 +41,16 @@ function focus(source: "prior" | "learned", observations: number): FocusProfile 
   };
 }
 
-function suggestion(over: Partial<SuggestionOut> = {}): SuggestionOut {
+/**
+ * A pattern_rule suggestion exactly as the backend stores it: `kind` is the
+ * trigger name, `details` is AdoptRuleAction.to_payload()
+ * (app/services/anticipation/{triggers,actions}.py).
+ */
+function patternRule(over: Partial<SuggestionOut> = {}): SuggestionOut {
   return {
-    id: "s1",
+    id: "s-rule",
     trigger: "pattern_rule",
-    kind: "adopt_rule",
+    kind: "pattern_rule",
     title: "A pattern around 9 AM",
     body: "You've set aside 3 of the last 3 tasks around 9 AM. Want me to stop putting demanding work there?",
     status: "pending",
@@ -55,11 +61,28 @@ function suggestion(over: Partial<SuggestionOut> = {}): SuggestionOut {
     expires_at: null,
     details: {
       kind: "adopt_rule",
+      dedupe_key: "pattern_rule:skip_time_window:9",
       pattern_key: "skip_time_window:9",
-      memory_id: "m-9",
-      confidence: 0.9,
+      hour: 9,
+      memory_id: "0d9a7c1e-5b44-4f0e-9d7a-3c2b1a0f9e8d",
+      confidence: 1.0,
       occurrences: 3,
     },
+    ...over,
+  };
+}
+
+/** The morning brief: `kind` "morning_brief", details ApplyDraftAction.to_payload(). */
+function morningBrief(over: Partial<SuggestionOut> = {}): SuggestionOut {
+  return {
+    ...patternRule(),
+    id: "s-brief",
+    trigger: "morning_brief",
+    kind: "morning_brief",
+    title: "Today is ready",
+    body: "4 tasks are planned for today; the hardest, 'Graph DP set', is at 19:00.",
+    expires_at: "2026-11-14T18:29:59.999999Z",
+    details: { kind: "apply_plan", dedupe_key: "apply_plan:d-brief", draft_id: "d-brief" },
     ...over,
   };
 }
@@ -145,6 +168,16 @@ describe("acceptResultMessage", () => {
     expect(acceptResultMessage(result({ tasks_written: 4 }))).toBe("4 tasks are on today's plan.");
   });
 
+  it("tasks_written wins over draft_id (the brief's accept returns both)", () => {
+    const brief = result({
+      kind: "apply_plan",
+      message: "Done — today's plan is in place.",
+      tasks_written: 4,
+      draft_id: "d-brief",
+    });
+    expect(acceptResultMessage(brief)).toBe("4 tasks are on today's plan.");
+  });
+
   it("one task written is singular", () => {
     expect(acceptResultMessage(result({ tasks_written: 1 }))).toBe("1 task is on today's plan.");
   });
@@ -173,30 +206,59 @@ describe("focusCaption", () => {
   });
 });
 
-describe("patternToastOf", () => {
-  it("a strong, recurring pattern_rule suggestion toasts", () => {
-    const toast = patternToastOf(suggestion());
-    expect(toast).not.toBeNull();
-    expect(toast?.confidence).toBe(0.9);
-    expect(toast?.occurrence_count).toBe(3);
-    expect(toast?.memory_id).toBe("m-9");
-    expect(toast?.content).toContain("set aside");
+describe("draftAwaitingReview (what an accept leaves to review)", () => {
+  const ruleWithDraft = result({
+    kind: "adopt_rule",
+    message: "Saved. I've drafted a plan that keeps 9 AM free — accept it when it suits you.",
+    draft_id: "d-rule",
   });
 
-  it("confidence under 0.7 does not toast", () => {
-    expect(patternToastOf(suggestion({ details: { confidence: 0.69, occurrences: 5 } }))).toBeNull();
+  it("a pattern_rule accept that drafted a plan leaves that draft to review", () => {
+    expect(draftAwaitingReview(patternRule(), ruleWithDraft)).toBe("d-rule");
   });
 
-  it("fewer than three occurrences does not toast", () => {
-    expect(patternToastOf(suggestion({ details: { confidence: 0.95, occurrences: 2 } }))).toBeNull();
+  it("a pattern_rule accept with no draft leaves nothing", () => {
+    const saved = result({ kind: "adopt_rule", message: "Saved. Every plan from now on keeps 9 AM free." });
+    expect(draftAwaitingReview(patternRule(), saved)).toBeNull();
   });
 
-  it("details without the numbers do not toast (no guessing)", () => {
-    expect(patternToastOf(suggestion({ details: { kind: "adopt_rule" } }))).toBeNull();
+  it("the morning brief's draft_id is already applied: tasks_written wins, nothing to review", () => {
+    const applied = result({
+      kind: "apply_plan",
+      message: "Done — today's plan is in place.",
+      tasks_written: 4,
+      draft_id: "d-brief",
+    });
+    expect(draftAwaitingReview(morningBrief(), applied)).toBeNull();
   });
 
-  it("only pattern_rule suggestions toast", () => {
-    expect(patternToastOf(suggestion({ trigger: "morning_brief" }))).toBeNull();
+  it("decides by the suggestion's kind, never by draft_id alone", () => {
+    expect(draftAwaitingReview(morningBrief(), result({ draft_id: "d-x", tasks_written: null }))).toBeNull();
+  });
+});
+
+describe("draftToChatResponse (the dashboard's pending-draft banner)", () => {
+  const draft: DraftState = {
+    draft_id: "d-rule",
+    user_id: "demo",
+    goal_id: null,
+    tasks: [{ task_id: "t1", title: "Graph DP set" }],
+    horizon_start: "2026-11-14T08:00:00+05:30",
+    status: "pending",
+    rejection_reason: null,
+    created_at: "2026-11-14T03:31:00+00:00",
+  };
+
+  it("an open draft becomes a draft response carrying its id and the backend's words", () => {
+    const response = draftToChatResponse(draft, "Saved. I've drafted a plan that keeps 9 AM free — accept it when it suits you.");
+    expect(response?.draft_id).toBe("d-rule");
+    expect(response?.schedule_status).toBe("draft");
+    expect(response?.message).toContain("keeps 9 AM free");
+  });
+
+  it("a closed draft (accepted, superseded…) is not offered for review", () => {
+    expect(draftToChatResponse({ ...draft, status: "superseded" }, "x")).toBeNull();
+    expect(draftToChatResponse({ ...draft, status: "accepted" }, "x")).toBeNull();
   });
 });
 

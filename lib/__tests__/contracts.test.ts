@@ -89,20 +89,47 @@ const YOU = {
   },
 };
 
-/** SuggestionOut — test_anticipation_api._suggestion, as SuggestionOut.of serialises it. */
+/**
+ * SuggestionOut as the real triggers make it (app/services/anticipation/triggers.py):
+ * `kind` is the trigger name; `details` is the action's to_payload() (actions.py).
+ */
 const SUGGESTION = {
   id: "3b2f0c1a-7d6e-4f5a-9b8c-1d2e3f4a5b6c",
   trigger: "morning_brief",
-  kind: "replan",
-  title: "A lighter morning",
-  body: "Two tasks found a new slot this afternoon.",
+  kind: "morning_brief",
+  title: "Today is ready",
+  body: "4 tasks are planned for today; the hardest, 'Graph DP set', is at 19:00 — your strongest hour.\n2 from yesterday found a new slot.",
   status: "pending",
   consent_behavior: "ask",
   consent_kind: "mode_decision",
   consent_reason: "This changes your schedule, so I'm asking first.",
-  created_at: "2026-11-14T03:30:00Z",
+  created_at: "2026-11-14T01:35:00Z",
+  expires_at: "2026-11-14T18:29:59.999999Z",
+  details: {
+    kind: "apply_plan",
+    dedupe_key: "apply_plan:9c0e6f1d-2a3b-4c5d-8e7f-6a5b4c3d2e1f",
+    draft_id: "9c0e6f1d-2a3b-4c5d-8e7f-6a5b4c3d2e1f",
+  },
+};
+
+/** A PatternRuleTrigger suggestion: AdoptRuleAction.to_payload() as its details. */
+const PATTERN_RULE = {
+  ...SUGGESTION,
+  id: "5e4d3c2b-1a09-4f8e-9d7c-6b5a4f3e2d1c",
+  trigger: "pattern_rule",
+  kind: "pattern_rule",
+  title: "A pattern around 9 AM",
+  body: "You've set aside 3 of the last 3 tasks around 9 AM. Want me to stop putting demanding work there?",
   expires_at: null,
-  details: { kind: "fake_action", dedupe_key: "fake_action" },
+  details: {
+    kind: "adopt_rule",
+    dedupe_key: "pattern_rule:skip_time_window:9",
+    pattern_key: "skip_time_window:9",
+    hour: 9,
+    memory_id: "0d9a7c1e-5b44-4f0e-9d7a-3c2b1a0f9e8d",
+    confidence: 1.0,
+    occurrences: 3,
+  },
 };
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -242,11 +269,25 @@ describe("chat complete frame: panel memories", () => {
 });
 
 describe("/api/v1/anticipation", () => {
-  it("GET /suggestions parses the pending list", () => {
-    const [only] = parseSuggestionList({ suggestions: [clone(SUGGESTION)] });
-    expect(only.id).toBe(SUGGESTION.id);
-    expect(only.consent_kind).toBe("mode_decision");
-    expect(only.details).toEqual({ kind: "fake_action", dedupe_key: "fake_action" });
+  it("GET /suggestions parses the pending list: a morning brief and a pattern rule", () => {
+    const [brief, rule] = parseSuggestionList({ suggestions: [clone(SUGGESTION), clone(PATTERN_RULE)] });
+    expect(brief.kind).toBe("morning_brief");
+    expect(brief.consent_kind).toBe("mode_decision");
+    expect(brief.details).toEqual(SUGGESTION.details);
+    expect(rule.kind).toBe("pattern_rule");
+    expect(rule.details).toMatchObject({ hour: 9, confidence: 1.0, occurrences: 3 });
+  });
+
+  it("the API test's suggestion (FakeAction payload with hours) parses too", () => {
+    const fake = {
+      ...clone(SUGGESTION),
+      kind: "replan",
+      title: "A lighter morning",
+      body: "Two tasks found a new slot this afternoon.",
+      expires_at: null,
+      details: { kind: "fake_action", dedupe_key: "fake_action", hours: null },
+    };
+    expect(parseSuggestion(fake).details).toEqual({ kind: "fake_action", dedupe_key: "fake_action", hours: null });
   });
 
   it("GET /suggestions for a new user is {suggestions: []}", () => {
@@ -263,14 +304,33 @@ describe("/api/v1/anticipation", () => {
     expect(() => parseSuggestion(body)).toThrow(ContractError);
   });
 
-  it("POST /accept parses {suggestion, result}", () => {
+  it("POST /accept of the brief: ApplyDraftAction's result (tasks written and the draft id)", () => {
     const accepted = parseAcceptResponse({
       suggestion: { ...clone(SUGGESTION), status: "accepted" },
-      result: { kind: "apply_plan", message: "Today's plan is saved.", tasks_written: 4, draft_id: null },
+      result: {
+        kind: "apply_plan",
+        message: "Done — today's plan is in place.",
+        tasks_written: 4,
+        draft_id: SUGGESTION.details.draft_id,
+      },
     });
     expect(accepted.suggestion.status).toBe("accepted");
     expect(accepted.result.tasks_written).toBe(4);
-    expect(accepted.result.draft_id).toBeNull();
+    expect(accepted.result.draft_id).toBe(SUGGESTION.details.draft_id);
+  });
+
+  it("POST /accept of a pattern rule: AdoptRuleAction's result (a draft to review, no tasks)", () => {
+    const accepted = parseAcceptResponse({
+      suggestion: { ...clone(PATTERN_RULE), status: "accepted" },
+      result: {
+        kind: "adopt_rule",
+        message: "Saved. I've drafted a plan that keeps 9 AM free — accept it when it suits you.",
+        tasks_written: null,
+        draft_id: "d-rule",
+      },
+    });
+    expect(accepted.result.tasks_written).toBeNull();
+    expect(accepted.result.draft_id).toBe("d-rule");
   });
 
   it("POST /accept without a result is a contract error", () => {

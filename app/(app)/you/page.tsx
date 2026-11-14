@@ -10,8 +10,8 @@ import { FocusChart } from "@/components/app/you/FocusChart";
 import { AutonomySettings } from "@/components/app/you/AutonomySettings";
 import { PrivacyReceipt } from "@/components/app/you/PrivacyReceipt";
 import { getYou } from "@/lib/api";
-import { LIST_ERROR_MESSAGE } from "@/lib/learning";
-import { errorMessageOf } from "@/lib/you";
+import { IS_DEMO_MODE } from "@/lib/constants";
+import { describeError } from "@/lib/learning";
 import type { MemoryOut, PatternShown, RuleShown, YouProfile, YouResponse } from "@/lib/types";
 
 function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
@@ -79,6 +79,8 @@ export default function YouPage() {
     [],
   );
 
+  const failure = error !== null ? describeError(error) : null;
+
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:space-y-5 sm:px-6 sm:py-8">
       <div>
@@ -87,6 +89,17 @@ export default function YouPage() {
           Everything here shapes your schedule. Confirm what&apos;s right; forget what isn&apos;t.
         </p>
       </div>
+
+      {IS_DEMO_MODE && (
+        <Card role="note" className="border-l-[3px] border-l-gold px-4 py-3">
+          <p className="text-sm font-medium text-primary">Sample data</p>
+          <p className="mt-0.5 text-xs text-secondary">
+            This is demo mode, with no backend connected, so the page shows an example rather
+            than what Jarvis knows about you. Connect a backend to see your own, and to confirm
+            or forget items.
+          </p>
+        </Card>
+      )}
 
       {/* First read (or its Retry) in flight */}
       {!you && (error === null || loading) && (
@@ -98,18 +111,18 @@ export default function YouPage() {
       )}
 
       {/* Outage with nothing to show */}
-      {!you && error !== null && !loading && (
+      {!you && failure && !loading && (
         <Card className="px-6 py-12">
-          <ErrorState message={errorMessageOf(error, LIST_ERROR_MESSAGE)} onRetry={load} />
+          <ErrorState headline={failure.headline} message={failure.detail} onRetry={load} />
         </Card>
       )}
 
       {you && (
         <>
           {/* A re-read failed: keep what was shown, and say so */}
-          {error !== null && !loading && (
+          {failure && !loading && (
             <Card className="px-4 py-3">
-              <ErrorState compact message={errorMessageOf(error, LIST_ERROR_MESSAGE)} onRetry={load} />
+              <ErrorState compact headline={failure.headline} message={failure.detail} onRetry={load} />
             </Card>
           )}
 
@@ -138,7 +151,7 @@ export default function YouPage() {
           </Section>
 
           <Section title="How Jarvis works with you">
-            <AutonomySettings profile={you.profile} onSaved={setProfile} />
+            <AutonomySettings profile={you.profile} onSaved={setProfile} onStale={load} />
           </Section>
 
           <Section title="Privacy receipt">

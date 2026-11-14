@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { X, CheckCircle, XCircle } from "lucide-react";
 import clsx from "clsx";
 import type { MemoryRecord } from "@/lib/types";
+import type { ListState } from "@/lib/learning";
 import { hashCode, PALETTE_ROTATION, MEMORY_TYPE_COLORS } from "@/lib/constants";
 import { freshnessLabel, provenanceLabel } from "@/lib/you";
 import { ErrorState } from "@/components/app/ErrorState";
@@ -56,15 +57,19 @@ const borderColorClass: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 interface MemoryPanelProps {
-  memories: MemoryRecord[];
+  /**
+   * What to show: loading (a skeleton, never "No memories yet"), an error (an
+   * outage or an unreadable answer, with Retry), empty, or the memories.
+   */
+  state: ListState<MemoryRecord>;
   isOpen: boolean;
   onClose: () => void;
   onDeleteMemory?: (id: string) => void;
   onConfirmPattern?: (id: string) => void;
   onDismissPattern?: (id: string) => void;
-  /** Set when the memories could not be fetched (an outage) — shown instead of "No memories yet". */
-  error?: string | null;
   onRetry?: () => void;
+  /** True while an action on that memory is in flight: its buttons are disabled. */
+  isBusy?: (id: string) => boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,15 +77,16 @@ interface MemoryPanelProps {
 // ---------------------------------------------------------------------------
 
 export default function MemoryPanel({
-  memories,
+  state,
   isOpen,
   onClose,
   onDeleteMemory,
   onConfirmPattern,
   onDismissPattern,
-  error,
   onRetry,
+  isBusy = () => false,
 }: MemoryPanelProps) {
+  const memories = useMemo(() => (state.kind === "ready" ? state.items : []), [state]);
   // Group memories by memory_type, sorted by importance weight
   const groups = useMemo(() => {
     const grouped: Record<string, MemoryRecord[]> = {};
@@ -131,11 +137,18 @@ export default function MemoryPanel({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
-          {error ? (
+          {state.kind === "error" ? (
             <div className="flex h-full flex-col items-center justify-center px-2">
-              <ErrorState message={error} onRetry={onRetry} />
+              <ErrorState headline={state.headline} message={state.message} onRetry={onRetry} />
             </div>
-          ) : memories.length === 0 ? (
+          ) : state.kind === "loading" ? (
+            <div className="space-y-2" aria-busy="true">
+              <span className="sr-only">Loading memories</span>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-16 rounded-lg bg-surface-muted animate-pulse" />
+              ))}
+            </div>
+          ) : state.kind === "empty" ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4">
               <p className="text-sm text-secondary">No memories yet.</p>
               <p className="text-xs text-muted mt-1">
@@ -159,6 +172,7 @@ export default function MemoryPanel({
                   <div className="space-y-2">
                     {mems.map((mem, index) => {
                       const id = mem.memory_id;
+                      const busy = id ? isBusy(id) : false;
                       const isBehavioral =
                         mem.memory_type === "behavioral_pattern";
                       const noted = mem.noted_at
@@ -217,7 +231,8 @@ export default function MemoryPanel({
                             {onDeleteMemory && id && (
                               <button
                                 onClick={() => onDeleteMemory(id)}
-                                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted hover:text-terra transition-opacity text-xs"
+                                disabled={busy}
+                                className="disabled:cursor-not-allowed opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted hover:text-terra transition-opacity text-xs"
                                 aria-label="Forget — Jarvis won't store this again."
                                 title="Forget — Jarvis won't store this again."
                               >
@@ -232,7 +247,8 @@ export default function MemoryPanel({
                               {onConfirmPattern && (
                                 <button
                                   onClick={() => onConfirmPattern(id)}
-                                  className="flex items-center gap-1 text-[10px] font-medium text-sage bg-sage/10 px-2 py-1 rounded-md hover:bg-sage/20 transition-colors"
+                                  disabled={busy}
+                                  className="disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-1 text-[10px] font-medium text-sage bg-sage/10 px-2 py-1 rounded-md hover:bg-sage/20 transition-colors"
                                 >
                                   <CheckCircle size={10} />
                                   Confirm
@@ -241,7 +257,8 @@ export default function MemoryPanel({
                               {onDismissPattern && (
                                 <button
                                   onClick={() => onDismissPattern(id)}
-                                  className="flex items-center gap-1 text-[10px] font-medium text-muted bg-surface-canvas px-2 py-1 rounded-md hover:bg-surface-muted transition-colors"
+                                  disabled={busy}
+                                  className="disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-1 text-[10px] font-medium text-muted bg-surface-canvas px-2 py-1 rounded-md hover:bg-surface-muted transition-colors"
                                 >
                                   <XCircle size={10} />
                                   Not right

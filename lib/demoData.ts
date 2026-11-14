@@ -3,7 +3,7 @@
  * Matches real API shapes exactly so components need no branching.
  */
 
-import type { ChatResponse } from "./types";
+import type { ChatResponse, YouResponse } from "./types";
 
 // --- Scenario 1: Plan Week (multi-deadline scheduling) ---
 
@@ -513,3 +513,88 @@ export const DEMO_PROMPTS = [
     dependsOn: "plan_week",
   },
 ];
+
+// --- The You page, without a backend ---
+
+/** A rough starting-guess focus curve: low at night, highest late morning. */
+function sampleFocus(hour: number): number {
+  if (hour < 7 || hour >= 23) return 0.2;
+  if (hour >= 9 && hour < 12) return 0.8;
+  if (hour >= 18 && hour < 21) return 0.6;
+  return 0.5;
+}
+
+/**
+ * Sample data for the You page in demo mode (no backend). The page labels it
+ * as sample data. It claims nothing as learned: the focus profile is the
+ * starting guess, and the receipt counts are zero because no model was called.
+ */
+export function getDemoYou(): YouResponse {
+  const now = new Date();
+  const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000).toISOString();
+  return {
+    profile: {
+      display_name: "Sample user",
+      timezone: "Asia/Kolkata",
+      wake_time: "07:00",
+      autonomy_mode: "ask_first",
+    },
+    patterns: [
+      {
+        memory_id: "sample-pattern-9",
+        pattern_key: "skip_time_window:9",
+        detector: "skip_time_window",
+        description: "Sample: tasks around 9 AM are often set aside (3 of 4)",
+        confidence: 0.75,
+        occurrences: 4,
+        evidence: [
+          "set aside (sample) · Morning reading",
+          "set aside (sample) · Morning reading",
+          "done (sample) · Morning reading",
+        ],
+        confirmed: false,
+      },
+    ],
+    rules: [
+      {
+        id: "sample-rule-1",
+        text: "No work after 10 PM (sample)",
+        provenance: "said",
+        created_at: daysAgo(3),
+      },
+    ],
+    memories: [
+      {
+        memory_id: "sample-memory-1",
+        memory_type: "goal",
+        content: "Sample: preparing for a calculus exam on Monday",
+        confidence: 0.8,
+        provenance: "said",
+        freshness: 0.9,
+        noted_at: daysAgo(2),
+        last_confirmed_at: null,
+        observation_count: 1,
+        pattern_key: null,
+      },
+    ],
+    focus: {
+      source: "prior",
+      observations: 0,
+      hours: Array.from({ length: 24 }, (_, hour) => ({
+        hour,
+        score: sampleFocus(hour),
+        done: 0,
+        not_done: 0,
+      })),
+    },
+    receipt: {
+      since: daysAgo(30),
+      truncated: false,
+      on_device_calls: 0,
+      cloud_calls: 0,
+      pii_redactions: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+    },
+  };
+}

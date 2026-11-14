@@ -1,3 +1,4 @@
+import { toListState, type ListState } from "./learning";
 import type { MemoryRecord, ScheduleTask } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -112,4 +113,22 @@ export function toPanelMemory(raw: unknown): MemoryRecord | null {
   };
   if (m.provenance === "said" || m.provenance === "inferred") memory.provenance = m.provenance;
   return memory;
+}
+
+/**
+ * What the chat Memory panel shows. Once `GET /memories/` has answered, its
+ * list and nothing else — so forgetting the last memory leaves the panel
+ * empty, never back on the turn's memories. Before that, the turn's own
+ * memories (if any) until the first read answers, else loading. An error wins
+ * (an outage is never "empty") unless a read — a Retry — is in flight.
+ */
+export function toMemoryPanelState(r: {
+  loaded: MemoryRecord[] | undefined;
+  loading: boolean;
+  error: unknown;
+  frame: MemoryRecord[];
+}): ListState<MemoryRecord> {
+  if (r.error && !r.loading) return toListState({ error: r.error });
+  if (r.loaded !== undefined) return toListState({ items: r.loaded });
+  return r.frame.length ? { kind: "ready", items: r.frame } : { kind: "loading" };
 }
