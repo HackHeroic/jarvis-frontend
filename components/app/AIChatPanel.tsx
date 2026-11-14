@@ -6,6 +6,7 @@ import { ChevronLeft, Send, ArrowRight, X } from "lucide-react";
 import clsx from "clsx";
 
 import { chatStream } from "@/lib/api";
+import { promptProblem } from "@/lib/chatLimits";
 import { Badge } from "@/components/ui/Badge";
 import { IS_DEMO_MODE, getIntentColor } from "@/lib/constants";
 import { useJarvis } from "@/lib/context/JarvisContext";
@@ -128,9 +129,12 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
     return null;
   }, [messages]);
 
+  // Over the backend's limit (a 422): say so, and never send it. The panel sends the text as typed.
+  const inputProblem = promptProblem(input);
+
   // Send handler — force 4B mode, use chatStream directly
   const handleSend = useCallback(() => {
-    if (!input.trim() || isStreaming) return;
+    if (!input.trim() || isStreaming || promptProblem(input)) return;
     const userText = input;
     setInput("");
 
@@ -363,16 +367,18 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            aria-describedby={inputProblem ? "panel-input-note" : undefined}
+            aria-invalid={inputProblem !== null}
             placeholder="Ask Jarvis..."
             rows={1}
             className="max-h-20 min-w-0 flex-1 resize-none bg-transparent text-sm text-primary placeholder:text-muted focus:outline-none"
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim() || isStreaming}
+            disabled={!input.trim() || isStreaming || inputProblem !== null}
             className={clsx(
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors lg:h-7 lg:w-7",
-              input.trim() && !isStreaming
+              input.trim() && !isStreaming && !inputProblem
                 ? "bg-terra text-white"
                 : "bg-surface-muted text-muted"
             )}
@@ -381,6 +387,11 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
             <Send size={16} className="lg:h-3.5 lg:w-3.5" />
           </button>
         </div>
+        {inputProblem && (
+          <p id="panel-input-note" role="status" className="mt-1.5 px-1 text-[11px] text-gold">
+            {inputProblem}
+          </p>
+        )}
       </div>
     </aside>
   );
