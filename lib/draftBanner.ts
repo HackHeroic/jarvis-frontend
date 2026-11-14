@@ -4,6 +4,7 @@
  * says. No React, no fetch — unit-tested with Vitest.
  */
 
+import { parseDraftState } from "./contracts";
 import { describeAcceptOutcome } from "./learning";
 import type { DraftSlot, DraftState } from "./types";
 
@@ -121,6 +122,12 @@ export interface BannerOutcome {
   /** The plan is settled (or gone): drop it from the banner. */
   clearBanner: boolean;
   refreshTasks: boolean;
+  /**
+   * Set only when the plan changed since it was read (409 `stale_version`): the
+   * latest draft, to show in place of the old one — or null when the error did not
+   * carry a readable one, so the banner re-reads it.
+   */
+  latest?: DraftState | null;
 }
 
 /**
@@ -147,8 +154,25 @@ export function bannerDiscardOutcome(): BannerOutcome {
   };
 }
 
+/** The latest draft a stale accept's 409 carries (`details.draft`), or null when it has none readable. */
+function latestDraftOf(details: unknown): DraftState | null {
+  const draft = (details as { draft?: unknown } | null | undefined)?.draft;
+  if (!draft) return null;
+  try {
+    return parseDraftState(draft);
+  } catch {
+    return null;
+  }
+}
+
+const PLAN_CHANGED = "This plan changed since you looked — here is the latest.";
+
 /**
- * A failed accept or discard (an `ApiError`, read by shape):
+ * A failed accept or discard (an `ApiError`, read by shape — its status and code,
+ * never its message's words):
+ * - 409 `stale_version` (the plan changed since the user read it; nothing was
+ *   written): the backend's words, and the latest plan in place of the old one.
+ *   The banner stays open and nothing reads as success.
  * - 409 `invalid_state_transition` (already locked in, or closed): the
  *   backend's words, and the banner clears; after an accept the task list
  *   refreshes, in case it was locked in elsewhere.
@@ -157,8 +181,17 @@ export function bannerDiscardOutcome(): BannerOutcome {
  * - Anything else (an outage): the plan stays, and nothing claims success.
  */
 export function bannerErrorOutcome(err: unknown, action: "accept" | "discard"): BannerOutcome {
-  const e = (err ?? {}) as { status?: unknown; code?: unknown; serverMessage?: unknown };
+  const e = (err ?? {}) as { status?: unknown; code?: unknown; serverMessage?: unknown; details?: unknown };
   const serverMessage = typeof e.serverMessage === "string" && e.serverMessage ? e.serverMessage : undefined;
+  if (e.status === 409 && e.code === "stale_version") {
+    return {
+      tone: "info",
+      message: serverMessage ?? PLAN_CHANGED,
+      clearBanner: false,
+      refreshTasks: false,
+      latest: latestDraftOf(e.details),
+    };
+  }
   if (e.status === 409 && !(action === "accept" && e.code === "conflict")) {
     return {
       tone: "info",

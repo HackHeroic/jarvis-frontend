@@ -10,10 +10,16 @@ import {
   draftBannerActions,
   summarizeDraft,
 } from "@/lib/draftBanner";
+import { STALE_ACCEPT_409 } from "./draft-samples";
 
 /** An ApiError-shaped failure, as lib/api.ts throws it. */
-function apiError(status: number, code?: string, serverMessage?: string) {
-  return Object.assign(new Error(`Failed (${status})`), { status, code, serverMessage });
+function apiError(status: number, code?: string, serverMessage?: string, details?: Record<string, unknown>) {
+  return Object.assign(new Error(`Failed (${status})`), { status, code, serverMessage, details });
+}
+
+/** The stale accept's 409 (draft-samples.ts), as lib/api.ts throws it. */
+function staleError(details: Record<string, unknown> = STALE_ACCEPT_409.error.details) {
+  return apiError(409, STALE_ACCEPT_409.error.code, STALE_ACCEPT_409.error.message, details);
 }
 
 /** GET /drafts/{id} (DraftStateResponse): TaskChunk dicts and the horizon, no solved slots. */
@@ -172,6 +178,37 @@ describe("bannerErrorOutcome (the 409 path and the rest)", () => {
     expect(outcome.tone).toBe("error");
     expect(outcome.message).toBe("These tasks clash with tasks you already have.");
     expect(outcome.clearBanner).toBe(false);
+  });
+
+  it("409 stale_version: the backend's words, the latest plan to show, the banner stays open, never success", () => {
+    const outcome = bannerErrorOutcome(staleError(), "accept");
+    expect(outcome.tone).toBe("info");
+    expect(outcome.message).toBe("This plan changed since you looked — here is the latest.");
+    expect(outcome.clearBanner).toBe(false);
+    expect(outcome.refreshTasks).toBe(false);
+    expect(outcome.latest?.version).toBe("6f2f15015ab658b5");
+    expect(outcome.latest?.tasks[0].title).toBe("Read ch1 slowly");
+    // what the banner then shows is the latest plan
+    expect(summarizeDraft(outcome.latest!).shown.map((l) => l.title)).toContain("Read ch1 slowly");
+  });
+
+  it("409 stale_version without a readable latest draft: re-read it (latest null), still open", () => {
+    for (const details of [{}, { draft: { draft_id: "d" } }]) {
+      const outcome = bannerErrorOutcome(staleError(details), "accept");
+      expect(outcome.latest).toBeNull();
+      expect(outcome.clearBanner).toBe(false);
+    }
+  });
+
+  it("the 409s are told apart by code, never by the message's words", () => {
+    const sameWords = "This plan changed since you looked — here is the latest.";
+    const closed = bannerErrorOutcome(apiError(409, "invalid_state_transition", sameWords), "accept");
+    expect(closed.clearBanner).toBe(true);
+    expect(closed.latest).toBeUndefined();
+    const clash = bannerErrorOutcome(apiError(409, "conflict", sameWords), "accept");
+    expect(clash.clearBanner).toBe(false);
+    expect(clash.latest).toBeUndefined();
+    expect(bannerErrorOutcome(staleError(), "accept").latest).not.toBeUndefined();
   });
 
   it("409 on discard: already closed — the banner clears", () => {

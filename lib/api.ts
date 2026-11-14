@@ -146,13 +146,22 @@ export class ApiError extends Error {
   readonly code: string | undefined;
   /** The backend's `error.message` — written to be shown to the user. Undefined when the body had none. */
   readonly serverMessage: string | undefined;
+  /** The envelope's `error.details` (e.g. a stale accept's latest `draft`); undefined when none. */
+  readonly details: Record<string, unknown> | undefined;
 
-  constructor(message: string, status: number, code?: string, serverMessage?: string) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    serverMessage?: string,
+    details?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.serverMessage = serverMessage;
+    this.details = details;
   }
 }
 
@@ -166,11 +175,13 @@ async function apiError(res: Response, label: string): Promise<ApiError> {
     // not JSON — keep the raw text
   }
   const serverMessage = readApiError(json, '') || undefined;
+  const details = errorBodyOf(json)?.details;
   return new ApiError(
     `${label} (${res.status}): ${serverMessage || text || res.statusText}`,
     res.status,
     readApiErrorCode(json),
     serverMessage,
+    details && typeof details === 'object' && !Array.isArray(details) ? details : undefined,
   );
 }
 
@@ -607,19 +618,26 @@ export async function getDraftById(draftId: string): Promise<DraftState> {
 }
 
 /**
- * Accept a draft. Throws `ApiError`: 409 `invalid_state_transition` when the draft
- * is no longer open (already accepted, rejected, expired or superseded), 409
- * `conflict` when its tasks clash with tasks the user already has.
+ * Accept a draft. `expectedVersion` is the `version` of the read the user acted on
+ * (`GET /drafts/{id}`); omitted, the backend does no check. Throws `ApiError`:
+ * - 409 `stale_version`: the plan changed since that read; nothing was written, and
+ *   `details.draft` is the latest draft.
+ * - 409 `invalid_state_transition`: no longer open (accepted, rejected, expired, superseded).
+ * - 409 `conflict`: its tasks clash with tasks the user already has.
  */
 export async function acceptDraft(
   draftId: string,
+  expectedVersion?: string,
 ): Promise<{ status: string; draft_id?: string; task_count?: number }> {
   const res = await fetch(
     `${API_BASE}/api/v1/drafts/${encodeURIComponent(draftId)}/accept`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: USER_ID }),
+      body: JSON.stringify({
+        user_id: USER_ID,
+        ...(expectedVersion ? { expected_version: expectedVersion } : {}),
+      }),
     },
   );
   if (!res.ok) throw await apiError(res, 'Failed to accept draft');

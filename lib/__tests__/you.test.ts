@@ -259,6 +259,7 @@ describe("draftToChatResponse (the dashboard's pending-draft banner)", () => {
     status: "pending",
     rejection_reason: null,
     created_at: "2026-11-14T03:31:00+00:00",
+    version: "0a1b2c3d4e5f6071",
   };
 
   it("an open draft becomes a draft response carrying its id and the backend's words", () => {

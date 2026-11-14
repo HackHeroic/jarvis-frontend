@@ -342,10 +342,16 @@ function parseScheduleView(value: unknown, where: string): DraftScheduleView {
   };
 }
 
-/** `GET /drafts/{id}` (`DraftStateResponse`), with `schedule` null or its solved slots. */
+/**
+ * `GET /drafts/{id}` (`DraftStateResponse`), with `schedule` null or its solved
+ * slots, and the `version` the read saw (required: the accept sends it back).
+ * Also the `draft` a stale accept's 409 carries in its details.
+ */
 export function parseDraftState(value: unknown): DraftState {
   const where = "draft";
   const o = obj(value, where);
+  const version = str(o, "version", where);
+  if (!version) throw new ContractError(`${where}.version`, "a non-empty string");
   const optional = (key: string) => (o[key] === undefined ? null : strOrNull(o, key, where));
   return {
     draft_id: str(o, "draft_id", where),
@@ -360,5 +366,6 @@ export function parseDraftState(value: unknown): DraftState {
       o.schedule === null || o.schedule === undefined
         ? null
         : parseScheduleView(o.schedule, `${where}.schedule`),
+    version,
   };
 }
