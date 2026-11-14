@@ -30,7 +30,9 @@ export default function Hero() {
         />
       </div>
 
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-12 flex flex-col md:flex-row items-center gap-16 pt-24 pb-16">
+      {/* Side by side from lg: at iPad-portrait width two columns squeezed the
+          headline to one word a line, so md stays stacked */}
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-12 flex flex-col lg:flex-row items-center gap-16 pt-24 pb-16">
         {/* Text column */}
         <div className="flex-1 max-w-xl">
           <motion.p
@@ -92,7 +94,7 @@ export default function Hero() {
             initial="hidden"
             animate="visible"
             variants={stagger}
-            className="text-[#FAF8F4]/40 text-xs"
+            className="text-[#FAF8F4]/60 text-xs"
           >
             Built for students, by a student.
           </motion.p>
@@ -159,7 +161,7 @@ export default function Hero() {
 
       {/* Scroll indicator */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
-        <span className="text-[#FAF8F4]/30 text-xs">Scroll</span>
+        <span className="text-[#FAF8F4]/60 text-xs">Scroll</span>
         <svg
           className="w-5 h-5 text-[#FAF8F4]/30 animate-bounce"
           fill="none"

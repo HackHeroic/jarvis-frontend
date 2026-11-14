@@ -32,7 +32,7 @@ export default function Philosophy() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="mt-8 text-[#FAF8F4]/40 text-sm max-w-md mx-auto"
+          className="mt-8 text-[#FAF8F4]/60 text-sm max-w-md mx-auto"
         >
           When you skip a task, Jarvis doesn&apos;t punish you. It re-evaluates
           your priorities and builds a new plan that still gets you to the finish

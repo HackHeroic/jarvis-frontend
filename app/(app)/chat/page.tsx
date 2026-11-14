@@ -88,7 +88,9 @@ function ChatPage() {
       loadConversation(sessionParam);
     } else if (promptParam && messages.length === 0) {
       hasHandledParams.current = true;
-      sendMessage(decodeURIComponent(promptParam));
+      sendMessage(promptParam);
+      // The prompt is sent once: out of the address bar, so a reload does not send it again.
+      window.history.replaceState(null, "", "/chat");
     }
   }, [searchParams, loadConversation, sendMessage, messages.length]);
 
@@ -319,7 +321,7 @@ function ChatPage() {
               type="button"
               onClick={handleNewChat}
               disabled={isStreaming || (messages.length === 0 && !conversationLoadError)}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-secondary transition-colors hover:bg-surface-muted hover:text-primary disabled:pointer-events-none disabled:opacity-40 sm:px-2.5"
+              className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-secondary transition-colors hover:bg-surface-muted hover:text-primary disabled:pointer-events-none disabled:opacity-40 max-md:min-h-10 max-md:min-w-10 sm:px-2.5"
             >
               <SquarePen size={14} />
               <span className="hidden sm:inline">New Chat</span>
@@ -340,12 +342,13 @@ function ChatPage() {
                 });
               }}
               className={clsx(
-                "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
+                "flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors max-md:min-h-10 max-md:min-w-10",
                 showMemoryPanel
                   ? "bg-dusk/15 text-dusk"
                   : "text-secondary hover:bg-surface-muted hover:text-primary"
               )}
               title="Jarvis's Memory"
+              aria-label="Jarvis's Memory"
             >
               <Brain size={14} />
             </button>
@@ -450,7 +453,7 @@ function ChatPage() {
               </div>
             )}
 
-            <div className="flex items-end gap-2">
+            <div className="flex items-end gap-2 max-md:gap-1">
               {/* Hidden file input */}
               <input
                 ref={fileInputRef}
@@ -464,7 +467,7 @@ function ChatPage() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex-shrink-0 p-2 text-muted hover:text-secondary transition-colors"
+                className="flex flex-shrink-0 items-center justify-center p-2 text-muted hover:text-secondary transition-colors max-md:h-10 max-md:w-10"
                 aria-label="Attach file"
               >
                 <Paperclip size={18} />
@@ -480,7 +483,7 @@ function ChatPage() {
                 aria-describedby={inputNote ? "chat-input-note" : undefined}
                 aria-invalid={inputProblem !== null}
                 placeholder="Tell Jarvis what's on your mind..."
-                className="min-w-0 flex-1 resize-none rounded-xl border border-border bg-surface-muted px-3.5 py-2.5 text-sm text-primary transition-colors placeholder:text-muted focus:border-terra/50 focus:outline-none sm:px-4"
+                className="min-w-0 flex-1 resize-none rounded-xl border border-border bg-surface-muted px-3.5 py-2.5 text-sm text-primary transition-colors placeholder:text-muted focus:border-terra/50 focus:outline-none max-md:px-3 sm:px-4"
                 style={{ maxHeight: "120px" }}
               />
 
@@ -489,7 +492,7 @@ function ChatPage() {
                 <button
                   type="button"
                   onClick={abort}
-                  className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                  className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors max-md:h-10 max-md:w-10"
                   aria-label="Stop generating"
                 >
                   <Square size={16} />
@@ -500,7 +503,7 @@ function ChatPage() {
                   onClick={handleSend}
                   disabled={(!input.trim() && !attachment) || inputProblem !== null}
                   className={clsx(
-                    "flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors",
+                    "flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors max-md:h-10 max-md:w-10",
                     (input.trim() || attachment) && !inputProblem
                       ? "bg-terra text-white hover:bg-terra/90"
                       : "bg-surface-muted text-muted cursor-not-allowed"

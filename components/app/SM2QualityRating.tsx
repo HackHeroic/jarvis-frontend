@@ -11,9 +11,9 @@ const QUALITY_LABELS = ['Blackout', 'Wrong', 'Hard', 'Struggled', 'Good', 'Perfe
 const QUALITY_COLORS = [
   'bg-red-500/80 hover:bg-red-500',
   'bg-red-400/70 hover:bg-red-400',
-  'bg-gold/70 hover:bg-gold',
-  'bg-gold/50 hover:bg-gold/80',
-  'bg-sage/70 hover:bg-sage',
+  'bg-[color-mix(in_srgb,var(--color-gold)_70%,transparent)] hover:bg-gold',
+  'bg-[color-mix(in_srgb,var(--color-gold)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-gold)_80%,transparent)]',
+  'bg-[color-mix(in_srgb,var(--color-sage)_70%,transparent)] hover:bg-sage',
   'bg-sage hover:bg-sage/90',
 ];
 

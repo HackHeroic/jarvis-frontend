@@ -226,3 +226,44 @@ export function replaceDraftInMessages(messages: JarvisMessage[], latest: DraftS
       : m,
   );
 }
+
+
+/** A stored chat message, as far as restoring its plan needs it. */
+interface StoredTurn {
+  id?: string;
+  role: string;
+  content: string;
+  metadata?: { draft_id?: string | null; schedule?: ChatResponse["schedule"] | null } | null;
+}
+
+/**
+ * The newest plan a reopened conversation proposed, as the turn's response would have
+ * carried it, with the index of its message. Undefined when no turn kept a plan.
+ * Whether that plan is still open is the caller's to check (`GET /drafts/{id}`):
+ * stored messages do not say.
+ */
+export function storedPlanOf(
+  messages: readonly StoredTurn[],
+  conversationId: string,
+): { index: number; draftId: string; response: ChatResponse } | undefined {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const turn = messages[index];
+    const draftId = turn.metadata?.draft_id;
+    const schedule = turn.metadata?.schedule;
+    if (turn.role !== "assistant" || !draftId || !schedule) continue;
+    return {
+      index,
+      draftId,
+      response: {
+        intent: "PLAN_DAY",
+        message: turn.content,
+        schedule,
+        schedule_status: "draft",
+        draft_id: draftId,
+        conversation_id: conversationId,
+        message_id: turn.id,
+      },
+    };
+  }
+  return undefined;
+}

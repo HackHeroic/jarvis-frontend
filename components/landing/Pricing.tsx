@@ -69,10 +69,10 @@ export default function Pricing() {
                   <span className="text-[#FAF8F4] text-4xl font-extrabold">
                     {plan.price}
                   </span>
-                  <span className="text-[#FAF8F4]/40 text-sm">{plan.period}</span>
+                  <span className="text-[#FAF8F4]/60 text-sm">{plan.period}</span>
                 </div>
                 {plan.popular && (
-                  <span className="text-[#FAF8F4]/40 text-xs">($89/yr)</span>
+                  <span className="text-[#FAF8F4]/60 text-xs">($89/yr)</span>
                 )}
               </div>
 
@@ -114,7 +114,7 @@ export default function Pricing() {
           ))}
         </div>
 
-        <p className="text-center text-[#FAF8F4]/30 text-xs mt-8">
+        <p className="text-center text-[#FAF8F4]/60 text-xs mt-8">
           No credit card required. Cancel anytime.
         </p>
       </div>

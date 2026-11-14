@@ -295,7 +295,7 @@ export default function WorkspacePage() {
         <button
           type="button"
           onClick={() => router.back()}
-          className="mb-3 flex items-center gap-1.5 text-xs font-medium text-secondary transition-colors hover:text-primary"
+          className="mb-3 flex items-center gap-1.5 text-xs font-medium text-secondary transition-colors hover:text-primary max-md:-ml-2 max-md:mb-1 max-md:min-h-10 max-md:px-2"
         >
           <ArrowLeft size={14} />
           Back
@@ -335,7 +335,7 @@ export default function WorkspacePage() {
                 <button
                   type="button"
                   onClick={() => toggleCriterion(i)}
-                  className="flex w-full items-start gap-2.5 rounded-lg p-1.5 text-left transition-colors hover:bg-surface-subtle"
+                  className="flex w-full items-start gap-2.5 rounded-lg p-1.5 text-left transition-colors hover:bg-surface-subtle max-md:min-h-10 max-md:py-2.5"
                 >
                   {checked[i] ? (
                     <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-sage" />

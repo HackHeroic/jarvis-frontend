@@ -44,9 +44,10 @@ export function MetricsBar({ metrics }: MetricsBarProps) {
 
   return (
     <div className="mt-2 pt-2 border-t border-border">
-      <div className="flex items-center gap-3 text-[10px] text-muted font-mono">
+      {/* Whole parts wrap onto a new line on a phone instead of breaking mid-part */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted font-mono">
         {parts.map((part, i) => (
-          <span key={i} className="flex items-center gap-1.5">
+          <span key={i} className="flex items-center gap-1.5 whitespace-nowrap">
             {i > 0 && <span className="text-muted/40">|</span>}
             {part}
           </span>

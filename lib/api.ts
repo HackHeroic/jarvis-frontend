@@ -726,14 +726,24 @@ export async function listTasks(): Promise<Record<string, unknown>[]> {
   return data.tasks ?? data;
 }
 
-export async function getWorkspace(taskId: string): Promise<TaskWorkspace | null> {
-  if (IS_DEMO_MODE) return null;
-  const res = await fetch(
-    `${API_BASE}/api/v1/tasks/${encodeURIComponent(taskId)}/workspace?user_id=${encodeURIComponent(USER_ID)}`,
-  );
-  if (res.status === 404 || res.status === 503) return null;
-  if (!res.ok) throw new Error(`Workspace failed: ${res.status}`);
-  return res.json();
+// Workspace requests in flight, by task: a page that mounts twice (React strict mode, a
+// fast back-and-forward) shares one request instead of queueing several builds.
+const workspaceInFlight = new Map<string, Promise<TaskWorkspace | null>>();
+
+export function getWorkspace(taskId: string): Promise<TaskWorkspace | null> {
+  if (IS_DEMO_MODE) return Promise.resolve(null);
+  const pending = workspaceInFlight.get(taskId);
+  if (pending) return pending;
+  const request = (async (): Promise<TaskWorkspace | null> => {
+    const res = await fetch(
+      `${API_BASE}/api/v1/tasks/${encodeURIComponent(taskId)}/workspace?user_id=${encodeURIComponent(USER_ID)}`,
+    );
+    if (res.status === 404 || res.status === 503) return null;
+    if (!res.ok) throw new Error(`Workspace failed: ${res.status}`);
+    return res.json();
+  })().finally(() => workspaceInFlight.delete(taskId));
+  workspaceInFlight.set(taskId, request);
+  return request;
 }
 
 // ---------------------------------------------------------------------------
@@ -747,6 +757,7 @@ export async function getWorkspace(taskId: string): Promise<TaskWorkspace | null
 export async function processDocument(
   fileBase64: string,
   mediaType: string,
+  fileName?: string,
 ): Promise<Record<string, unknown>> {
   const res = await fetch(`${API_BASE}/api/v1/ingestion/process`, {
     method: 'POST',
@@ -755,6 +766,8 @@ export async function processDocument(
       file_base64: fileBase64,
       media_type: mediaType,
       user_id: USER_ID,
+      // The file's own name, so the list shows it instead of an internal id.
+      ...(fileName ? { file_name: fileName.slice(0, 255) } : {}),
     }),
   });
   if (!res.ok) throw await apiError(res, 'Document processing failed');

@@ -135,7 +135,7 @@ export function AutonomySettings({ profile, onSaved, onStale }: AutonomySettings
             }}
             aria-invalid={wakeError ? true : undefined}
             aria-describedby={wakeError ? "wake-time-error" : undefined}
-            className="rounded-button border border-border bg-transparent px-3 py-1.5 text-sm text-primary outline-none focus:border-terra"
+            className="rounded-button border border-border bg-transparent px-3 py-1.5 text-sm text-primary outline-none focus:border-terra max-md:min-h-10"
           />
           <Button
             size="sm"

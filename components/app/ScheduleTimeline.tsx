@@ -94,10 +94,10 @@ export default function ScheduleTimeline({ view, range, now }: ScheduleTimelineP
         <h2 className="min-w-0 text-base font-semibold text-primary">{TITLES[range]}</h2>
         <Link
           href={CALENDAR_HREFS[range]}
-          className="shrink-0 whitespace-nowrap text-xs font-medium text-terra transition-colors hover:text-terra/80"
+          className="-my-2 inline-flex shrink-0 items-center whitespace-nowrap py-2 text-xs font-medium text-terra transition-colors hover:text-terra/80 max-md:-my-3 max-md:min-h-10"
         >
-          <span className="sm:hidden">Calendar &rarr;</span>
-          <span className="hidden sm:inline">View full calendar &rarr;</span>
+          <span className="sm:hidden">Schedule &rarr;</span>
+          <span className="hidden sm:inline">View full schedule &rarr;</span>
         </Link>
       </div>
 

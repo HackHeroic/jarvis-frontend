@@ -37,6 +37,13 @@ const ACCEPT_STRING = Object.keys(ACCEPTED_TYPES).join(",");
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** A document's name in the list: the file's own name, else what it is about. */
+function documentTitle(doc: IngestionDocument): string {
+  if (doc.file_name) return doc.file_name;
+  const topics = (doc.document_topics ?? []).slice(0, 2).join(" · ");
+  return topics || "Untitled document";
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -157,7 +164,7 @@ export default function DocumentsPage() {
     setError(null);
     try {
       const base64 = await fileToBase64(file);
-      await processDocument(base64, mediaType);
+      await processDocument(base64, mediaType, file.name);
       await fetchDocs();
     } catch (err) {
       // The backend's reason in words when it gave one (a file over the limit: 422 or 413).
@@ -326,7 +333,7 @@ export default function DocumentsPage() {
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-primary truncate">
-                  {doc.file_name || `Document ${doc.source_id.slice(0, 8)}`}
+                  {documentTitle(doc)}
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   {doc.media_type && (
@@ -345,7 +352,7 @@ export default function DocumentsPage() {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setDeleteTarget(doc); }}
-                className="shrink-0 rounded-button p-2 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
+                className="flex shrink-0 items-center justify-center rounded-button p-2 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500 max-md:h-10 max-md:w-10"
                 title="Delete document"
               >
                 <Trash2 size={16} />
@@ -390,7 +397,7 @@ export default function DocumentsPage() {
       {/* Delete confirmation dialog */}
       {deleteTarget && (
         <DeleteDialog
-          fileName={deleteTarget.file_name || `Document ${deleteTarget.source_id.slice(0, 8)}`}
+          fileName={documentTitle(deleteTarget)}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
         />

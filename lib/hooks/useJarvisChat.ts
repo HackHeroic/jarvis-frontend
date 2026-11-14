@@ -28,6 +28,7 @@ import {
   draftKey,
   recordDraftOutcome,
   replaceDraftInMessages,
+  storedPlanOf,
   withLatestDraft,
   type DraftCardState,
   type DraftOutcome,
@@ -101,6 +102,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
   const router = useRouter();
 
   const [messages, setMessages] = useState<JarvisMessage[]>([]);
+  const arrivedWithPrompt = useRef<boolean | null>(null);
   const [streamState, setStreamState] =
     useState<JarvisStreamState>(INITIAL_STREAM_STATE);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -122,7 +124,17 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
   // Hydrate state from localStorage on mount
   useEffect(() => {
-    const savedMessages = loadChatMessages();
+    // Arriving with a prompt in the URL (the dashboard's quick brain dump) starts a new
+    // conversation: the last one's messages are not restored under it. Read once, so a
+    // second run of this effect (React strict mode) cannot restore them after the send.
+    if (arrivedWithPrompt.current === null) {
+      arrivedWithPrompt.current = new URLSearchParams(window.location.search).has("prompt");
+    }
+    if (arrivedWithPrompt.current) {
+      clearChatMessages();
+      localStorage.removeItem("jarvis-conversation-id");
+    }
+    const savedMessages = arrivedWithPrompt.current ? [] : loadChatMessages();
     if (savedMessages.length > 0) setMessages(savedMessages);
 
     const savedDraft = loadDraftSchedule();
@@ -598,6 +610,24 @@ export function useJarvisChat(): UseJarvisChatReturn {
         message_id: m.id,
         timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
       }));
+      // A plan this conversation proposed and that is still awaiting review gets its
+      // review card back (stored messages are text only). A plan already accepted,
+      // discarded or replaced stays text; so does one whose status cannot be read.
+      const plan = storedPlanOf(sessionMessages, sessionId);
+      if (plan) {
+        try {
+          const draft = await getDraftById(plan.draftId);
+          if (draft.status === "pending" || draft.status === "modified") {
+            const response: ChatResponse = { ...plan.response, draft_version: draft.version };
+            loaded[plan.index] = { ...loaded[plan.index], response };
+            setDraftScheduleResponse(response);
+            saveDraftSchedule(response);
+            setDraft(response);
+          }
+        } catch {
+          // unreachable or gone: the conversation still opens, without a card
+        }
+      }
       setMessages(loaded);
       saveChatMessages(loaded);
     } catch (err) {
@@ -621,7 +651,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
       setMessages([errorPlaceholder]);
       saveChatMessages([errorPlaceholder]);
     }
-  }, []);
+  }, [setDraft]);
 
   const clearMessages = useCallback(() => {
     setConversationLoadError(null);

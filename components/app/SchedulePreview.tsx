@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -86,7 +86,7 @@ function TimelineBlock({ entry }: { entry: TimelineEntry }) {
             <span>
               {formatTime12h(entry.startTime)} -- {formatTime12h(entry.endTime)}
             </span>
-            {entry.tmtScore !== undefined && (
+            {entry.tmtScore !== undefined && entry.tmtScore >= 0.05 && (
               <span className="px-1.5 py-0.5 rounded bg-sage/10 text-sage font-mono">
                 TMT {entry.tmtScore.toFixed(1)}
               </span>
@@ -177,6 +177,9 @@ export function SchedulePreview({
   onReject,
   state,
 }: SchedulePreviewProps) {
+  // Discard is two steps: the button opens a reason field, the field's button discards.
+  const [discarding, setDiscarding] = useState(false);
+  const [discardReason, setDiscardReason] = useState('');
   const entries = useMemo(() => {
     const horizonStart = schedule.horizon_start || new Date().toISOString();
     const raw: TimelineEntry[] = Object.entries(schedule.schedule).map(
@@ -293,13 +296,8 @@ export function SchedulePreview({
           </button>
           <button
             type="button"
-            onClick={() => {
-              const reason = window.prompt("What would you like changed?");
-              if (reason !== null) {
-                onReject(reason || undefined);
-              }
-            }}
-            disabled={state.busy !== null}
+            onClick={() => setDiscarding(true)}
+            disabled={state.busy !== null || discarding}
             aria-busy={state.busy === 'discard'}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium border border-red-400/30 text-red-400 hover:bg-red-400/10 hover:border-red-400/50 transition-all disabled:opacity-40 disabled:pointer-events-none"
           >
@@ -309,6 +307,47 @@ export function SchedulePreview({
         </div>
       ) : (
         state?.note && <p className="pt-1 text-[11px] text-muted">{state.note}</p>
+      )}
+
+      {/* Discard asks why in the page (never a native browser prompt): the reason is
+          optional, and it is what Jarvis learns from. */}
+      {state?.kind === 'active' && discarding && (
+        <form
+          className="flex flex-col gap-2 rounded-xl border border-border bg-surface-muted p-3 sm:flex-row sm:items-center"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setDiscarding(false);
+            onReject(discardReason.trim() || undefined);
+            setDiscardReason('');
+          }}
+        >
+          <label className="sr-only" htmlFor="discard-reason">What would you like changed?</label>
+          <input
+            id="discard-reason"
+            type="text"
+            autoFocus
+            maxLength={300}
+            value={discardReason}
+            onChange={(event) => setDiscardReason(event.target.value)}
+            placeholder="What would you like changed? (optional)"
+            className="min-w-0 flex-1 rounded-lg border border-border bg-surface-canvas px-3 py-2 text-sm text-primary placeholder:text-muted focus:border-terra focus:outline-none"
+          />
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="submit"
+              className="rounded-lg border border-red-400/40 px-3 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-400/10"
+            >
+              Discard plan
+            </button>
+            <button
+              type="button"
+              onClick={() => { setDiscarding(false); setDiscardReason(''); }}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-secondary transition-colors hover:text-primary"
+            >
+              Keep
+            </button>
+          </div>
+        </form>
       )}
     </div>
   );

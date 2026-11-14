@@ -4,7 +4,7 @@
  * never a real time: no grid may draw it. Dates are local-time constructors.
  */
 import { describe, expect, it } from "vitest";
-import { tasksOnDay, unscheduledPending } from "@/lib/schedule";
+import { layoutDayBlocks, tasksOnDay, unscheduledPending } from "@/lib/schedule";
 import { apiTasksToScheduleTasks } from "@/lib/transforms";
 import type { ScheduleTask, TaskStatus } from "@/lib/types";
 
@@ -87,5 +87,60 @@ describe("unscheduledPending", () => {
 
   it("nothing unslotted is an empty strip", () => {
     expect(unscheduledPending([task(at(14, 9)), task(at(15, 9), "completed")])).toEqual([]);
+  });
+});
+
+describe("layoutDayBlocks", () => {
+  // The Day grid's scale: 2 px a minute, a block never shorter than 30 px (15 min), grid from 8 AM.
+  const GRID = { gridStartMinute: 8 * 60, pxPerMinute: 2, minHeightPx: 30 };
+  const block = (id: string, h: number, m: number, minutes: number) => ({
+    id,
+    startMinute: h * 60 + m,
+    durationMinutes: minutes,
+  });
+
+  it("back-to-back short tasks share one column and never overlap", () => {
+    const out = layoutDayBlocks(
+      [block("a", 8, 0, 15), block("b", 8, 15, 15), block("c", 8, 30, 25)],
+      GRID,
+    );
+    expect(Array.from(out.values(), (b) => b.lanes)).toEqual([1, 1, 1]);
+    const a = out.get("a")!, b = out.get("b")!, c = out.get("c")!;
+    expect(a.top + a.height).toBeLessThanOrEqual(b.top);
+    expect(b.top + b.height).toBeLessThanOrEqual(c.top);
+    expect([a.top, b.top, c.top]).toEqual([0, 30, 60]);
+    expect(c.height).toBe(50);
+  });
+
+  it("a block drawn taller than its slot pushes the next task into a second column", () => {
+    // 5 minutes is 10 px, drawn at the 30 px minimum: it reaches into 8:10's slot.
+    const out = layoutDayBlocks([block("a", 8, 0, 5), block("b", 8, 10, 25)], GRID);
+    expect(out.get("a")).toMatchObject({ height: 30, lane: 0, lanes: 2 });
+    expect(out.get("b")).toMatchObject({ lane: 1, lanes: 2 });
+  });
+
+  it("tasks at the same time sit side by side; a later free column is reused", () => {
+    const out = layoutDayBlocks(
+      [block("a", 8, 0, 15), block("b", 8, 0, 25), block("c", 8, 15, 15), block("d", 8, 25, 25)],
+      GRID,
+    );
+    expect(out.get("a")).toMatchObject({ lane: 0, lanes: 2 });
+    expect(out.get("b")).toMatchObject({ lane: 1, lanes: 2 });
+    expect(out.get("c")).toMatchObject({ lane: 0, lanes: 2 });
+    expect(out.get("d")).toMatchObject({ lane: 1, lanes: 2 });
+  });
+
+  it("a gap between clusters starts a fresh single column", () => {
+    const out = layoutDayBlocks(
+      [block("a", 8, 0, 25), block("b", 8, 10, 25), block("c", 10, 0, 25)],
+      GRID,
+    );
+    expect(out.get("a")!.lanes).toBe(2);
+    expect(out.get("c")).toMatchObject({ lane: 0, lanes: 1, top: 240 });
+  });
+
+  it("a task that starts before the grid is drawn from the grid's top edge", () => {
+    const out = layoutDayBlocks([block("a", 7, 30, 45)], GRID);
+    expect(out.get("a")).toMatchObject({ top: 0, height: 30 });
   });
 });

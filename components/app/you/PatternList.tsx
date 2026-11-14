@@ -95,7 +95,7 @@ export function PatternList({ patterns, setPatterns, onStale }: PatternListProps
 
             {pattern.evidence.length > 0 && (
               <details className="group mt-2">
-                <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-secondary hover:text-primary [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-secondary hover:text-primary max-md:min-h-10 [&::-webkit-details-marker]:hidden">
                   <ChevronDown size={12} className="transition-transform group-open:rotate-180" />
                   Evidence ({pattern.evidence.length})
                 </summary>

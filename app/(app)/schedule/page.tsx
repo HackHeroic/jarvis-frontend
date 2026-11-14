@@ -1,17 +1,18 @@
 "use client";
 
-import { useMemo, useState, Suspense } from "react";
+import { Fragment, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { completeTask, skipTask } from "@/lib/api";
 import { useJarvis } from "@/lib/context/JarvisContext";
 import { isSetAside } from "@/lib/constants";
-import { tasksOnDay, unscheduledPending } from "@/lib/schedule";
+import { layoutDayBlocks, tasksOnDay, unscheduledPending } from "@/lib/schedule";
 import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
 import { errorMessageOf } from "@/lib/you";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/app/EmptyState";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
 import {
+  ArrowUpRight,
   CheckCircle2,
   SkipForward,
   Calendar,
@@ -27,8 +28,11 @@ import type { ScheduleTask } from "@/lib/types";
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Pixels per minute in the time grid */
-const PX_PER_MINUTE = 1.4;
+/** Pixels per minute in the time grid: a 120 px hour, so a 15-minute block is 30 px */
+const PX_PER_MINUTE = 2;
+
+/** The shortest a block is drawn: one line of title, time and controls (15 minutes) */
+const MIN_BLOCK_HEIGHT = 30;
 
 /** Grid starts at 8:00 AM (480 min from midnight) */
 const GRID_START_HOUR = 8;
@@ -256,7 +260,7 @@ function SchedulePageInner() {
                 key={mode}
                 onClick={() => setViewMode(mode)}
                 className={clsx(
-                  "px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                  "px-3 py-1.5 text-xs font-medium capitalize transition-colors max-md:min-h-10",
                   viewMode === mode
                     ? "bg-terra text-white"
                     : "bg-surface-card text-secondary hover:bg-surface-muted",
@@ -277,7 +281,7 @@ function SchedulePageInner() {
           </button>
           <button
             onClick={() => setSelectedDate(new Date())}
-            className="px-2.5 py-1 text-xs font-medium text-terra hover:bg-terra/10 rounded-lg transition-colors"
+            className="px-2.5 py-1 text-xs font-medium text-terra hover:bg-terra/10 rounded-lg transition-colors max-md:min-h-10"
           >
             Today
           </button>
@@ -340,7 +344,7 @@ function SchedulePageInner() {
 
       {/* ---- DAY VIEW ---- */}
       {!loading && allTasks.length > 0 && viewMode === "day" && (
-        <DayGrid
+        <DayView
           tasks={dayTasks}
           now={now}
           showNowLine={showNowLine}
@@ -431,50 +435,18 @@ function NotScheduledStrip({ tasks, onOpen }: NotScheduledStripProps) {
 }
 
 // ===========================================================================
-// DAY GRID
+// DAY VIEW
 // ===========================================================================
 
-/**
- * Assign overlapping tasks to side-by-side lanes so same-slot blocks render
- * next to each other instead of stacking text on top of each other.
- */
-function assignLanes(
-  tasks: ScheduleTask[],
-): Map<string, { lane: number; lanes: number }> {
-  const sorted = [...tasks]
-    .map((t) => {
-      const start = getMinuteOfDay(t.start_time);
-      return { id: t.task_id, start, end: start + t.duration_minutes };
-    })
-    .sort((a, b) => a.start - b.start || a.end - b.end);
-
-  const result = new Map<string, { lane: number; lanes: number }>();
-  let cluster: { id: string; start: number; end: number; lane: number }[] = [];
-  let laneEnds: number[] = [];
-
-  const flush = () => {
-    const lanes = laneEnds.length || 1;
-    for (const c of cluster) result.set(c.id, { lane: c.lane, lanes });
-    cluster = [];
-    laneEnds = [];
-  };
-
-  for (const t of sorted) {
-    if (cluster.length > 0 && laneEnds.every((end) => end <= t.start)) flush();
-    let lane = laneEnds.findIndex((end) => end <= t.start);
-    if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(t.end);
-    } else {
-      laneEnds[lane] = t.end;
-    }
-    cluster.push({ ...t, lane });
-  }
-  flush();
-  return result;
+/** "8:15 – 8:30 AM", or "11:45 AM – 12:10 PM" when the range crosses noon. */
+function formatRange(start: Date, end: Date): string {
+  const a = formatTime(start);
+  const b = formatTime(end);
+  const am = (d: Date) => d.getHours() < 12;
+  return am(start) === am(end) ? `${a.replace(/\s?[AP]M$/, "")} – ${b}` : `${a} – ${b}`;
 }
 
-interface DayGridProps {
+interface DayViewProps {
   tasks: ScheduleTask[];
   now: Date;
   showNowLine: boolean;
@@ -489,6 +461,232 @@ interface DayGridProps {
   onCancelRating: () => void;
 }
 
+/**
+ * Phones get the day as a list (every block full width, nothing side by side);
+ * from `md` up it is the time grid. Both draw from the same tasks and handlers.
+ */
+function DayView(props: DayViewProps) {
+  return (
+    <>
+      <div className="md:hidden">
+        <DayList {...props} />
+      </div>
+      <div className="hidden md:block">
+        <DayGrid {...props} />
+      </div>
+    </>
+  );
+}
+
+interface BlockActionsProps {
+  task: ScheduleTask;
+  busy: boolean;
+  /** "grid": compact 24 px controls; "touch": 40 px tap targets for the phone list. */
+  size: "grid" | "touch";
+  onComplete: (taskId: string) => void;
+  onSkip: (taskId: string) => void;
+}
+
+/** Workspace / Complete / Set aside for one block, or a spinner while one is in flight. */
+function BlockActions({ task, busy, size, onComplete, onSkip }: BlockActionsProps) {
+  const router = useRouter();
+  // Complete works from pending or missed; Skip only from pending (the backend's moves).
+  const canSkip = task.status === "pending";
+  const touch = size === "touch";
+
+  if (busy) {
+    return (
+      <span className={clsx("flex shrink-0 items-center justify-center", touch ? "h-10 w-10" : "h-6 w-6")}>
+        <Loader2 size={14} className="animate-spin text-muted" aria-label="Saving" />
+      </span>
+    );
+  }
+
+  return (
+    <div className={clsx("flex shrink-0 items-center", touch ? "gap-0.5" : "gap-1")}>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          router.push(`/workspace/${task.task_id}`);
+        }}
+        className={clsx(
+          "flex items-center justify-center text-terra underline transition-opacity hover:opacity-70",
+          touch ? "min-h-10 px-2 text-xs" : "h-6 min-w-6 text-[10px]",
+        )}
+        aria-label="Workspace"
+        title="Workspace"
+      >
+        {touch ? (
+          "Workspace"
+        ) : (
+          <>
+            {/* A narrow grid block swaps the word for an icon (globals.css, .day-block) */}
+            <span className="day-wide">Workspace</span>
+            <ArrowUpRight size={14} className="day-narrow" />
+          </>
+        )}
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onComplete(task.task_id);
+        }}
+        className={clsx(
+          "flex items-center justify-center rounded-md text-sage transition-colors hover:bg-sage/20",
+          touch ? "h-10 w-10" : "h-6 w-6",
+        )}
+        title="Complete"
+        aria-label="Complete"
+      >
+        <CheckCircle2 size={16} />
+      </button>
+      {canSkip && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onSkip(task.task_id);
+          }}
+          className={clsx(
+            "flex items-center justify-center rounded-md text-gold transition-colors hover:bg-gold/20",
+            touch ? "h-10 w-10" : "h-6 w-6",
+          )}
+          title="Set aside"
+          aria-label="Set aside"
+        >
+          <SkipForward size={16} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** The SM2 rating that opens after Complete, inside its block. */
+function BlockRating({
+  task,
+  onRate,
+  onCancelRating,
+}: {
+  task: ScheduleTask;
+  onRate: (taskId: string, quality: number) => void;
+  onCancelRating: () => void;
+}) {
+  return (
+    <div onClick={(e) => e.stopPropagation()} className="mt-1">
+      <SM2QualityRating onRate={(quality) => onRate(task.task_id, quality)} taskTitle={task.title} />
+      <button
+        onClick={onCancelRating}
+        className="mt-1.5 min-h-10 text-xs text-muted transition-colors hover:text-secondary md:min-h-0 md:text-[10px]"
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+function titleClasses(task: ScheduleTask) {
+  return clsx(
+    "font-semibold text-primary",
+    task.status === "completed" && "line-through opacity-60",
+    isSetAside(task.status) && "opacity-60",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Phone: the day as a list
+// ---------------------------------------------------------------------------
+
+function DayList({
+  tasks,
+  now,
+  showNowLine,
+  ratingTaskId,
+  isBusy,
+  onTaskClick,
+  onComplete,
+  onSkip,
+  onRate,
+  onCancelRating,
+}: DayViewProps) {
+  const sorted = [...tasks].sort(
+    (a, b) => a.start_time.getTime() - b.start_time.getTime() || a.end_time.getTime() - b.end_time.getTime(),
+  );
+  // The "now" marker goes before the first block that has not started yet.
+  const nowIndex = showNowLine ? sorted.findIndex((t) => t.start_time.getTime() > now.getTime()) : -1;
+  const nowAt = showNowLine ? (nowIndex === -1 ? sorted.length : nowIndex) : -1;
+
+  if (sorted.length === 0) {
+    return (
+      <div className="rounded-xl border border-border bg-surface-card px-4 py-8 text-center text-sm text-secondary">
+        Nothing planned for this day.
+      </div>
+    );
+  }
+
+  const nowMarker = (
+    <li key="now" aria-label="Now" className="flex items-center gap-2 py-0.5">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
+      <span className="h-[2px] flex-1 bg-red-500" />
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-red-500">Now</span>
+    </li>
+  );
+
+  return (
+    <ol className="space-y-2">
+      {sorted.map((task, i) => {
+        const isBlocked = !!task.constraint_applied;
+        const isActionable = task.status === "pending" || task.status === "missed";
+        const showRating = ratingTaskId === task.task_id;
+        return (
+          <Fragment key={task.task_id}>
+            {i === nowAt && nowMarker}
+            <li
+              className={clsx(
+                "rounded-lg px-3 py-2.5",
+                isBlocked
+                  ? "border-2 border-dashed border-muted bg-surface-muted/50"
+                  : "cursor-pointer border-l-[3px]",
+                !isBlocked && STATUS_COLORS[task.status],
+              )}
+              style={{ borderLeftColor: isBlocked ? undefined : task.color }}
+              onClick={() => {
+                if (!isBlocked && !showRating) onTaskClick(task);
+              }}
+            >
+              <p className={clsx("break-words text-sm", titleClasses(task))}>{task.title}</p>
+              <div className="mt-0.5 flex min-h-10 items-center justify-between gap-2">
+                <p className="min-w-0 text-xs text-muted">
+                  {formatRange(task.start_time, task.end_time)}
+                  {isBlocked && <span className="ml-1.5 italic">({task.constraint_applied})</span>}
+                </p>
+                {isActionable && !isBlocked && !showRating && (
+                  <div className="-mr-2">
+                    <BlockActions
+                      task={task}
+                      busy={isBusy(task.task_id)}
+                      size="touch"
+                      onComplete={onComplete}
+                      onSkip={onSkip}
+                    />
+                  </div>
+                )}
+              </div>
+              {showRating && <BlockRating task={task} onRate={onRate} onCancelRating={onCancelRating} />}
+            </li>
+          </Fragment>
+        );
+      })}
+      {nowAt === sorted.length && nowMarker}
+    </ol>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// md and up: the time grid
+// ---------------------------------------------------------------------------
+
+/** Blocks shorter than this put title, time and controls on one line. */
+const TWO_LINE_MIN_HEIGHT = 46;
+
 function DayGrid({
   tasks,
   showNowLine,
@@ -500,8 +698,16 @@ function DayGrid({
   onSkip,
   onRate,
   onCancelRating,
-}: DayGridProps) {
-  const router = useRouter();
+}: DayViewProps) {
+  const layout = layoutDayBlocks(
+    tasks.map((t) => ({
+      id: t.task_id,
+      startMinute: getMinuteOfDay(t.start_time),
+      durationMinutes: t.duration_minutes,
+    })),
+    { gridStartMinute: GRID_START_MINUTES, pxPerMinute: PX_PER_MINUTE, minHeightPx: MIN_BLOCK_HEIGHT },
+  );
+
   return (
     <div className="relative flex rounded-xl border border-border bg-surface-card overflow-hidden">
       {/* Hour labels — width is driven by HOUR_GUTTER so the absolutely
@@ -531,14 +737,14 @@ function DayGrid({
       </div>
 
       {/* Time grid area */}
-      <div className="relative flex-1" style={{ height: GRID_HEIGHT }}>
+      <div className="relative min-w-0 flex-1" style={{ height: GRID_HEIGHT }}>
         {/* Hour lines */}
         {HOURS.map((hour) => {
           const top = (hour * 60 - GRID_START_MINUTES) * PX_PER_MINUTE;
           return (
             <div
               key={hour}
-              className="absolute left-0 right-0 border-t border-border/40"
+              className="absolute left-0 right-0 border-t border-border"
               style={{ top }}
             />
           );
@@ -556,127 +762,82 @@ function DayGrid({
         )}
 
         {/* Task blocks */}
-        {(() => {
-          const lanesById = assignLanes(tasks);
-          return tasks.map((task) => {
-          const laneInfo = lanesById.get(task.task_id) ?? { lane: 0, lanes: 1 };
-          const startMin = getMinuteOfDay(task.start_time);
-          const top = Math.max(0, (startMin - GRID_START_MINUTES) * PX_PER_MINUTE);
-          const height = Math.max(task.duration_minutes * PX_PER_MINUTE, 28);
+        {tasks.map((task) => {
+          const place = layout.get(task.task_id) ?? { top: 0, height: MIN_BLOCK_HEIGHT, lane: 0, lanes: 1 };
+          // A 1 px gap above and below keeps end-to-end blocks visibly apart.
+          const height = place.height - 2;
+          const twoLine = height >= TWO_LINE_MIN_HEIGHT;
           const isBlocked = !!task.constraint_applied;
-          // Complete works from pending or missed; Skip only from pending (the backend's moves).
           const isActionable = task.status === "pending" || task.status === "missed";
-          const canSkip = task.status === "pending";
-          const busy = isBusy(task.task_id);
           const showRating = ratingTaskId === task.task_id;
+          const actions = isActionable && !isBlocked && !showRating && (
+            <BlockActions
+              task={task}
+              busy={isBusy(task.task_id)}
+              size="grid"
+              onComplete={onComplete}
+              onSkip={onSkip}
+            />
+          );
+          const range = formatRange(task.start_time, task.end_time);
+          const constraint = isBlocked && (
+            <span className="ml-1.5 italic">({task.constraint_applied})</span>
+          );
 
           return (
             <div
               key={task.task_id}
               className={clsx(
-                "absolute z-10 rounded-lg px-3 py-1.5 transition-all overflow-hidden",
+                "day-block absolute rounded-lg transition-all overflow-hidden",
+                showRating ? "z-20 shadow-lg" : "z-10",
+                twoLine ? "px-3 py-1" : "px-2.5 py-0.5",
                 isBlocked
                   ? "border-2 border-dashed border-muted bg-surface-muted/50 cursor-default"
                   : "border-l-[3px] cursor-pointer hover:shadow-md",
                 !isBlocked && STATUS_COLORS[task.status],
               )}
               style={{
-                top,
-                left: `calc(${(laneInfo.lane / laneInfo.lanes) * 100}% + 8px)`,
-                width: `calc(${100 / laneInfo.lanes}% - ${laneInfo.lanes > 1 ? 12 : 16}px)`,
+                top: place.top + 1,
+                left: `calc(${(place.lane / place.lanes) * 100}% + 8px)`,
+                width: `calc(${100 / place.lanes}% - ${place.lanes > 1 ? 12 : 16}px)`,
                 height: showRating ? "auto" : height,
                 minHeight: height,
                 borderLeftColor: isBlocked ? undefined : task.color,
               }}
+              title={task.title}
               onClick={() => {
                 if (!isBlocked && !showRating) onTaskClick(task);
               }}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p
-                    className={clsx(
-                      "text-xs font-semibold text-primary truncate",
-                      task.status === "completed" && "line-through opacity-60",
-                      isSetAside(task.status) && "opacity-60",
-                    )}
-                  >
-                    {task.title}
-                  </p>
-                  <p className="text-[10px] text-muted mt-0.5">
-                    {formatTime(task.start_time)} – {formatTime(task.end_time)}
-                    {isBlocked && (
-                      <span className="ml-1.5 text-muted italic">
-                        ({task.constraint_applied})
-                      </span>
-                    )}
-                  </p>
-                </div>
-
-                {/* Action buttons */}
-                {isActionable && !isBlocked && !showRating && busy && (
-                  <Loader2 size={14} className="shrink-0 animate-spin text-muted" aria-label="Saving" />
-                )}
-                {isActionable && !isBlocked && !showRating && !busy && (
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/workspace/${task.task_id}`);
-                      }}
-                      className="text-[10px] text-terra underline transition-opacity hover:opacity-70"
-                    >
-                      Workspace
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onComplete(task.task_id);
-                      }}
-                      className="p-1 rounded-md hover:bg-sage/20 text-sage transition-colors"
-                      title="Complete"
-                    >
-                      <CheckCircle2 size={16} />
-                    </button>
-                    {canSkip && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSkip(task.task_id);
-                        }}
-                        className="p-1 rounded-md hover:bg-gold/20 text-gold transition-colors"
-                        title="Set aside"
-                        aria-label="Set aside"
-                      >
-                        <SkipForward size={16} />
-                      </button>
-                    )}
+              {twoLine ? (
+                <>
+                  <div className="flex min-h-6 items-center justify-between gap-2">
+                    <p className={clsx("min-w-0 flex-1 truncate text-xs", titleClasses(task))}>{task.title}</p>
+                    {actions}
                   </div>
-                )}
-              </div>
-
-              {/* SM2 Rating dialog */}
-              {showRating && (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="mt-1"
-                >
-                  <SM2QualityRating
-                    onRate={(quality) => onRate(task.task_id, quality)}
-                    taskTitle={task.title}
-                  />
-                  <button
-                    onClick={onCancelRating}
-                    className="mt-1.5 text-[10px] text-muted hover:text-secondary transition-colors"
-                  >
-                    Cancel
-                  </button>
+                  <p className="truncate text-[10px] leading-tight tabular-nums text-muted">
+                    {range}
+                    {constraint}
+                  </p>
+                </>
+              ) : (
+                <div className="flex h-6 items-center gap-2">
+                  <p className={clsx("min-w-0 flex-1 truncate text-xs", titleClasses(task))}>{task.title}</p>
+                  {/* One line: the whole range when the block is wide, the start when narrow */}
+                  <span className="shrink-0 whitespace-nowrap text-[10px] tabular-nums text-muted">
+                    <span className="day-wide">{range}</span>
+                    <span className="day-narrow">{formatTime(task.start_time)}</span>
+                    {constraint}
+                  </span>
+                  {actions}
                 </div>
               )}
+
+              {/* SM2 Rating dialog */}
+              {showRating && <BlockRating task={task} onRate={onRate} onCancelRating={onCancelRating} />}
             </div>
           );
-          });
-        })()}
+        })}
       </div>
     </div>
   );
@@ -698,8 +859,9 @@ function WeekGrid({ allTasks, selectedDate, now, onSelectDay }: WeekGridProps) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   return (
-    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <div className="grid min-w-[640px] grid-cols-7 gap-1 rounded-xl border border-border bg-surface-card p-2">
+    <div className="overflow-x-auto">
+      {/* Phones: one day per row, titles at full width. md and up: seven columns. */}
+      <div className="grid grid-cols-1 gap-1 rounded-xl border border-border bg-surface-card p-2 md:min-w-[640px] md:grid-cols-7">
       {days.map((day) => {
         const isToday = isSameDay(day, now);
         const tasksForDay = tasksOnDay(allTasks, day);
@@ -709,13 +871,13 @@ function WeekGrid({ allTasks, selectedDate, now, onSelectDay }: WeekGridProps) {
             key={day.toISOString()}
             onClick={() => onSelectDay(day)}
             className={clsx(
-              "flex flex-col rounded-lg p-2 text-left transition-colors min-h-[140px]",
+              "flex flex-col rounded-lg p-2 text-left transition-colors md:min-h-[140px]",
               isToday
                 ? "bg-terra/10 border border-terra/30"
                 : "hover:bg-surface-muted border border-transparent",
             )}
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2 flex items-center justify-between max-md:mb-1 max-md:justify-start max-md:gap-2">
               <span className="text-[10px] font-medium text-muted uppercase">
                 {shortDayLabel(day)}
               </span>

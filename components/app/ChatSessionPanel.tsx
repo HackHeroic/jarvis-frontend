@@ -276,7 +276,7 @@ export function ChatSessionPanel({
             onNewChat();
             setMobileOpen(false);
           }}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-terra hover:bg-terra/90 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-terra hover:bg-terra/90 transition-colors max-md:min-h-10"
         >
           <Plus size={16} />
           New Chat
@@ -400,16 +400,18 @@ export function ChatSessionPanel({
                   <button
                     type="button"
                     onClick={(e) => handleMenuToggle(e, session.id)}
+                    // Theme tokens, not dark-theme hex: in the light theme the old
+                    // #3A3632 / #2A2724 fills hid the dark icon on hover and while open.
+                    // 40 px square on phones, 28 px from md up.
+                    className="h-7 w-7 max-md:h-10 max-md:w-10"
                     style={{
                       flexShrink: 0,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      width: 28,
-                      height: 28,
                       borderRadius: 6,
-                      color: isMenuOpen ? 'var(--text-primary)' : '#9C9488',
-                      backgroundColor: isMenuOpen ? '#3A3632' : 'transparent',
+                      color: isMenuOpen ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      backgroundColor: isMenuOpen ? 'var(--border-default)' : 'transparent',
                       border: 'none',
                       cursor: 'pointer',
                       padding: 0,
@@ -417,14 +419,14 @@ export function ChatSessionPanel({
                     aria-label="Session options"
                     onMouseEnter={(e) => {
                       if (!isMenuOpen) {
-                        (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#2A2724';
+                        (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface-muted)';
                         (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (!isMenuOpen) {
                         (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
-                        (e.currentTarget as HTMLButtonElement).style.color = '#9C9488';
+                        (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
                       }
                     }}
                   >
@@ -527,7 +529,7 @@ export function ChatSessionPanel({
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="tap-target fixed left-3 top-3 z-40 flex items-center justify-center rounded-lg border border-border bg-surface-card text-muted shadow-sm transition-colors hover:text-primary lg:hidden"
+        className="tap-target fixed left-3 top-3 z-40 flex items-center justify-center rounded-lg border border-border bg-surface-card text-muted shadow-sm transition-colors hover:text-primary md:left-[4.25rem] md:top-0.5 lg:hidden"
         aria-label="Open sessions"
       >
         <Menu size={18} />

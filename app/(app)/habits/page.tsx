@@ -256,8 +256,10 @@ export default function HabitsPage() {
                     await deleteBehavioralConstraint(c.id);
                     setConstraints((prev) => prev?.filter((x) => x.id !== c.id));
                   }}
-                  className="rounded-button p-1 text-muted opacity-0 transition-all
-                    group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-500"
+                  aria-label="Remove constraint"
+                  className="flex shrink-0 items-center justify-center rounded-button p-1 text-muted transition-all
+                    hover:bg-red-500/10 hover:text-red-500 focus-visible:opacity-100 group-hover:opacity-100
+                    max-md:-my-2 max-md:h-10 max-md:w-10 [@media(hover:hover)]:opacity-0"
                 >
                   &#x2715;
                 </button>

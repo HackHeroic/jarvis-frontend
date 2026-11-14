@@ -23,7 +23,7 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: "px-3 py-1.5 text-xs rounded-button",
+  sm: "px-3 py-1.5 text-xs rounded-button max-md:min-h-10",
   md: "px-4 py-2 text-sm rounded-button",
   lg: "px-6 py-3 text-base rounded-button",
 };

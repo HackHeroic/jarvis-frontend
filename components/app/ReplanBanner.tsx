@@ -17,7 +17,7 @@ export function ReplanBanner({ onReplan, isReplanning }: ReplanBannerProps) {
         type="button"
         onClick={onReplan}
         disabled={isReplanning}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-button
+        className="flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-button max-md:min-h-10
           bg-dusk/15 text-dusk border border-dusk/30
           hover:bg-dusk/25 disabled:opacity-40 disabled:cursor-not-allowed
           transition-colors"

@@ -347,8 +347,9 @@ export function JarvisResponse({
         <TaskDecompositionPreview graph={executionGraph} />
       )}
 
-      {/* 7. Draft Schedule */}
-      {!isStreaming && schedule && scheduleStatus === 'draft' && (
+      {/* 7. Draft Schedule: the plain list, only when the review card below will not
+          render the same plan (the card groups it by day; both together read as clashes) */}
+      {!isStreaming && schedule && scheduleStatus === 'draft' && response?.schedule_status !== 'draft' && (
         <DraftScheduleSection schedule={schedule} />
       )}
 

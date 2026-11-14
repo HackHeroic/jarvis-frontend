@@ -8,7 +8,7 @@ export default function Footer() {
           </div>
           <span className="text-[#FAF8F4] font-semibold text-sm">Jarvis</span>
         </div>
-        <p className="text-[#FAF8F4]/30 text-xs">
+        <p className="text-[#FAF8F4]/60 text-xs">
           Built with 🧠 by Madhav
         </p>
       </div>

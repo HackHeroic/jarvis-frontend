@@ -26,6 +26,12 @@ const config: Config = {
           strong: "var(--border-strong)",
         },
       },
+      // A bare `border` (or one whose colour class is not generated, e.g. an
+      // opacity modifier on a var() colour) falls back to this. Tailwind's own
+      // fallback is gray-200, which drew bright lines across the dark theme.
+      borderColor: {
+        DEFAULT: "var(--border-default)",
+      },
       textColor: {
         primary: "var(--text-primary)",
         secondary: "var(--text-secondary)",

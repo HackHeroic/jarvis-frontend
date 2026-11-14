@@ -261,7 +261,7 @@ export default function NavRail() {
               aria-current={isActive ? "page" : undefined}
               className={clsx(
                 "flex min-w-0 flex-1 flex-col items-center justify-center gap-1 pt-1 transition-colors",
-                isActive ? "text-terra" : "text-white/45 active:text-white/80"
+                isActive ? "text-terra" : "text-white/60 active:text-white/80"
               )}
             >
               {Icon && <Icon size={20} strokeWidth={isActive ? 2.4 : 2} />}
@@ -275,7 +275,7 @@ export default function NavRail() {
         {/* Account / settings */}
         <button
           onClick={() => setMenuOpen(true)}
-          className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 pt-1 text-white/45 transition-colors active:text-white/80"
+          className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 pt-1 text-white/60 transition-colors active:text-white/80"
           aria-label="Account and settings"
         >
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-terra text-[9px] font-bold text-ink">
@@ -358,7 +358,7 @@ export default function NavRail() {
                 </kbd>
                 <button
                   onClick={closeCmd}
-                  className="shrink-0 rounded p-1 text-muted transition-colors hover:text-primary sm:hidden"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-muted transition-colors hover:text-primary sm:hidden -my-2 -mr-2"
                   aria-label="Close command palette"
                 >
                   <X size={16} />

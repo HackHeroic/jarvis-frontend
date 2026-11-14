@@ -48,7 +48,7 @@ export function ModelModeSelector({
             disabled={disabled}
             onClick={() => onChange(mode.value)}
             className={clsx(
-              "min-w-0 truncate rounded-md px-2 py-1 text-xs font-medium transition-all sm:px-3",
+              "min-w-0 truncate rounded-md px-2 py-1 text-xs font-medium transition-all max-md:min-h-10 sm:px-3",
               value === mode.value
                 ? "bg-surface-card text-primary shadow-sm"
                 : "text-muted hover:text-secondary",
@@ -65,7 +65,7 @@ export function ModelModeSelector({
           title={devMode ? "Developer mode ON" : "Developer mode OFF"}
           onClick={onToggleDevMode}
           className={clsx(
-            "shrink-0 rounded-md p-1.5 transition-all",
+            "flex shrink-0 items-center justify-center rounded-md p-1.5 transition-all max-md:min-h-10 max-md:min-w-10",
             devMode
               ? "text-gold bg-gold/10"
               : "text-muted/40 hover:text-muted"

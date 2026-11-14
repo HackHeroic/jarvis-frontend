@@ -82,7 +82,7 @@ export default function DailyGreeting({
               onClick={() => onRangeChange(value)}
               aria-pressed={isActive}
               className={clsx(
-                "rounded-button px-3 py-1.5 text-xs font-medium transition-colors",
+                "rounded-button px-3 py-1.5 text-xs font-medium transition-colors max-md:min-h-10",
                 isActive
                   ? "bg-terra text-white"
                   : "cursor-pointer text-secondary hover:bg-surface-subtle hover:text-primary",

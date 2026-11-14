@@ -20,7 +20,8 @@
 
   --text-primary: #2C2924;
   --text-secondary: #6B6560;
-  --text-muted: #9C9488;
+  /* #776F65 keeps 4.5:1 on cards and the canvas (was #9C9488, 3.0:1 on white) */
+  --text-muted: #776F65;
 
   /* App shell metrics — the mobile tab bar reserves space for page content */
   --bottom-nav-h: 60px;
@@ -38,8 +39,8 @@
 
   --text-primary: #FAF8F4;
   --text-secondary: #9C9488;
-  --text-muted: #6B6560;
-
+  /* #928A7F keeps 4.5:1 on dark cards and the canvas (was #6B6560, 2.7:1) */
+  --text-muted: #928A7F;
 }
 
 @layer base {
@@ -223,6 +224,31 @@
 @media (min-width: 1024px) {
   .pb-fab {
     padding-bottom: 0;
+  }
+}
+
+/* Schedule Day grid: each block sizes its one-line contents to its own width.
+   A narrow block (side-by-side tasks on a tablet) shows the start time and an
+   icon for Workspace; a wide one the whole range and the word. */
+.day-block {
+  container-type: inline-size;
+}
+
+.day-block .day-wide {
+  display: none;
+}
+
+.day-block .day-narrow {
+  display: inline;
+}
+
+@container (min-width: 340px) {
+  .day-block .day-wide {
+    display: inline;
+  }
+
+  .day-block .day-narrow {
+    display: none;
   }
 }
 

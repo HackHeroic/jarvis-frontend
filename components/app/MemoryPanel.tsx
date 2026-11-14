@@ -232,7 +232,7 @@ export default function MemoryPanel({
                               <button
                                 onClick={() => onDeleteMemory(id)}
                                 disabled={busy}
-                                className="disabled:cursor-not-allowed opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted hover:text-terra transition-opacity text-xs"
+                                className="flex shrink-0 items-center justify-center text-xs text-muted transition-opacity hover:text-terra focus-visible:opacity-100 disabled:cursor-not-allowed group-hover:opacity-100 max-md:-my-3 max-md:-mr-2 max-md:h-10 max-md:w-10 [@media(hover:hover)]:opacity-0"
                                 aria-label="Forget — Jarvis won't store this again."
                                 title="Forget — Jarvis won't store this again."
                               >
@@ -248,7 +248,7 @@ export default function MemoryPanel({
                                 <button
                                   onClick={() => onConfirmPattern(id)}
                                   disabled={busy}
-                                  className="disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-1 text-[10px] font-medium text-sage bg-sage/10 px-2 py-1 rounded-md hover:bg-sage/20 transition-colors"
+                                  className="disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-1 text-[10px] font-medium text-sage bg-sage/10 px-2 py-1 rounded-md hover:bg-sage/20 transition-colors max-md:min-h-10 max-md:px-3 max-md:text-xs"
                                 >
                                   <CheckCircle size={10} />
                                   Confirm
@@ -258,7 +258,7 @@ export default function MemoryPanel({
                                 <button
                                   onClick={() => onDismissPattern(id)}
                                   disabled={busy}
-                                  className="disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-1 text-[10px] font-medium text-muted bg-surface-canvas px-2 py-1 rounded-md hover:bg-surface-muted transition-colors"
+                                  className="disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-1 text-[10px] font-medium text-muted bg-surface-canvas px-2 py-1 rounded-md hover:bg-surface-muted transition-colors max-md:min-h-10 max-md:px-3 max-md:text-xs"
                                 >
                                   <XCircle size={10} />
                                   Not right

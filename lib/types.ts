@@ -669,6 +669,8 @@ export interface SessionMessage {
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
+  /** What the turn produced, as stored: a planning turn keeps its draft's id and slots. */
+  metadata?: { draft_id?: string | null; schedule?: SchedulePayload | null } | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -200,7 +200,7 @@ export function FocusChart({ focus }: FocusChartProps) {
       <figcaption className="mt-2 text-xs text-secondary">{caption}</figcaption>
 
       <details className="mt-2">
-        <summary className="cursor-pointer text-xs text-muted hover:text-secondary">
+        <summary className="cursor-pointer text-xs text-muted hover:text-secondary max-md:flex max-md:min-h-10 max-md:items-center">
           Hour by hour
         </summary>
         <table className="mt-2 w-full text-left text-xs text-secondary">

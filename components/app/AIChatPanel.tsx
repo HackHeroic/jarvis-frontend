@@ -239,12 +239,21 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
   }
 
   return (
+    <>
+    {/* Tablets: the drawer sits over the page; a tap beside it closes it */}
+    <div
+      className="fixed inset-0 z-40 hidden bg-black/30 md:block lg:hidden"
+      onClick={onToggle}
+      aria-hidden="true"
+    />
     <aside
       className={clsx(
         // Phones: a full-screen sheet above the page
         "fixed inset-0 z-50 flex flex-col bg-surface-subtle",
+        // Tablets: a drawer on the right, the nav rail and page still in view
+        "md:left-auto md:w-[min(400px,100%)] md:border-l md:border-border md:shadow-2xl",
         // Desktop: a docked column beside the page
-        "lg:static lg:z-auto lg:w-[300px] lg:shrink-0 lg:border-l lg:border-border xl:w-[340px]",
+        "lg:static lg:z-auto lg:w-[300px] lg:shrink-0 lg:shadow-none xl:w-[340px]",
       )}
       role="dialog"
       aria-label="Jarvis AI"
@@ -361,7 +370,7 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
 
       {/* Input */}
       <div className="sheet-pb shrink-0 border-t border-border px-3 pt-3">
-        <div className="flex items-end gap-2 rounded-[10px] border border-border bg-surface-card px-3 py-2">
+        <div className="flex items-end gap-2 rounded-[10px] border border-border bg-surface-card px-3 py-2 max-md:items-center max-md:py-1.5">
           <textarea
             ref={textareaRef}
             value={input}
@@ -371,13 +380,13 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
             aria-invalid={inputProblem !== null}
             placeholder="Ask Jarvis..."
             rows={1}
-            className="max-h-20 min-w-0 flex-1 resize-none bg-transparent text-sm text-primary placeholder:text-muted focus:outline-none"
+            className="max-h-20 min-w-0 flex-1 resize-none bg-transparent text-sm text-primary placeholder:text-muted focus:outline-none max-md:py-2.5"
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isStreaming || inputProblem !== null}
             className={clsx(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors lg:h-7 lg:w-7",
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors max-md:h-10 max-md:w-10 lg:h-7 lg:w-7",
               input.trim() && !isStreaming && !inputProblem
                 ? "bg-terra text-white"
                 : "bg-surface-muted text-muted"
@@ -394,5 +403,6 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
         )}
       </div>
     </aside>
+    </>
   );
 }

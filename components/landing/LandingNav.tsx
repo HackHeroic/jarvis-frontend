@@ -48,7 +48,7 @@ export default function LandingNav() {
         </a>
         <Link
           href="/dashboard"
-          className="bg-[#D4775A] text-[#1C1A17] font-semibold text-sm px-4 py-2 rounded-lg hover:bg-[#D4775A]/90 transition-colors"
+          className="bg-[#D4775A] text-[#1C1A17] font-semibold text-sm px-4 py-2 rounded-lg hover:bg-[#D4775A]/90 transition-colors max-md:py-2.5"
         >
           Get Started
         </Link>
