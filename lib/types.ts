@@ -719,6 +719,8 @@ export interface TaskWorkspace {
   surfaced_assets: StudyAsset[];
   /** Absent on older backends and cached workspaces: read as "study". */
   task_kind?: TaskKind;
+  /** How to spend this session, when the workspace was composed for the task; '' or absent otherwise. */
+  approach?: string;
   /** What could not be surfaced, in plain words (e.g. web results unavailable). */
   notices?: string[];
   /** The task's own "done when" ('' or absent when it has none). */

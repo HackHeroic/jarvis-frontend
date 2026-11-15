@@ -18,7 +18,9 @@ import { QuizCard } from "@/components/app/QuizCard";
 import {
   excerptSource,
   groupAssets,
+  approachOf,
   noticesOf,
+  preparedTitle,
   quizOf,
   taskFacts,
   woopFor,
@@ -317,6 +319,7 @@ export default function WorkspacePage() {
   const linkedDocuments = linkedDocumentsOf(workspace);
   const notices = noticesOf(workspace);
   const facts = taskFacts(workspace);
+  const approach = approachOf(workspace);
   const nothingFound =
     !!workspace && fromDocuments.length + practice.length + links.length + linkedDocuments.length === 0;
 
@@ -377,6 +380,11 @@ export default function WorkspacePage() {
             {facts.duration && facts.due && <span aria-hidden="true">·</span>}
             {facts.due && <span className="min-w-0 break-words">{facts.due}</span>}
           </div>
+        )}
+        {approach && (
+          <p className="mt-3 rounded-lg border-l-2 border-terra bg-surface-subtle px-3 py-2 text-sm leading-relaxed text-primary">
+            {approach}
+          </p>
         )}
       </div>
 
@@ -455,7 +463,7 @@ export default function WorkspacePage() {
       {practice.length > 0 && (
         <WorkspaceSection
           id="practice"
-          title={["write", "build", "admin"].includes(workspace?.task_kind ?? "") ? "Get started" : "Practice"}
+          title={preparedTitle(workspace)}
         >
           {practice.map((asset, i) => (
             <PracticeAsset key={`practice-${i}`} asset={asset} />

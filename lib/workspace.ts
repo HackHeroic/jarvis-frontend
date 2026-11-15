@@ -327,3 +327,20 @@ export function woopFor(
   if (!obstacle || !plan) return null;
   return { obstacle, plan, outcome: nonEmpty(row.outcome) };
 }
+
+/** The session advice of a composed workspace, trimmed; null when there is none. */
+export function approachOf(workspace: { approach?: string } | null | undefined): string | null {
+  const approach = (workspace?.approach ?? '').trim();
+  return approach === '' ? null : approach;
+}
+
+/**
+ * The heading over what Jarvis prepared. A composed workspace (it has an approach) is
+ * "Prepared for this task"; a recipe-built one keeps the heading of its kind.
+ */
+export function preparedTitle(
+  workspace: { approach?: string; task_kind?: string } | null | undefined,
+): string {
+  if (approachOf(workspace) !== null) return 'Prepared for this task';
+  return ['write', 'build', 'admin'].includes(workspace?.task_kind ?? '') ? 'Get started' : 'Practice';
+}

@@ -390,3 +390,26 @@ describe("woopFor", () => {
     expect(woopFor(null, "nonsense")).toBeNull();
   });
 });
+
+describe("a composed workspace", () => {
+  it("approachOf: trims, and reads a missing or blank approach as none", async () => {
+    const { approachOf } = await import("@/lib/workspace");
+    expect(approachOf({ approach: "  Spend ten minutes recalling.  " })).toBe("Spend ten minutes recalling.");
+    expect(approachOf({ approach: "   " })).toBeNull();
+    expect(approachOf({})).toBeNull();
+    expect(approachOf(null)).toBeNull();
+  });
+
+  it("preparedTitle: a composed workspace is 'Prepared for this task', whatever its kind", async () => {
+    const { preparedTitle } = await import("@/lib/workspace");
+    expect(preparedTitle({ approach: "Do this first.", task_kind: "write" })).toBe("Prepared for this task");
+    expect(preparedTitle({ approach: "Do this first.", task_kind: "study" })).toBe("Prepared for this task");
+  });
+
+  it("preparedTitle: a recipe-built workspace keeps the heading of its kind", async () => {
+    const { preparedTitle } = await import("@/lib/workspace");
+    expect(preparedTitle({ task_kind: "admin" })).toBe("Get started");
+    expect(preparedTitle({ task_kind: "study" })).toBe("Practice");
+    expect(preparedTitle(null)).toBe("Practice");
+  });
+});
