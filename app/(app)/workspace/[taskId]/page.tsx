@@ -3,8 +3,10 @@
 export const runtime = "edge";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { getWorkspace, completeTask } from "@/lib/api";
+import { documentHref, linkedDocumentsOf, type LinkedDocumentView } from "@/lib/documents";
 import { USER_ID } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -23,6 +25,7 @@ import {
   Circle,
   Loader2,
   AlertTriangle,
+  ArrowUpRight,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -118,6 +121,48 @@ function LinkAssetCard({ asset }: { asset: StudyAsset }) {
         <ExternalLink size={14} className="shrink-0 text-muted" />
       </Card>
     </a>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// From your documents
+// ---------------------------------------------------------------------------
+
+/** The user's own uploads linked to this task, each opening in the document viewer. */
+function LinkedDocuments({ documents }: { documents: LinkedDocumentView[] }) {
+  return (
+    <section aria-labelledby="from-your-documents">
+      <h2
+        id="from-your-documents"
+        className="mb-3 text-xs font-semibold uppercase tracking-wider text-secondary"
+      >
+        From your documents
+      </h2>
+      <Card className="divide-y divide-border overflow-hidden">
+        {documents.map((doc) => (
+          <Link
+            key={doc.source_id}
+            href={documentHref(doc.source_id)}
+            className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-subtle max-md:min-h-12"
+          >
+            <div className={clsx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", COLOR_CLASSES.terra.bg)}>
+              <FileText size={16} className={COLOR_CLASSES.terra.text} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-primary">{doc.title}</p>
+              {!doc.has_file && <p className="text-xs text-muted">Extracted text only</p>}
+            </div>
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-terra">
+              Open
+              <ArrowUpRight
+                size={14}
+                className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+              />
+            </span>
+          </Link>
+        ))}
+      </Card>
+    </section>
   );
 }
 
@@ -253,6 +298,7 @@ export default function WorkspacePage() {
   // ---- Group assets by type ----
   const linkAssets = workspace?.surfaced_assets.filter((a) => isLinkAsset(a.asset_type)) ?? [];
   const contentAssets = workspace?.surfaced_assets.filter((a) => !isLinkAsset(a.asset_type)) ?? [];
+  const linkedDocuments = linkedDocumentsOf(workspace);
 
   // ---- Loading state ----
   if (loading) {
@@ -374,8 +420,11 @@ export default function WorkspacePage() {
         </div>
       )}
 
+      {/* The user's own documents linked to this task */}
+      {linkedDocuments.length > 0 && <LinkedDocuments documents={linkedDocuments} />}
+
       {/* Empty materials state */}
-      {workspace && workspace.surfaced_assets.length === 0 && (
+      {workspace && workspace.surfaced_assets.length === 0 && linkedDocuments.length === 0 && (
         <Card className="px-5 py-8 text-center">
           <p className="text-sm text-muted">No study materials surfaced for this task.</p>
         </Card>
