@@ -5,6 +5,8 @@ type BadgeColor = "terra" | "sage" | "dusk" | "gold" | "ink";
 interface BadgeProps {
   color?: BadgeColor;
   children: React.ReactNode;
+  /** Extra classes, e.g. `max-w-full truncate` for a label that may be long. */
+  className?: string;
 }
 
 const colorClasses: Record<BadgeColor, string> = {
@@ -15,12 +17,13 @@ const colorClasses: Record<BadgeColor, string> = {
   ink: "bg-surface-muted text-secondary",
 };
 
-export function Badge({ color = "terra", children }: BadgeProps) {
+export function Badge({ color = "terra", children, className }: BadgeProps) {
   return (
     <span
       className={clsx(
         "inline-block whitespace-nowrap rounded-pill px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
         colorClasses[color],
+        className,
       )}
     >
       {children}

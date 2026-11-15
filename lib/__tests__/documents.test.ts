@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FILE_NOT_KEPT_NOTE,
+  canEmbedPdf,
   UNTITLED_DOCUMENT,
   chunkCountLabel,
   chunksOf,
@@ -13,6 +14,7 @@ import {
   documentKind,
   documentTitle,
   documentTypeLabel,
+  downloadName,
   findDocument,
   formatDocumentDate,
   isFileNotKept,
@@ -109,6 +111,25 @@ describe("viewableBlob", () => {
     const blob = new Blob(["x"]);
     expect(viewableBlob(blob, "image")).toBe(blob);
     expect(viewableBlob(blob, null)).toBe(blob);
+  });
+});
+
+describe("downloadName", () => {
+  it("is the file's own name, else 'document' with the type's extension", () => {
+    expect(downloadName({ file_name: "notes.pdf", media_type: "pdf" })).toBe("notes.pdf");
+    expect(downloadName({ file_name: null, media_type: "pdf" })).toBe("document.pdf");
+    expect(downloadName({ file_name: " ", media_type: "jpeg" })).toBe("document.jpg");
+    expect(downloadName({ file_name: null, media_type: "image" })).toBe("document");
+    expect(downloadName({})).toBe("document");
+  });
+});
+
+describe("canEmbedPdf", () => {
+  it("embeds unless the browser says it has no PDF viewer", () => {
+    expect(canEmbedPdf({ pdfViewerEnabled: true })).toBe(true);
+    expect(canEmbedPdf({})).toBe(true);
+    expect(canEmbedPdf(undefined)).toBe(true);
+    expect(canEmbedPdf({ pdfViewerEnabled: false })).toBe(false);
   });
 });
 

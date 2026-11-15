@@ -93,6 +93,26 @@ export function viewableBlob(blob: Blob, mediaType: string | null | undefined): 
   return mime ? new Blob([blob], { type: mime }) : blob;
 }
 
+/**
+ * Whether a PDF can be shown inside the page. Browsers with no built-in PDF viewer
+ * (Chrome on Android) report `pdfViewerEnabled: false` and would download the file
+ * instead; those get an "Open PDF" button. A browser that does not say is trusted.
+ */
+export function canEmbedPdf(nav: { pdfViewerEnabled?: boolean } | null | undefined): boolean {
+  return nav?.pdfViewerEnabled !== false;
+}
+
+/**
+ * The name a downloaded copy is saved under: the file's own name, else "document"
+ * with the type's extension. (A blob URL's own name is a random id.)
+ */
+export function downloadName(doc: { file_name?: string | null; media_type?: string | null }): string {
+  const name = nonEmpty(doc.file_name);
+  if (name) return name;
+  const ext = nonEmpty(doc.media_type)?.split('/').pop()?.toLowerCase();
+  return ext && ext !== 'image' ? `document.${ext === 'jpeg' ? 'jpg' : ext}` : 'document';
+}
+
 /** "1 chunk", "6 chunks"; null when the count is unknown. */
 export function chunkCountLabel(count: unknown): string | null {
   if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) return null;
