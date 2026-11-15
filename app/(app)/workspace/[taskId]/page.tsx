@@ -453,7 +453,10 @@ export default function WorkspacePage() {
 
       {/* Practice: a quiz, an outline or a checklist */}
       {practice.length > 0 && (
-        <WorkspaceSection id="practice" title="Practice">
+        <WorkspaceSection
+          id="practice"
+          title={["write", "build", "admin"].includes(workspace?.task_kind ?? "") ? "Get started" : "Practice"}
+        >
           {practice.map((asset, i) => (
             <PracticeAsset key={`practice-${i}`} asset={asset} />
           ))}
