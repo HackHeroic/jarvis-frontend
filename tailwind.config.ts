@@ -1,5 +1,12 @@
 import type { Config } from "tailwindcss";
 
+// A theme colour as Tailwind needs it for opacity modifiers (`bg-terra/15`). The colours
+// are CSS variables holding hex values, which Tailwind cannot add an alpha to, so a
+// class with a modifier used to produce no CSS at all. `color-mix` applies the alpha in
+// the browser; with no modifier the alpha is 1 and the colour is unchanged.
+const tint = (variable: string) =>
+  `color-mix(in srgb, var(${variable}) calc(<alpha-value> * 100%), transparent)`;
+
 const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,32 +17,32 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        terra: "var(--color-terra)",
-        sage: "var(--color-sage)",
-        dusk: "var(--color-dusk)",
-        gold: "var(--color-gold)",
-        ink: "var(--color-ink)",
+        terra: tint("--color-terra"),
+        sage: tint("--color-sage"),
+        dusk: tint("--color-dusk"),
+        gold: tint("--color-gold"),
+        ink: tint("--color-ink"),
         surface: {
-          canvas: "var(--surface-canvas)",
-          card: "var(--surface-card)",
-          subtle: "var(--surface-subtle)",
-          muted: "var(--surface-muted)",
+          canvas: tint("--surface-canvas"),
+          card: tint("--surface-card"),
+          subtle: tint("--surface-subtle"),
+          muted: tint("--surface-muted"),
         },
         border: {
-          DEFAULT: "var(--border-default)",
-          strong: "var(--border-strong)",
+          DEFAULT: tint("--border-default"),
+          strong: tint("--border-strong"),
         },
       },
       // A bare `border` (or one whose colour class is not generated, e.g. an
       // opacity modifier on a var() colour) falls back to this. Tailwind's own
       // fallback is gray-200, which drew bright lines across the dark theme.
       borderColor: {
-        DEFAULT: "var(--border-default)",
+        DEFAULT: tint("--border-default"),
       },
       textColor: {
-        primary: "var(--text-primary)",
-        secondary: "var(--text-secondary)",
-        muted: "var(--text-muted)",
+        primary: tint("--text-primary"),
+        secondary: tint("--text-secondary"),
+        muted: tint("--text-muted"),
       },
       fontFamily: {
         display: ["var(--font-inter)", "Inter", "sans-serif"],
