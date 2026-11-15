@@ -17,6 +17,8 @@ export function Markdown({ children, className }: { children: string; className?
         prose-table:block prose-table:max-w-full prose-table:overflow-x-auto prose-table:[overflow-wrap:normal]
         prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:[overflow-wrap:normal]
         [&_.katex-display]:max-w-full [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden
+        [&_.contains-task-list]:list-none [&_.contains-task-list]:pl-0 [&_.task-list-item]:pl-0
+        [&_.task-list-item_input]:mr-2 [&_.task-list-item_input]:align-middle
         prose-headings:text-primary prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1
         prose-p:text-primary prose-p:leading-relaxed prose-p:my-2
         prose-strong:text-primary

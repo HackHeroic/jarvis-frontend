@@ -10,12 +10,22 @@ import { documentHref, linkedDocumentsOf, type LinkedDocumentView } from "@/lib/
 import { USER_ID } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
 import { WoopCard } from "@/components/app/WoopCard";
 import { Markdown } from "@/components/app/Markdown";
 import { QuizCard } from "@/components/app/QuizCard";
-import { excerptSource, groupAssets, noticesOf, quizOf } from "@/lib/workspace";
-import type { TaskWorkspace, StudyAsset, ImplementationIntention } from "@/lib/types";
+import {
+  excerptSource,
+  groupAssets,
+  noticesOf,
+  quizOf,
+  taskFacts,
+  woopFor,
+  workspaceHeader,
+  type WorkspaceWoop,
+} from "@/lib/workspace";
+import type { TaskWorkspace, StudyAsset } from "@/lib/types";
 import {
   ArrowLeft,
   ExternalLink,
@@ -211,12 +221,13 @@ export default function WorkspacePage() {
 
   // Completion criteria tracking
   const [criteria, setCriteria] = useState<string[]>([]);
+  const [subtitle, setSubtitle] = useState<string | null>(null);
   const [checked, setChecked] = useState<boolean[]>([]);
   const [showRating, setShowRating] = useState(false);
   const [completing, setCompleting] = useState(false);
 
-  // WOOP from localStorage
-  const [woop, setWoop] = useState<ImplementationIntention | null>(null);
+  // The task's if-then plan: the chat's plan first, else the workspace's own card
+  const [woop, setWoop] = useState<WorkspaceWoop | null>(null);
 
   // ---- Load workspace ----
   useEffect(() => {
@@ -227,63 +238,39 @@ export default function WorkspacePage() {
         const ws = await getWorkspace(taskId);
         if (cancelled) return;
 
-        // Parse criteria from primary_objective or from localStorage execution_graph
-        const parsedCriteria: string[] = [];
+        // What the chat's last plan said about this task, if it planned it
+        let storedTask: Record<string, unknown> | null = null;
         try {
           const stored = localStorage.getItem("jarvis-last-chat-response");
           if (stored) {
             const response = JSON.parse(stored);
-            if (response.execution_graph) {
-              const task = response.execution_graph.decomposition?.find(
-                (t: Record<string, unknown>) => t.task_id === taskId,
-              );
-              if (task?.completion_criteria) {
-                const lines = (task.completion_criteria as string)
-                  .split(/[;\n]/)
-                  .map((s: string) => s.trim())
-                  .filter(Boolean);
-                parsedCriteria.push(...lines);
-              }
-              if (task?.implementation_intention) {
-                setWoop(task.implementation_intention as ImplementationIntention);
-              }
-            }
+            const task = response?.execution_graph?.decomposition?.find(
+              (t: Record<string, unknown>) => t?.task_id === taskId,
+            );
+            if (task && typeof task === "object") storedTask = task as Record<string, unknown>;
           }
         } catch {
-          // ignore
+          // unreadable: as if the chat never planned it
         }
+        const storedCriteria =
+          typeof storedTask?.completion_criteria === "string" ? [storedTask.completion_criteria] : [];
 
-        if (ws) {
-          setWorkspace(ws);
-          // Fallback: use primary_objective as single criterion
-          if (parsedCriteria.length === 0 && ws.primary_objective) {
-            parsedCriteria.push(ws.primary_objective);
-          }
-        } else {
-          // Backend returned null (404/503) — build a minimal workspace from local data
-          const taskTitle = (() => {
-            try {
-              const stored = localStorage.getItem("jarvis-last-chat-response");
-              if (stored) {
-                const response = JSON.parse(stored);
-                const task = response.execution_graph?.decomposition?.find(
-                  (t: Record<string, unknown>) => t.task_id === taskId,
-                );
-                return (task?.title as string) || `Task ${taskId.slice(0, 8)}`;
-              }
-            } catch { /* ignore */ }
-            return `Task ${taskId.slice(0, 8)}`;
-          })();
-          setWorkspace({
-            task_id: taskId,
-            task_title: taskTitle,
-            primary_objective: parsedCriteria[0] || "",
-            surfaced_assets: [],
-          });
-        }
+        // Backend returned null (404/503): a minimal workspace from local data
+        const shown: TaskWorkspace = ws ?? {
+          task_id: taskId,
+          task_title:
+            (typeof storedTask?.title === "string" && storedTask.title) || `Task ${taskId.slice(0, 8)}`,
+          primary_objective: "",
+          surfaced_assets: [],
+        };
+        setWorkspace(shown);
 
-        setCriteria(parsedCriteria);
-        setChecked(new Array(parsedCriteria.length).fill(false));
+        // The task's own criteria first; never one that only repeats the title
+        const header = workspaceHeader(shown, storedCriteria);
+        setCriteria(header.criteria);
+        setSubtitle(header.subtitle);
+        setChecked(new Array(header.criteria.length).fill(false));
+        setWoop(woopFor(shown, storedTask?.implementation_intention));
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load workspace");
@@ -329,6 +316,7 @@ export default function WorkspacePage() {
   const { fromDocuments, practice, links } = groupAssets(workspace?.surfaced_assets);
   const linkedDocuments = linkedDocumentsOf(workspace);
   const notices = noticesOf(workspace);
+  const facts = taskFacts(workspace);
   const nothingFound =
     !!workspace && fromDocuments.length + practice.length + links.length + linkedDocuments.length === 0;
 
@@ -378,11 +366,17 @@ export default function WorkspacePage() {
           <ArrowLeft size={14} />
           Back
         </button>
-        <h1 className="text-xl font-bold text-primary">
+        <h1 className="break-words text-xl font-bold text-primary">
           {workspace?.task_title ?? "Workspace"}
         </h1>
-        {workspace?.primary_objective && (
-          <p className="mt-1 text-sm text-secondary">{workspace.primary_objective}</p>
+        {subtitle && <p className="mt-1 break-words text-sm text-secondary">{subtitle}</p>}
+        {(facts.kind || facts.duration || facts.due) && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+            {facts.kind && <Badge color="dusk">{facts.kind}</Badge>}
+            {facts.duration && <span>{facts.duration}</span>}
+            {facts.duration && facts.due && <span aria-hidden="true">·</span>}
+            {facts.due && <span className="min-w-0 break-words">{facts.due}</span>}
+          </div>
         )}
       </div>
 
@@ -422,7 +416,7 @@ export default function WorkspacePage() {
                   )}
                   <span
                     className={clsx(
-                      "text-sm text-primary",
+                      "min-w-0 break-words text-sm text-primary",
                       checked[i] && "line-through opacity-60",
                     )}
                   >
@@ -493,8 +487,9 @@ export default function WorkspacePage() {
       {woop && (
         <WoopCard
           wish={workspace?.task_title ?? ""}
-          obstacle={woop.obstacle_trigger}
-          plan={woop.behavioral_response}
+          outcome={woop.outcome ?? undefined}
+          obstacle={woop.obstacle}
+          plan={woop.plan}
           taskId={taskId}
         />
       )}

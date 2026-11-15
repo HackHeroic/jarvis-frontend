@@ -6,7 +6,8 @@
  * as a crash.
  */
 
-import type { Quiz, QuizQuestion, StudyAsset } from './types';
+import { dueHintLabel } from './schedule';
+import type { Quiz, QuizQuestion, StudyAsset, TaskKind } from './types';
 
 // ---------------------------------------------------------------------------
 // Sections
@@ -179,4 +180,150 @@ export function noticesOf(workspace: { notices?: unknown } | null | undefined): 
     out.push(text);
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// The task's own details: criteria, subtitle, kind, length, due
+// ---------------------------------------------------------------------------
+
+/** Spaces and common punctuation at either end of a text. */
+const EDGE_PUNCTUATION = /^[\s.,;:!?'"`()[\]{}\-\u2013\u2014\u2026]+|[\s.,;:!?'"`()[\]{}\-\u2013\u2014\u2026]+$/g;
+
+/** Lower case, inner spaces collapsed, edge punctuation dropped: how two texts are compared. */
+function comparable(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(EDGE_PUNCTUATION, '');
+}
+
+/** True when `text` is the title again (or blank): nothing a reader does not already see. */
+export function repeatsTitle(text: string, title: string): boolean {
+  const t = comparable(text);
+  return !t || t === comparable(title);
+}
+
+/**
+ * True when a `primary_objective` adds nothing to the title. The backend builds it as
+ * the title with the task's topic words run on after it, so the title alone, or the
+ * title followed by more words, is a repeat.
+ */
+export function objectiveRepeatsTitle(objective: string, title: string): boolean {
+  if (repeatsTitle(objective, title)) return true;
+  const head = comparable(title);
+  return !!head && comparable(objective).startsWith(`${head} `);
+}
+
+/**
+ * Completion criteria written as one text, as separate items: split on new lines and
+ * semicolons, list markers ("- ", "* ", "1. ") dropped, blanks skipped.
+ */
+export function splitCriteria(text: unknown): string[] {
+  if (typeof text !== 'string') return [];
+  return text
+    .split(/[;\n]/)
+    .map((line) => line.trim().replace(/^(?:[-*\u2022]|\d+[.)])\s+/, '').trim())
+    .filter(Boolean);
+}
+
+/** What the workspace's header and its "Completion criteria" card show. */
+export interface WorkspaceHeader {
+  /** A line under the title; null when it would only repeat the title or a criterion. */
+  subtitle: string | null;
+  /** The criteria to check off; [] when there is none worth showing (none is guessed). */
+  criteria: string[];
+}
+
+/**
+ * The criteria and subtitle for a task's workspace. The task's own
+ * `completion_criteria` comes first; without it, the criteria the chat's plan
+ * stored for the task (`stored`), then `primary_objective`. A criterion that is
+ * only the task's title again, or an objective that is only the title (with its
+ * topic words run on), is never shown, and the subtitle is left out when it is
+ * already the criterion.
+ */
+export function workspaceHeader(
+  workspace: { task_title?: unknown; primary_objective?: unknown; completion_criteria?: unknown } | null | undefined,
+  stored: string[] = [],
+): WorkspaceHeader {
+  const title = nonEmpty(workspace?.task_title) ?? '';
+  const keep = (items: string[]) => items.filter((c) => !repeatsTitle(c, title));
+
+  const objective = nonEmpty(workspace?.primary_objective);
+  const objectiveShown = objective && !objectiveRepeatsTitle(objective, title) ? objective : null;
+
+  let criteria = keep(splitCriteria(workspace?.completion_criteria));
+  if (criteria.length === 0) criteria = keep(stored.flatMap(splitCriteria));
+  if (criteria.length === 0 && objectiveShown) criteria = [objectiveShown];
+
+  const subtitle =
+    objectiveShown && !criteria.some((c) => comparable(c) === comparable(objectiveShown))
+      ? objectiveShown
+      : null;
+  return { subtitle, criteria };
+}
+
+const KIND_LABELS: Record<TaskKind, string> = {
+  practice: 'Practice',
+  study: 'Study',
+  write: 'Writing',
+  build: 'Building',
+  admin: 'Admin',
+};
+
+/** "25 min", "1 h", "1 h 30 min"; null when the length is unknown or not a positive number. */
+export function durationLabel(minutes: unknown): string | null {
+  if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes <= 0) return null;
+  const total = Math.round(minutes);
+  if (total < 60) return `${Math.max(1, total)} min`;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+/**
+ * The small facts shown under a workspace's title: what kind of work it is (only
+ * when the backend says), how long it is planned for, and when it is due. Each is
+ * null when unknown.
+ */
+export function taskFacts(
+  workspace: { task_kind?: unknown; duration_minutes?: unknown; deadline_hint?: unknown } | null | undefined,
+): { kind: string | null; duration: string | null; due: string | null } {
+  const kind = typeof workspace?.task_kind === 'string' ? workspace.task_kind : '';
+  const hint = nonEmpty(workspace?.deadline_hint);
+  return {
+    kind: Object.prototype.hasOwnProperty.call(KIND_LABELS, kind) ? KIND_LABELS[kind as TaskKind] : null,
+    duration: durationLabel(workspace?.duration_minutes),
+    due: hint ? dueHintLabel(hint) || null : null,
+  };
+}
+
+/** The if-then plan a workspace shows (the WOOP card's obstacle and plan). */
+export interface WorkspaceWoop {
+  obstacle: string;
+  plan: string;
+  outcome: string | null;
+}
+
+/**
+ * The task's if-then plan: the one the chat's plan stored for it (`stored`, an
+ * `implementation_intention`) first, else the workspace's own `woop_card`. Null when
+ * neither has both an obstacle and a plan.
+ */
+export function woopFor(
+  workspace: { woop_card?: unknown } | null | undefined,
+  stored?: unknown,
+): WorkspaceWoop | null {
+  const local = (stored ?? null) as { obstacle_trigger?: unknown; behavioral_response?: unknown } | null;
+  const localObstacle = nonEmpty(local?.obstacle_trigger);
+  const localPlan = nonEmpty(local?.behavioral_response);
+  if (localObstacle && localPlan) return { obstacle: localObstacle, plan: localPlan, outcome: null };
+
+  const card = workspace?.woop_card;
+  if (!card || typeof card !== 'object') return null;
+  const row = card as Record<string, unknown>;
+  const obstacle = nonEmpty(row.obstacle);
+  const plan = nonEmpty(row.plan);
+  if (!obstacle || !plan) return null;
+  return { obstacle, plan, outcome: nonEmpty(row.outcome) };
 }

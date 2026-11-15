@@ -6,12 +6,19 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  durationLabel,
   excerptSource,
   groupAssets,
   isWebUrl,
   noticesOf,
+  objectiveRepeatsTitle,
   quizOf,
+  repeatsTitle,
   revealedLabel,
+  splitCriteria,
+  taskFacts,
+  woopFor,
+  workspaceHeader,
 } from "@/lib/workspace";
 import type { StudyAsset } from "@/lib/types";
 
@@ -193,5 +200,193 @@ describe("noticesOf", () => {
     expect(noticesOf({})).toEqual([]);
     expect(noticesOf(null)).toEqual([]);
     expect(noticesOf({ notices: "one" })).toEqual([]);
+  });
+});
+
+describe("workspaceHeader", () => {
+  const TITLE = "Revise DBMS normalisation";
+
+  it("the task's own completion criteria is the criterion, and the title is not repeated under it", () => {
+    const header = workspaceHeader({
+      task_title: TITLE,
+      primary_objective: "Revise DBMS normalisation dbms normalisation",
+      completion_criteria: "Normalise one schema to 3NF from memory",
+    });
+    expect(header).toEqual({ subtitle: null, criteria: ["Normalise one schema to 3NF from memory"] });
+  });
+
+  it("the task's own criteria win over what the chat's plan stored", () => {
+    const header = workspaceHeader(
+      { task_title: TITLE, primary_objective: TITLE, completion_criteria: "Normalise one schema to 3NF" },
+      ["Read the slides"],
+    );
+    expect(header.criteria).toEqual(["Normalise one schema to 3NF"]);
+  });
+
+  it("criteria written as a list become separate items", () => {
+    const header = workspaceHeader({
+      task_title: TITLE,
+      primary_objective: TITLE,
+      completion_criteria: "- Define 2NF\n- Define 3NF; give one example",
+    });
+    expect(header.criteria).toEqual(["Define 2NF", "Define 3NF", "give one example"]);
+  });
+
+  it("without the task's own, the chat's stored criteria are used (today's fallback)", () => {
+    const header = workspaceHeader({ task_title: TITLE, primary_objective: TITLE, completion_criteria: "" }, [
+      "Solve 3 problems; explain one aloud",
+    ]);
+    expect(header.criteria).toEqual(["Solve 3 problems", "explain one aloud"]);
+  });
+
+  it("then an objective that says more than the title is the criterion, and not shown twice", () => {
+    const header = workspaceHeader({ task_title: TITLE, primary_objective: "Be able to explain BCNF to a friend" });
+    expect(header).toEqual({ subtitle: null, criteria: ["Be able to explain BCNF to a friend"] });
+  });
+
+  it("an objective that is only the title (with its topic words run on) is never shown: no criterion, no subtitle", () => {
+    expect(workspaceHeader({ task_title: TITLE, primary_objective: TITLE })).toEqual({ subtitle: null, criteria: [] });
+    expect(workspaceHeader({ task_title: TITLE, primary_objective: "revise dbms normalisation." })).toEqual({
+      subtitle: null,
+      criteria: [],
+    });
+    expect(
+      workspaceHeader({ task_title: TITLE, primary_objective: "Revise DBMS normalisation normalisation 3nf bcnf" }),
+    ).toEqual({ subtitle: null, criteria: [] });
+  });
+
+  it("a stored criterion or the task's criteria that is just the title is dropped", () => {
+    expect(workspaceHeader({ task_title: TITLE, primary_objective: TITLE }, [TITLE]).criteria).toEqual([]);
+    expect(workspaceHeader({ task_title: TITLE, primary_objective: TITLE, completion_criteria: `${TITLE}.` }).criteria).toEqual([]);
+  });
+
+  it("a criterion that only starts with the title is kept: it says more", () => {
+    const header = workspaceHeader({
+      task_title: TITLE,
+      primary_objective: TITLE,
+      completion_criteria: "Revise DBMS normalisation until you can do 3NF from memory",
+    });
+    expect(header.criteria).toEqual(["Revise DBMS normalisation until you can do 3NF from memory"]);
+  });
+
+  it("an objective that differs from the criterion is the subtitle", () => {
+    const header = workspaceHeader({
+      task_title: TITLE,
+      primary_objective: "Get ready for Quiz 1",
+      completion_criteria: "Normalise one schema to 3NF",
+    });
+    expect(header).toEqual({ subtitle: "Get ready for Quiz 1", criteria: ["Normalise one schema to 3NF"] });
+  });
+
+  it("an older backend or cached workspace without the new fields still reads", () => {
+    expect(workspaceHeader({ task_title: TITLE, primary_objective: TITLE, completion_criteria: null })).toEqual({
+      subtitle: null,
+      criteria: [],
+    });
+    expect(workspaceHeader(null)).toEqual({ subtitle: null, criteria: [] });
+  });
+});
+
+describe("repeatsTitle and objectiveRepeatsTitle", () => {
+  it("compare without case, spacing or edge punctuation", () => {
+    expect(repeatsTitle("  revise   DBMS normalisation!", "Revise DBMS normalisation")).toBe(true);
+    expect(repeatsTitle("", "Anything")).toBe(true);
+    expect(repeatsTitle("Revise DBMS", "Revise DBMS normalisation")).toBe(false);
+  });
+
+  it("an objective is a repeat when it is the title with words run on; a criterion is not", () => {
+    expect(objectiveRepeatsTitle("Revise DBMS normalisation 3nf", "Revise DBMS normalisation")).toBe(true);
+    expect(repeatsTitle("Revise DBMS normalisation 3nf", "Revise DBMS normalisation")).toBe(false);
+    expect(objectiveRepeatsTitle("Revise DBMS normalisationally", "Revise DBMS normalisation")).toBe(false);
+  });
+
+  it("a title in another script is compared as written", () => {
+    expect(repeatsTitle("डेटाबेस दोहराएँ", "डेटाबेस दोहराएँ")).toBe(true);
+    expect(repeatsTitle("नॉर्मलाइज़ेशन", "डेटाबेस दोहराएँ")).toBe(false);
+  });
+});
+
+describe("splitCriteria", () => {
+  it("splits on new lines and semicolons and drops list markers", () => {
+    expect(splitCriteria("1. Define 2NF\n2) Define 3NF\n* Example; \u2022 Check")).toEqual([
+      "Define 2NF",
+      "Define 3NF",
+      "Example",
+      "Check",
+    ]);
+  });
+
+  it("anything but text is no criteria", () => {
+    expect(splitCriteria(undefined)).toEqual([]);
+    expect(splitCriteria(42)).toEqual([]);
+    expect(splitCriteria(" ; \n ")).toEqual([]);
+  });
+});
+
+describe("taskFacts", () => {
+  it("names the kind of work, its length and when it is due", () => {
+    expect(taskFacts({ task_kind: "write", duration_minutes: 25, deadline_hint: "Friday" })).toEqual({
+      kind: "Writing",
+      duration: "25 min",
+      due: "Friday",
+    });
+  });
+
+  it("a bare date reads as a day", () => {
+    expect(taskFacts({ deadline_hint: "2026-11-17" }).due).toBe("due Tue 17 Nov");
+  });
+
+  it("anything unknown is left out, never guessed", () => {
+    expect(taskFacts({})).toEqual({ kind: null, duration: null, due: null });
+    expect(taskFacts({ task_kind: "chores", duration_minutes: null, deadline_hint: "  " })).toEqual({
+      kind: null,
+      duration: null,
+      due: null,
+    });
+    expect(taskFacts({ task_kind: "toString" }).kind).toBeNull();
+    expect(taskFacts(null)).toEqual({ kind: null, duration: null, due: null });
+  });
+});
+
+describe("durationLabel", () => {
+  it("minutes, hours, or both", () => {
+    expect(durationLabel(25)).toBe("25 min");
+    expect(durationLabel(60)).toBe("1 h");
+    expect(durationLabel(90)).toBe("1 h 30 min");
+    expect(durationLabel(0.4)).toBe("1 min");
+  });
+
+  it("no length for zero, negative or non-numbers", () => {
+    expect(durationLabel(0)).toBeNull();
+    expect(durationLabel(-5)).toBeNull();
+    expect(durationLabel("25")).toBeNull();
+    expect(durationLabel(Number.NaN)).toBeNull();
+  });
+});
+
+describe("woopFor", () => {
+  const CARD = { wish: "Revise", outcome: "Calm in the quiz", obstacle: "If the notes feel too long", plan: "then revise only 2NF" };
+
+  it("the chat's stored plan comes first", () => {
+    expect(woopFor({ woop_card: CARD }, { obstacle_trigger: "If tired", behavioral_response: "then do 10 minutes" })).toEqual({
+      obstacle: "If tired",
+      plan: "then do 10 minutes",
+      outcome: null,
+    });
+  });
+
+  it("else the workspace's own card", () => {
+    expect(woopFor({ woop_card: CARD })).toEqual({
+      obstacle: "If the notes feel too long",
+      plan: "then revise only 2NF",
+      outcome: "Calm in the quiz",
+    });
+  });
+
+  it("none without both an obstacle and a plan", () => {
+    expect(woopFor({ woop_card: { ...CARD, plan: "" } })).toBeNull();
+    expect(woopFor({ woop_card: null }, { obstacle_trigger: "If tired" })).toBeNull();
+    expect(woopFor({})).toBeNull();
+    expect(woopFor(null, "nonsense")).toBeNull();
   });
 });

@@ -701,6 +701,14 @@ export interface Quiz {
   questions: QuizQuestion[];
 }
 
+/** A workspace's WOOP card (app/schemas/workspace.py `WoopCard`). */
+export interface WorkspaceWoopCard {
+  wish: string;
+  outcome?: string;
+  obstacle: string;
+  plan: string;
+}
+
 /** What kind of work a task is, which decides what its workspace offers. */
 export type TaskKind = "practice" | "study" | "write" | "build" | "admin";
 
@@ -713,6 +721,14 @@ export interface TaskWorkspace {
   task_kind?: TaskKind;
   /** What could not be surfaced, in plain words (e.g. web results unavailable). */
   notices?: string[];
+  /** The task's own "done when" ('' or absent when it has none). */
+  completion_criteria?: string;
+  /** How long the task is planned for; null or absent when unknown. */
+  duration_minutes?: number | null;
+  /** When it is due, as the plan said it ("Friday") or a YYYY-MM-DD date; null when none. */
+  deadline_hint?: string | null;
+  /** The task's if-then plan (WOOP), when it has one. */
+  woop_card?: WorkspaceWoopCard | null;
   /** The user's uploaded documents linked to this task. Absent on older backends. */
   linked_documents?: LinkedDocument[];
 }
