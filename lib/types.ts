@@ -646,6 +646,44 @@ export interface TaskWorkspace {
   task_title: string;
   primary_objective: string;
   surfaced_assets: StudyAsset[];
+  /** The user's uploaded documents linked to this task. Absent on older backends. */
+  linked_documents?: LinkedDocument[];
+}
+
+// ---------------------------------------------------------------------------
+// Documents
+// ---------------------------------------------------------------------------
+
+/** One uploaded document, as `GET /documents/` lists it. */
+export interface IngestionDocument {
+  id: string;
+  user_id: string;
+  source_id: string;
+  file_name: string | null;
+  /** 'pdf', 'png', 'jpeg' or 'image' (what the upload sent); null when unknown. */
+  media_type: string | null;
+  document_topics: string[];
+  chunk_count: number;
+  created_at: string;
+  linked_task_ids: string[];
+  /** True when the original file was kept (`GET /documents/{id}/file`). Absent on older backends. */
+  has_file?: boolean;
+  /** The linked tasks with their titles. Absent on older backends: only `linked_task_ids` then. */
+  linked_tasks?: DocumentLinkedTask[];
+}
+
+/** A task an uploaded document is linked to, by its title. */
+export interface DocumentLinkedTask {
+  task_id: string;
+  title: string;
+}
+
+/** An uploaded document linked to a task, as the task's workspace lists it. */
+export interface LinkedDocument {
+  source_id: string;
+  file_name: string | null;
+  /** True when the original file was kept, so it can be opened in the viewer. */
+  has_file: boolean;
 }
 
 // ---------------------------------------------------------------------------

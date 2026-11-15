@@ -7,6 +7,7 @@
 import { API_BASE, IS_DEMO_MODE, USER_ID } from './constants';
 import { FILE_TOO_BIG, PROMPT_TOO_LONG } from './chatLimits';
 import { toConsentRequest, toSinceLastSpoke } from './learning';
+import { chunksOf, findDocument, normalizeDocuments } from './documents';
 import {
   ContractError,
   parseAcceptResponse,
@@ -42,6 +43,7 @@ import type {
   AcceptSuggestionResponse,
   RunTriggerResponse,
   TriggerName,
+  IngestionDocument,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -614,30 +616,79 @@ export async function pinSession(
 // Document Management
 // ---------------------------------------------------------------------------
 
-export interface IngestionDocument {
-  id: string;
-  user_id: string;
-  source_id: string;
-  file_name: string | null;
-  media_type: string | null;
-  document_topics: string[];
-  chunk_count: number;
-  created_at: string;
-  linked_task_ids: string[];
-}
+export type { IngestionDocument };
 
+/**
+ * The user's documents, newest first. Rows are normalised (`normalizeDocuments`):
+ * a field an older backend leaves out never breaks the page. Throws `ApiError` on
+ * an outage — never `[]`.
+ */
 export async function listDocuments(
   userId: string = USER_ID,
+  options?: RequestOptions,
 ): Promise<IngestionDocument[]> {
   if (IS_DEMO_MODE) return [];
   const res = await fetch(
     `${API_BASE}/api/v1/documents/?user_id=${encodeURIComponent(userId)}`,
+    { signal: options?.signal },
   );
   if (res.status === 404) return [];
   // A 5xx is an outage, never "no documents".
   if (!res.ok) throw await apiError(res, 'Failed to list documents');
-  const data = await res.json();
-  return data.documents ?? [];
+  return normalizeDocuments(await res.json());
+}
+
+/**
+ * One document's details. There is no single-document route, so this is the list,
+ * filtered: null when the document is not the caller's or is gone. Throws `ApiError`
+ * on an outage.
+ */
+export async function getDocument(
+  sourceId: string,
+  options?: RequestOptions,
+): Promise<IngestionDocument | null> {
+  return findDocument(await listDocuments(USER_ID, options), sourceId);
+}
+
+/**
+ * The original uploaded file, as the bytes it was served with. Throws `ApiError`:
+ * 404 when the file was not kept (uploaded before files were) or the document is
+ * not the caller's, 503 when storage cannot be reached.
+ */
+export async function getDocumentFile(
+  sourceId: string,
+  options?: RequestOptions,
+): Promise<Blob> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/documents/${encodeURIComponent(sourceId)}/file?${userQuery()}`,
+    { signal: options?.signal },
+  );
+  if (!res.ok) throw await apiError(res, 'Failed to open the document');
+  return res.blob();
+}
+
+/** What Jarvis read from a document: its extracted text, chunk by chunk. */
+export interface DocumentChunks {
+  source_id: string;
+  chunks: string[];
+  count: number;
+}
+
+/**
+ * A document's extracted text (`GET /documents/{id}/chunks`); blank chunks are
+ * dropped. Throws `ApiError` (503 when the knowledge store cannot be reached).
+ */
+export async function getDocumentChunks(
+  sourceId: string,
+  options?: RequestOptions,
+): Promise<DocumentChunks> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/documents/${encodeURIComponent(sourceId)}/chunks?${userQuery()}`,
+    { signal: options?.signal },
+  );
+  if (!res.ok) throw await apiError(res, 'Failed to load the document text');
+  const chunks = chunksOf(await res.json());
+  return { source_id: sourceId, chunks, count: chunks.length };
 }
 
 export async function deleteDocument(
