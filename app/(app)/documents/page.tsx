@@ -1,8 +1,20 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import Link from "next/link";
 import { listDocuments, deleteDocument, processDocument } from "@/lib/api";
 import type { IngestionDocument } from "@/lib/api";
+import {
+  chunkCountLabel,
+  documentHref,
+  documentKind,
+  documentTitle,
+  documentTypeLabel,
+  formatDocumentDate,
+  linkedTasksLabel,
+  linkedTasksOf,
+  titledTasks,
+} from "@/lib/documents";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -18,6 +30,8 @@ import {
   Loader2,
   X,
   AlertTriangle,
+  ChevronRight,
+  ListChecks,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -37,13 +51,6 @@ const ACCEPT_STRING = Object.keys(ACCEPTED_TYPES).join(",");
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** A document's name in the list: the file's own name, else what it is about. */
-function documentTitle(doc: IngestionDocument): string {
-  if (doc.file_name) return doc.file_name;
-  const topics = (doc.document_topics ?? []).slice(0, 2).join(" · ");
-  return topics || "Untitled document";
-}
-
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -58,16 +65,78 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return iso;
-  }
+/** One document in the list: a link to its viewer, with what it is and the tasks it feeds. */
+function DocumentRow({ doc, onDelete }: { doc: IngestionDocument; onDelete: () => void }) {
+  const title = documentTitle(doc);
+  const type = documentTypeLabel(doc.media_type);
+  const facts = [chunkCountLabel(doc.chunk_count), formatDocumentDate(doc.created_at)].filter(
+    (f): f is string => Boolean(f),
+  );
+  const tasks = linkedTasksOf(doc);
+  const linkedLabel = linkedTasksLabel(tasks.length);
+  const chips = titledTasks(tasks, 2);
+
+  return (
+    <Card className="group flex items-center transition-colors hover:border-border-strong">
+      <Link
+        href={documentHref(doc.source_id)}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-card py-3 pl-4 pr-2 focus-visible:outline-offset-[-2px]"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-subtle">
+          {documentKind(doc.media_type) === "image" ? (
+            <ImageIcon size={18} className="text-dusk" />
+          ) : (
+            <FileText size={18} className="text-terra" />
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-primary">{title}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted">
+            {type && <Badge color="ink">{type}</Badge>}
+            {facts.map((fact, i) => (
+              <span key={fact} className="flex items-center gap-1.5 whitespace-nowrap">
+                {(i > 0 || type) && <span aria-hidden="true">&middot;</span>}
+                {fact}
+              </span>
+            ))}
+          </div>
+          {linkedLabel && (
+            <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted">
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <ListChecks size={12} className="text-dusk" />
+                {linkedLabel}
+              </span>
+              {chips.map((task) => (
+                <span
+                  key={task.task_id}
+                  className="max-w-full truncate rounded-pill bg-surface-muted px-2 py-0.5 font-medium text-secondary sm:max-w-[16rem]"
+                >
+                  {task.title}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <ChevronRight
+          size={16}
+          aria-hidden="true"
+          className="shrink-0 text-muted transition-transform group-hover:translate-x-0.5 max-sm:hidden"
+        />
+      </Link>
+
+      <button
+        type="button"
+        onClick={onDelete}
+        aria-label={`Delete ${title}`}
+        title="Delete document"
+        className="mr-2 flex shrink-0 items-center justify-center rounded-button p-2 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500 max-md:h-10 max-md:w-10"
+      >
+        <Trash2 size={16} />
+      </button>
+    </Card>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -124,7 +193,6 @@ export default function DocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<IngestionDocument | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -313,85 +381,13 @@ export default function DocumentsPage() {
 
       {/* Document list */}
       {docList.kind === "ready" && (
-        <div className="space-y-2">
+        <ul className="space-y-2">
           {docList.items.map((doc) => (
-            <Card
-              key={doc.id}
-              className="cursor-pointer px-4 py-3 transition-colors hover:border-border-strong"
-              onClick={() => setExpandedId(expandedId === doc.id ? null : doc.id)}
-            >
-            <div className="flex items-center gap-3">
-              {/* Icon */}
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-subtle">
-                {doc.media_type?.includes("image") ? (
-                  <ImageIcon size={18} className="text-dusk" />
-                ) : (
-                  <FileText size={18} className="text-terra" />
-                )}
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-primary truncate">
-                  {documentTitle(doc)}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  {doc.media_type && (
-                    <Badge color="ink">{doc.media_type.split("/").pop()?.toUpperCase()}</Badge>
-                  )}
-                  {doc.document_topics.slice(0, 3).map((topic, i) => (
-                    <Badge key={i} color="sage">{topic}</Badge>
-                  ))}
-                  <span className="text-[10px] text-muted">
-                    {doc.chunk_count} chunk{doc.chunk_count !== 1 ? "s" : ""} &middot; {formatDate(doc.created_at)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Delete */}
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setDeleteTarget(doc); }}
-                className="flex shrink-0 items-center justify-center rounded-button p-2 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500 max-md:h-10 max-md:w-10"
-                title="Delete document"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-
-            {/* Expanded detail — everything Jarvis stored about this document */}
-            {expandedId === doc.id && (
-              <div className="mt-3 border-t border-border pt-3 text-xs space-y-2">
-                {doc.document_topics.length > 0 && (
-                  <div>
-                    <p className="font-medium text-secondary mb-1">Topics extracted</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {doc.document_topics.map((t, i) => (
-                        <Badge key={i} color="sage">{t}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <p className="font-medium text-secondary mb-1">Linked tasks</p>
-                  {doc.linked_task_ids.length > 0 ? (
-                    <ul className="list-disc pl-4 text-primary space-y-0.5">
-                      {doc.linked_task_ids.map((t) => <li key={t}>{t}</li>)}
-                    </ul>
-                  ) : (
-                    <p className="text-muted">None yet — links form when task titles match this content.</p>
-                  )}
-                </div>
-                <p className="text-muted">
-                  {doc.chunk_count} chunk{doc.chunk_count !== 1 ? "s" : ""} in the knowledge base
-                  &middot; source {doc.source_id.slice(0, 8)}
-                  &middot; the original file isn&apos;t stored — only its extracted knowledge (privacy by design).
-                </p>
-              </div>
-            )}
-            </Card>
+            <li key={doc.source_id}>
+              <DocumentRow doc={doc} onDelete={() => setDeleteTarget(doc)} />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       {/* Delete confirmation dialog */}
