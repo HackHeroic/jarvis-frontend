@@ -51,6 +51,8 @@ interface JarvisResponseProps {
   draftCard?: DraftCardState;
   /** Send a chat message on the user's behalf (the infeasible-scope choices). */
   onSendMessage?: (text: string) => void;
+  /** A memory this turn remembered was forgotten from its line (Undo). */
+  onMemoryForgotten?: (memoryId: string) => void;
 }
 
 // What each infeasible-scope choice says to Jarvis.
@@ -236,6 +238,7 @@ export function JarvisResponse({
   onRejectDraft,
   draftCard,
   onSendMessage,
+  onMemoryForgotten,
 }: JarvisResponseProps) {
   const {
     content,
@@ -329,8 +332,14 @@ export function JarvisResponse({
         </div>
       )}
 
-      {/* 4b. What Jarvis learned this turn — every observation, inline under its reply */}
-      {learningMoments.length > 0 && <LearningMoments moments={learningMoments} />}
+      {/* 4b. What Jarvis learned this turn: "Remembered" / "Updated" with Undo, "I noticed" */}
+      {learningMoments.length > 0 && (
+        <LearningMoments
+          moments={learningMoments}
+          canUndo={!isStreaming}
+          onMemoryForgotten={onMemoryForgotten}
+        />
+      )}
 
       {/* 4c. The turn paused for consent — explained, no approve button (no resume path yet) */}
       {consentRequest && (

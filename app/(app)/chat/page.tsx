@@ -74,6 +74,7 @@ function ChatPage() {
     devMode,
     toggleDevMode,
     dismissLearningToast,
+    markMemoryForgotten,
   } = useJarvisChat();
 
   const searchParams = useSearchParams();
@@ -163,6 +164,14 @@ function ChatPage() {
       }
     },
     [runMemoryAction, refreshMemories, showToast],
+  );
+  /** Undo under a reply forgot a memory: its lines read "Forgotten", and the panel re-reads. */
+  const handleMemoryForgotten = useCallback(
+    (memoryId: string) => {
+      markMemoryForgotten(memoryId);
+      void refreshMemories();
+    },
+    [markMemoryForgotten, refreshMemories],
   );
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -418,6 +427,7 @@ function ChatPage() {
                         onRejectDraft={(reason) => rejectDraft(reason)}
                         draftCard={msg.response ? draftCardStateFor(msg.response) : undefined}
                         onSendMessage={(text) => sendMessage(text)}
+                        onMemoryForgotten={handleMemoryForgotten}
                       />
                     </div>
                   </div>

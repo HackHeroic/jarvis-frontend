@@ -50,6 +50,8 @@ export interface LearningMoment {
   confidence: number;
   occurrences?: number;
   action: string;
+  /** Set when the user forgot this memory from its line under the reply; its words are then ''. */
+  forgotten?: boolean;
 }
 
 /**

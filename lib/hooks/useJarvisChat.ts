@@ -21,6 +21,7 @@ import type {
 import { useDevMode } from "./useDevMode";
 import { INITIAL_STREAM_STATE } from "../types";
 import { readPatternFrame, toLearningMoment, type LearningMoment } from "../learning";
+import { markForgotten } from "../remembered";
 import {
   acceptFromCard,
   discardFromCard,
@@ -94,6 +95,11 @@ export type UseJarvisChatReturn = {
   toggleDevMode: () => void;
   /** Clear the learning toast (streamState.latestPattern). */
   dismissLearningToast: () => void;
+  /**
+   * A memory was forgotten from its "Remembered" line: every line for it reads
+   * "Forgotten", and its words leave the stored chat.
+   */
+  markMemoryForgotten: (memoryId: string) => void;
 };
 
 export function useJarvisChat(): UseJarvisChatReturn {
@@ -226,6 +232,10 @@ export function useJarvisChat(): UseJarvisChatReturn {
 
   const dismissLearningToast = useCallback(() => {
     setStreamState((s) => (s.latestPattern ? { ...s, latestPattern: null } : s));
+  }, []);
+
+  const markMemoryForgotten = useCallback((memoryId: string) => {
+    setMessages((m) => markForgotten(m, memoryId));
   }, []);
 
   const sendMessage = useCallback(
@@ -709,5 +719,6 @@ export function useJarvisChat(): UseJarvisChatReturn {
     devMode,
     toggleDevMode,
     dismissLearningToast,
+    markMemoryForgotten,
   };
 }
