@@ -86,7 +86,7 @@ export default function YouPage() {
       <div>
         <h1 className="text-xl font-bold text-primary">What Jarvis knows about you</h1>
         <p className="mt-1 text-sm text-secondary">
-          Everything here shapes your schedule. Confirm what&apos;s right; forget what isn&apos;t.
+          Everything here shapes your schedule. Confirm what&apos;s right, correct what&apos;s off, and forget what isn&apos;t.
         </p>
       </div>
 

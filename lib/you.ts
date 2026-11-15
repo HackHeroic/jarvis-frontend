@@ -60,6 +60,38 @@ export function provenanceLabel(p: Provenance): string {
   return p === "said" ? "you said" : "I noticed";
 }
 
+/**
+ * The memories split by whose words they are: "What you told me" (said) and "What I
+ * noticed" (inferred), each in the order given. A memory with any other provenance is
+ * not the user's own words, so it is listed as noticed.
+ */
+export function groupMemories<T extends { provenance: Provenance }>(memories: T[]): { said: T[]; noticed: T[] } {
+  const said: T[] = [];
+  const noticed: T[] = [];
+  for (const memory of memories) (memory.provenance === "said" ? said : noticed).push(memory);
+  return { said, noticed };
+}
+
+/** The most a memory may say: the backend's limit on an edit (`MemoryEdit.content`). */
+export const MEMORY_MAX_CHARS = 2000;
+
+/**
+ * Whether an edited memory can be saved, and if not, why (shown under the input).
+ * Words that are unchanged (spacing aside) cannot be saved, without a reason: there is
+ * nothing to save. Blank and too long have a reason.
+ */
+export function memoryEditCheck(draft: string, original: string): { canSave: boolean; problem: string | null } {
+  const words = draft.trim();
+  if (!words) return { canSave: false, problem: "A memory needs at least one word." };
+  if (words.length > MEMORY_MAX_CHARS) {
+    return {
+      canSave: false,
+      problem: `That's too long — keep it under ${MEMORY_MAX_CHARS.toLocaleString("en-US")} characters.`,
+    };
+  }
+  return { canSave: words !== original.trim(), problem: null };
+}
+
 // ---------------------------------------------------------------------------
 // Privacy receipt
 // ---------------------------------------------------------------------------

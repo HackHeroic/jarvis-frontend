@@ -9,7 +9,10 @@ import {
   draftToChatResponse,
   focusCaption,
   freshnessLabel,
+  groupMemories,
   hourIsObserved,
+  MEMORY_MAX_CHARS,
+  memoryEditCheck,
   provenanceLabel,
   receiptLine,
   receiptWindow,
@@ -519,5 +522,52 @@ describe("AUTONOMY_OPTIONS", () => {
     const auto = AUTONOMY_OPTIONS.find((o) => o.value === "auto_low_risk");
     expect(auto?.note).toBe("Nothing counts as a small change yet, so this behaves like Ask first for now.");
     expect(AUTONOMY_OPTIONS.filter((o) => o.note)).toHaveLength(1);
+  });
+});
+
+describe("groupMemories", () => {
+  it("splits said from noticed, each in the order given", () => {
+    const memories = [
+      { id: "a", provenance: "said" as const },
+      { id: "b", provenance: "inferred" as const },
+      { id: "c", provenance: "said" as const },
+      { id: "d", provenance: "inferred" as const },
+    ];
+    const { said, noticed } = groupMemories(memories);
+    expect(said.map((m) => m.id)).toEqual(["a", "c"]);
+    expect(noticed.map((m) => m.id)).toEqual(["b", "d"]);
+  });
+
+  it("a provenance that is not 'said' is never shown as the user's own words", () => {
+    const { said, noticed } = groupMemories([{ provenance: "unknown" as unknown as "said" }]);
+    expect(said).toEqual([]);
+    expect(noticed).toHaveLength(1);
+  });
+
+  it("none is two empty groups", () => {
+    expect(groupMemories([])).toEqual({ said: [], noticed: [] });
+  });
+});
+
+describe("memoryEditCheck", () => {
+  const ORIGINAL = "Goes to the gym every weekday at 6 PM";
+
+  it("new words can be saved", () => {
+    expect(memoryEditCheck("Goes to the gym every weekday at 7 AM", ORIGINAL)).toEqual({ canSave: true, problem: null });
+  });
+
+  it("the same words (spacing aside) have nothing to save, and no complaint", () => {
+    expect(memoryEditCheck(`  ${ORIGINAL} `, ORIGINAL)).toEqual({ canSave: false, problem: null });
+  });
+
+  it("blank words cannot be saved, and say why", () => {
+    expect(memoryEditCheck("   ", ORIGINAL)).toEqual({ canSave: false, problem: "A memory needs at least one word." });
+  });
+
+  it("words past the backend's limit cannot be saved, and say why", () => {
+    const check = memoryEditCheck("x".repeat(MEMORY_MAX_CHARS + 1), ORIGINAL);
+    expect(check.canSave).toBe(false);
+    expect(check.problem).toBe("That's too long — keep it under 2,000 characters.");
+    expect(memoryEditCheck("x".repeat(MEMORY_MAX_CHARS), ORIGINAL).canSave).toBe(true);
   });
 });

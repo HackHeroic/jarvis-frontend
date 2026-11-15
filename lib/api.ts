@@ -930,6 +930,25 @@ export async function deleteMemory(memoryId: string): Promise<void> {
   if (!res.ok) throw await apiError(res, 'Failed to forget memory');
 }
 
+/**
+ * Change a memory's words (`PATCH /memories/{id}` with `{content}`); returns the memory
+ * as it now is. Throws `ApiError`: 404 unknown or another user's, 409 when it was
+ * dismissed or forgotten, 422 when the words are blank or too long (its
+ * `serverMessage` says which), 503 outage.
+ */
+export async function editMemory(memoryId: string, content: string): Promise<MemoryOut> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/memories/${encodeURIComponent(memoryId)}?${userQuery()}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: content.trim() }),
+    },
+  );
+  if (!res.ok) throw await apiError(res, 'Failed to edit memory');
+  return parseMemoryOut(await res.json());
+}
+
 /** Confirm a memory holds. Throws `ApiError`: 409 when it was dismissed or forgotten. */
 export async function confirmMemory(memoryId: string): Promise<MemoryOut> {
   const res = await fetch(
