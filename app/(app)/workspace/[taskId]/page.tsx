@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
 import { WoopCard } from "@/components/app/WoopCard";
+import { Markdown } from "@/components/app/Markdown";
 import type { TaskWorkspace, StudyAsset, ImplementationIntention } from "@/lib/types";
 import {
   ArrowLeft,
@@ -85,9 +86,7 @@ function ExpandableAssetCard({ asset }: { asset: StudyAsset }) {
       </button>
       {open && (
         <div className="border-t border-border px-4 py-3">
-          <div className="prose prose-sm max-w-none text-primary text-sm leading-relaxed whitespace-pre-wrap">
-            {asset.content_or_url}
-          </div>
+          <Markdown>{asset.content_or_url}</Markdown>
         </div>
       )}
     </Card>
