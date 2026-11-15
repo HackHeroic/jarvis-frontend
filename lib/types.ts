@@ -674,6 +674,12 @@ export interface ScheduleTask {
 // Task Workspace (Proactive Cognitive Workspace)
 // ---------------------------------------------------------------------------
 
+/**
+ * One surfaced asset. `metadata` (absent on older backends and cached workspaces):
+ * an excerpt (`pdf_chunk`) carries `{source_id, file_name}`; a quiz
+ * (`generated_quiz`) carries `{quiz: Quiz}`, with the same quiz as markdown in
+ * `content_or_url`. Read it through lib/workspace.ts, never directly.
+ */
 export interface StudyAsset {
   asset_type: string;
   title: string;
@@ -682,11 +688,31 @@ export interface StudyAsset {
   metadata?: Record<string, unknown>;
 }
 
+/** One question of a generated quiz, its answer, and an optional hint ('' when none). */
+export interface QuizQuestion {
+  question: string;
+  answer: string;
+  hint: string;
+}
+
+/** A generated quiz as data (`metadata.quiz` of a `generated_quiz` asset). */
+export interface Quiz {
+  title: string;
+  questions: QuizQuestion[];
+}
+
+/** What kind of work a task is, which decides what its workspace offers. */
+export type TaskKind = "practice" | "study" | "write" | "build" | "admin";
+
 export interface TaskWorkspace {
   task_id: string;
   task_title: string;
   primary_objective: string;
   surfaced_assets: StudyAsset[];
+  /** Absent on older backends and cached workspaces: read as "study". */
+  task_kind?: TaskKind;
+  /** What could not be surfaced, in plain words (e.g. web results unavailable). */
+  notices?: string[];
   /** The user's uploaded documents linked to this task. Absent on older backends. */
   linked_documents?: LinkedDocument[];
 }

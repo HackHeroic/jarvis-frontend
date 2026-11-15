@@ -4,12 +4,19 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import clsx from "clsx";
 
-/** Markdown from Jarvis or from a document, rendered: headings, lists, tables, code and math. */
+/**
+ * Markdown from Jarvis or from a document, rendered: headings, lists, tables, code and math.
+ * Nothing widens its container: long words wrap, and a wide table, code block or formula
+ * scrolls sideways inside it (a phone-width card never scrolls the page).
+ */
 export function Markdown({ children, className }: { children: string; className?: string }) {
   return (
     <div
       className={clsx(
-        `prose prose-sm max-w-none text-primary text-sm leading-relaxed
+        `prose prose-sm max-w-none min-w-0 text-primary text-sm leading-relaxed [overflow-wrap:anywhere]
+        prose-table:block prose-table:max-w-full prose-table:overflow-x-auto prose-table:[overflow-wrap:normal]
+        prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:[overflow-wrap:normal]
+        [&_.katex-display]:max-w-full [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden
         prose-headings:text-primary prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1
         prose-p:text-primary prose-p:leading-relaxed prose-p:my-2
         prose-strong:text-primary

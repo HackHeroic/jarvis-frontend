@@ -2,7 +2,7 @@
 
 export const runtime = "edge";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { getWorkspace, completeTask } from "@/lib/api";
@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/Button";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
 import { WoopCard } from "@/components/app/WoopCard";
 import { Markdown } from "@/components/app/Markdown";
+import { QuizCard } from "@/components/app/QuizCard";
+import { excerptSource, groupAssets, noticesOf, quizOf } from "@/lib/workspace";
 import type { TaskWorkspace, StudyAsset, ImplementationIntention } from "@/lib/types";
 import {
   ArrowLeft,
@@ -27,6 +29,7 @@ import {
   Loader2,
   AlertTriangle,
   ArrowUpRight,
+  Info,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -54,36 +57,51 @@ const ASSET_CONFIG: Record<string, { icon: typeof Play; color: string; label: st
   codeforces_link:   { icon: Code,     color: "dusk",  label: "Codeforces" },
 };
 
-function isLinkAsset(type: string): boolean {
-  return ["youtube_link", "article_link", "blog_link", "leetcode_link", "codeforces_link"].includes(type);
-}
-
 // ---------------------------------------------------------------------------
 // Expandable Content Card
 // ---------------------------------------------------------------------------
 
-function ExpandableAssetCard({ asset }: { asset: StudyAsset }) {
-  const [open, setOpen] = useState(false);
+function ExpandableAssetCard({ asset, defaultOpen = false }: { asset: StudyAsset; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const config = ASSET_CONFIG[asset.asset_type] || { icon: FileText, color: "ink", label: asset.asset_type };
   const Icon = config.icon;
   const colors = COLOR_CLASSES[config.color] || COLOR_CLASSES.terra;
+  // An excerpt that names its document opens it in the viewer.
+  const source = excerptSource(asset);
 
   return (
     <Card className="overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-subtle"
-      >
-        <div className={clsx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", colors.bg)}>
-          <Icon size={16} className={colors.text} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-primary truncate">{asset.title}</p>
-          <p className="text-xs text-muted truncate">{asset.rationale}</p>
-        </div>
-        {open ? <ChevronUp size={16} className="text-muted" /> : <ChevronDown size={16} className="text-muted" />}
-      </button>
+      <div className="flex items-stretch">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-subtle"
+        >
+          <div className={clsx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", colors.bg)}>
+            <Icon size={16} className={colors.text} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-primary truncate">{asset.title || config.label}</p>
+            {asset.rationale && <p className="text-xs text-muted truncate">{asset.rationale}</p>}
+          </div>
+          {open ? <ChevronUp size={16} className="shrink-0 text-muted" /> : <ChevronDown size={16} className="shrink-0 text-muted" />}
+        </button>
+        {source && (
+          <Link
+            href={documentHref(source.sourceId)}
+            aria-label={source.fileName ? `Open ${source.fileName}` : "Open document"}
+            className="group flex shrink-0 items-center gap-1 border-l border-border px-3 text-xs font-medium text-terra transition-colors hover:bg-surface-subtle"
+          >
+            <span className="sm:hidden">Open</span>
+            <span className="max-sm:hidden">Open document</span>
+            <ArrowUpRight
+              size={14}
+              className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+            />
+          </Link>
+        )}
+      </div>
       {open && (
         <div className="border-t border-border px-4 py-3">
           <Markdown>{asset.content_or_url}</Markdown>
@@ -127,42 +145,55 @@ function LinkAssetCard({ asset }: { asset: StudyAsset }) {
 // From your documents
 // ---------------------------------------------------------------------------
 
+/** A labelled section of the workspace; the page leaves out a section with nothing in it. */
+function WorkspaceSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={id}>
+      <h2 id={id} className="mb-3 text-xs font-semibold uppercase tracking-wider text-secondary">
+        {title}
+      </h2>
+      <div className="space-y-2">{children}</div>
+    </section>
+  );
+}
+
 /** The user's own uploads linked to this task, each opening in the document viewer. */
 function LinkedDocuments({ documents }: { documents: LinkedDocumentView[] }) {
   return (
-    <section aria-labelledby="from-your-documents">
-      <h2
-        id="from-your-documents"
-        className="mb-3 text-xs font-semibold uppercase tracking-wider text-secondary"
-      >
-        From your documents
-      </h2>
-      <Card className="divide-y divide-border overflow-hidden">
-        {documents.map((doc) => (
-          <Link
-            key={doc.source_id}
-            href={documentHref(doc.source_id)}
-            className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-subtle max-md:min-h-12"
-          >
-            <div className={clsx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", COLOR_CLASSES.terra.bg)}>
-              <FileText size={16} className={COLOR_CLASSES.terra.text} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-primary">{doc.title}</p>
-              {!doc.has_file && <p className="text-xs text-muted">Extracted text only</p>}
-            </div>
-            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-terra">
-              Open
-              <ArrowUpRight
-                size={14}
-                className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-              />
-            </span>
-          </Link>
-        ))}
-      </Card>
-    </section>
+    <Card className="divide-y divide-border overflow-hidden">
+      {documents.map((doc) => (
+        <Link
+          key={doc.source_id}
+          href={documentHref(doc.source_id)}
+          className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-subtle max-md:min-h-12"
+        >
+          <div className={clsx("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", COLOR_CLASSES.terra.bg)}>
+            <FileText size={16} className={COLOR_CLASSES.terra.text} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-primary">{doc.title}</p>
+            {!doc.has_file && <p className="text-xs text-muted">Extracted text only</p>}
+          </div>
+          <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-terra">
+            Open
+            <ArrowUpRight
+              size={14}
+              className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+            />
+          </span>
+        </Link>
+      ))}
+    </Card>
   );
+}
+
+/** A practice asset: a quiz with its answers hidden when it is data, else its markdown. */
+function PracticeAsset({ asset }: { asset: StudyAsset }) {
+  const quiz = quizOf(asset);
+  if (quiz) return <QuizCard quiz={quiz} rationale={asset.rationale} />;
+  // An outline or checklist is there to be used: open. A quiz kept only as markdown
+  // holds its answers inline, so it starts closed.
+  return <ExpandableAssetCard asset={asset} defaultOpen={asset.asset_type === "generated_content"} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,10 +325,12 @@ export default function WorkspacePage() {
     }
   }
 
-  // ---- Group assets by type ----
-  const linkAssets = workspace?.surfaced_assets.filter((a) => isLinkAsset(a.asset_type)) ?? [];
-  const contentAssets = workspace?.surfaced_assets.filter((a) => !isLinkAsset(a.asset_type)) ?? [];
+  // ---- Assets by section ----
+  const { fromDocuments, practice, links } = groupAssets(workspace?.surfaced_assets);
   const linkedDocuments = linkedDocumentsOf(workspace);
+  const notices = noticesOf(workspace);
+  const nothingFound =
+    !!workspace && fromDocuments.length + practice.length + links.length + linkedDocuments.length === 0;
 
   // ---- Loading state ----
   if (loading) {
@@ -402,30 +435,57 @@ export default function WorkspacePage() {
         </Card>
       )}
 
-      {/* Study Materials */}
-      {(linkAssets.length > 0 || contentAssets.length > 0) && (
-        <div>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-secondary">
-            Study Materials
-          </h2>
-          <div className="space-y-2">
-            {linkAssets.map((asset, i) => (
-              <LinkAssetCard key={`link-${i}`} asset={asset} />
-            ))}
-            {contentAssets.map((asset, i) => (
-              <ExpandableAssetCard key={`content-${i}`} asset={asset} />
-            ))}
-          </div>
-        </div>
+      {/* What could not be surfaced (e.g. web results unavailable), said plainly */}
+      {notices.length > 0 && (
+        <Card role="note" className="space-y-1 px-4 py-3">
+          {notices.map((notice, i) => (
+            <p key={i} className="flex items-start gap-2 text-xs text-secondary">
+              <Info size={14} className="mt-px shrink-0 text-dusk" />
+              <span className="min-w-0 break-words">{notice}</span>
+            </p>
+          ))}
+        </Card>
       )}
 
-      {/* The user's own documents linked to this task */}
-      {linkedDocuments.length > 0 && <LinkedDocuments documents={linkedDocuments} />}
+      {/* From your documents: the documents linked to this task, then excerpts from them */}
+      {(linkedDocuments.length > 0 || fromDocuments.length > 0) && (
+        <WorkspaceSection id="from-your-documents" title="From your documents">
+          {linkedDocuments.length > 0 && <LinkedDocuments documents={linkedDocuments} />}
+          {fromDocuments.map((asset, i) => (
+            <ExpandableAssetCard key={`excerpt-${i}`} asset={asset} />
+          ))}
+        </WorkspaceSection>
+      )}
 
-      {/* Empty materials state */}
-      {workspace && workspace.surfaced_assets.length === 0 && linkedDocuments.length === 0 && (
-        <Card className="px-5 py-8 text-center">
-          <p className="text-sm text-muted">No study materials surfaced for this task.</p>
+      {/* Practice: a quiz, an outline or a checklist */}
+      {practice.length > 0 && (
+        <WorkspaceSection id="practice" title="Practice">
+          {practice.map((asset, i) => (
+            <PracticeAsset key={`practice-${i}`} asset={asset} />
+          ))}
+        </WorkspaceSection>
+      )}
+
+      {/* Read or watch: links */}
+      {links.length > 0 && (
+        <WorkspaceSection id="read-or-watch" title="Read or watch">
+          {links.map((asset, i) => (
+            <LinkAssetCard key={`link-${i}`} asset={asset} />
+          ))}
+        </WorkspaceSection>
+      )}
+
+      {/* Nothing surfaced at all */}
+      {nothingFound && (
+        <Card className="px-5 py-6 text-center">
+          <p className="text-sm text-secondary">Nothing was found for this task yet.</p>
+          <Link
+            href="/documents"
+            className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-terra hover:underline max-md:min-h-10"
+          >
+            Upload a document for it
+            <ArrowUpRight size={14} />
+          </Link>
         </Card>
       )}
 
