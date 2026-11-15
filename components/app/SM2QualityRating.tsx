@@ -24,22 +24,28 @@ const QUALITY_COLORS = [
 interface SM2QualityRatingProps {
   onRate: (quality: number) => void;
   taskTitle?: string;
+  /** The question asked; overrides the one built from `taskTitle`. */
+  question?: string;
+  /** Six words for 0 to 5, in place of the recall labels (e.g. a rule check-in's answers). */
+  labels?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
-export function SM2QualityRating({ onRate, taskTitle }: SM2QualityRatingProps) {
+export function SM2QualityRating({ onRate, taskTitle, question, labels }: SM2QualityRatingProps) {
+  const answers = labels && labels.length === QUALITY_LABELS.length ? labels : QUALITY_LABELS;
   return (
     <div className="mt-3 p-3 rounded-xl border border-border bg-surface-card">
       <p className="text-xs font-medium text-secondary mb-2.5">
-        {taskTitle
-          ? `How well did you complete "${taskTitle}"?`
-          : 'How well did you understand this?'}
+        {question ??
+          (taskTitle
+            ? `How well did you complete "${taskTitle}"?`
+            : 'How well did you understand this?')}
       </p>
       <div className="flex items-center gap-1.5">
-        {QUALITY_LABELS.map((label, index) => (
+        {answers.map((label, index) => (
           <button
             key={index}
             type="button"

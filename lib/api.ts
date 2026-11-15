@@ -11,10 +11,12 @@ import { chunksOf, findDocument, normalizeDocuments } from './documents';
 import {
   ContractError,
   parseAcceptResponse,
+  parseCheckInReviewed,
   parseCompleteDraftVersion,
   parseDraftState,
   parseMemoryList,
   parseMemoryOut,
+  parseRuleCheckInList,
   parseRunTriggerResponse,
   parseSuggestion,
   parseSuggestionList,
@@ -44,6 +46,8 @@ import type {
   RunTriggerResponse,
   TriggerName,
   IngestionDocument,
+  RuleCheckInList,
+  CheckInReviewed,
 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -829,26 +833,21 @@ export async function processDocument(
 // Habits (new)
 // ---------------------------------------------------------------------------
 
-export async function getDueHabits(): Promise<Record<string, unknown>[]> {
-  if (IS_DEMO_MODE) return [];
-  const res = await fetch(
-    `${API_BASE}/api/v1/habits/tracker/due?user_id=${encodeURIComponent(USER_ID)}`,
-  );
-  if (res.status === 404) return [];
-  // A 503 means the database is down — never "nothing due".
-  if (!res.ok) throw await apiError(res, 'Failed to get due habits');
-  const data = await res.json();
-  return data.due_trackers ?? data;
+/**
+ * Jarvis's check-ins on the user's rules: due today, and not due yet. Throws `ApiError`
+ * on any non-2xx (a 503 means the database is down — never "no rules").
+ */
+export async function getRuleCheckIns(): Promise<RuleCheckInList> {
+  if (IS_DEMO_MODE) {
+    // No backend: no rules have been learned, so the page shows how they are learned.
+    return { timezone: 'UTC', today: new Date().toISOString().slice(0, 10), due_trackers: [], upcoming_trackers: [] };
+  }
+  const res = await fetch(`${API_BASE}/api/v1/habits/tracker/due?${userQuery()}`);
+  if (!res.ok) throw await apiError(res, 'Failed to get check-ins');
+  return parseRuleCheckInList(await res.json());
 }
 
-export interface BehavioralConstraint {
-  id: string;
-  raw_text: string;
-  constraint_type: string;
-  created_at: string;
-}
-
-/** Remove a rule; future schedules stop applying it. Throws `ApiError` (404 when it is already gone). */
+/** Remove a rule (and its check-ins); future schedules stop applying it. Throws `ApiError` (404 when it is already gone). */
 export async function deleteBehavioralConstraint(id: string): Promise<void> {
   const res = await fetch(
     `${API_BASE}/api/v1/habits/constraints/${encodeURIComponent(id)}?${userQuery()}`,
@@ -857,24 +856,15 @@ export async function deleteBehavioralConstraint(id: string): Promise<void> {
   if (!res.ok) throw await apiError(res, 'Failed to delete constraint');
 }
 
-export async function getBehavioralConstraints(): Promise<BehavioralConstraint[]> {
-  if (IS_DEMO_MODE) return [];
-  const res = await fetch(
-    `${API_BASE}/api/v1/habits/constraints?user_id=${encodeURIComponent(USER_ID)}`,
-  );
-  // A 5xx is an outage, never "no constraints".
-  if (res.status >= 500) throw await apiError(res, 'Failed to get constraints');
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.constraints ?? [];
-}
-
-/** Record a habit review. `user_id` is a required query parameter; the body carries only `quality`. */
+/**
+ * Answer a check-in on one of the user's rules (0-5: is it still how they work?).
+ * `user_id` is a required query parameter; the body carries only `quality`.
+ */
 export async function completeHabit(
   id: string,
   quality: number,
   userId: string = USER_ID,
-): Promise<{ next_review_date: string | null; next_interval_days: number | null }> {
+): Promise<CheckInReviewed> {
   const params = new URLSearchParams({ user_id: userId });
   const res = await fetch(
     `${API_BASE}/api/v1/habits/tracker/${encodeURIComponent(id)}/complete?${params}`,
@@ -885,7 +875,7 @@ export async function completeHabit(
     },
   );
   if (!res.ok) throw await apiError(res, 'Failed to complete habit');
-  return res.json();
+  return parseCheckInReviewed(await res.json());
 }
 
 // ---------------------------------------------------------------------------

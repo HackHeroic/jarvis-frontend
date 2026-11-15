@@ -1,99 +1,102 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { getDueHabits, completeHabit, getBehavioralConstraints, deleteBehavioralConstraint, type BehavioralConstraint } from "@/lib/api";
-import { Card } from "@/components/ui/Card";
+import { useCallback, useEffect, useState } from "react";
+import { CheckCircle2, Loader2, Target, X } from "lucide-react";
+import { completeHabit, deleteBehavioralConstraint, getRuleCheckIns } from "@/lib/api";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/app/EmptyState";
 import { ErrorState } from "@/components/app/ErrorState";
-import { toListState } from "@/lib/learning";
 import { SM2QualityRating } from "@/components/app/SM2QualityRating";
+import { useJarvis } from "@/lib/context/JarvisContext";
+import { useSingleFlight } from "@/lib/hooks/useSingleFlight";
 import {
-  Target,
-  CheckCircle2,
-  Loader2,
-  Clock,
-  RotateCcw,
-} from "lucide-react";
+  CHECK_IN_ANSWERS,
+  CHECK_IN_QUESTION,
+  answeredLine,
+  hasRules,
+  lastCheckInLine,
+  nextCheckInLine,
+  nothingDueLine,
+} from "@/lib/habits";
+import { describeError } from "@/lib/learning";
+import { errorMessageOf, freshnessLabel, provenanceLabel, removeWithRollback, statusOf } from "@/lib/you";
+import type { RuleCheckIn, RuleCheckInList } from "@/lib/types";
 
+type SetItems = (update: (items: RuleCheckIn[]) => RuleCheckIn[]) => void;
 
 // ---------------------------------------------------------------------------
-// Types (from backend, flexible shape)
+// Pieces
 // ---------------------------------------------------------------------------
 
-interface HabitRecord {
-  id: string;
-  name: string;
-  last_reviewed?: string;
-  next_review?: string;
-  interval_days?: number;
-  easiness_factor?: number;
-  repetitions?: number;
-  days_since?: number;
+/** Whose words the rule is, and when it was learned: "YOU SAID · noted 6 days ago". */
+function RuleOrigin({ checkIn, timeZone }: { checkIn: RuleCheckIn; timeZone: string }) {
+  const noted = checkIn.learned_at ? freshnessLabel(checkIn.learned_at, new Date(), timeZone) : "";
+  return (
+    <>
+      <Badge color={checkIn.source === "said" ? "dusk" : "sage"}>{provenanceLabel(checkIn.source)}</Badge>
+      {noted && <span className="text-[11px] text-muted">{noted}</span>}
+    </>
+  );
 }
 
-function parseHabit(raw: Record<string, unknown>): HabitRecord {
-  return {
-    id: (raw.id as string) || (raw.habit_id as string) || "",
-    name: (raw.name as string) || (raw.habit_name as string) || (raw.title as string) || "Unnamed Habit",
-    last_reviewed: (raw.last_reviewed as string) || (raw.last_done as string) || undefined,
-    next_review: (raw.next_review as string) || undefined,
-    interval_days: (raw.interval_days as number) || (raw.interval as number) || undefined,
-    easiness_factor: (raw.easiness_factor as number) || (raw.ef as number) || undefined,
-    repetitions: (raw.repetitions as number) || undefined,
-    days_since: (raw.days_since as number) || undefined,
-  };
+function ForgetButton({ rule, busy, onForget }: { rule: string; busy: boolean; onForget: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="ml-auto shrink-0"
+      disabled={busy}
+      onClick={onForget}
+      aria-label={`Forget the rule “${rule}”`}
+    >
+      <X size={12} className="mr-1" />
+      Forget
+    </Button>
+  );
 }
 
-function formatRelativeDate(iso?: string): string {
-  if (!iso) return "Never";
-  try {
-    const date = new Date(iso);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  } catch {
-    return iso;
-  }
-}
+type CardState = { kind: "asking" } | { kind: "saving" } | { kind: "answered"; line: string };
 
-// ---------------------------------------------------------------------------
-// Habit Card
-// ---------------------------------------------------------------------------
-
-function HabitCard({
-  habit,
-  onComplete,
+/** A rule whose check-in is due: the rule, "Still how you work?", 0-5, and a quiet line. */
+function CheckInCard({
+  checkIn,
+  today,
+  timeZone,
+  forgetting,
+  onForget,
 }: {
-  habit: HabitRecord;
-  onComplete: (id: string, quality: number) => Promise<void>;
+  checkIn: RuleCheckIn;
+  today: string;
+  timeZone: string;
+  forgetting: boolean;
+  onForget: () => void;
 }) {
-  const [showRating, setShowRating] = useState(false);
-  const [completing, setCompleting] = useState(false);
-  const [done, setDone] = useState(false);
+  const [state, setState] = useState<CardState>({ kind: "asking" });
+  const [error, setError] = useState<string | null>(null);
 
-  async function handleRate(quality: number) {
-    setCompleting(true);
+  async function answer(quality: number) {
+    if (state.kind !== "asking") return;
+    setState({ kind: "saving" });
+    setError(null);
     try {
-      await onComplete(habit.id, quality);
-      setDone(true);
-    } catch {
-      // Error handled at page level
-    } finally {
-      setCompleting(false);
+      const reviewed = await completeHabit(checkIn.id, quality);
+      setState({ kind: "answered", line: answeredLine(quality, reviewed, today) });
+    } catch (err) {
+      setState({ kind: "asking" });
+      setError(errorMessageOf(err, "That didn't save. Try again."));
     }
   }
 
-  if (done) {
+  if (state.kind === "answered") {
     return (
-      <Card className="flex items-center gap-3 px-4 py-4 opacity-60 sm:px-5">
-        <CheckCircle2 size={20} className="text-sage" />
-        <span className="min-w-0 flex-1 break-words text-sm font-medium text-primary line-through">{habit.name}</span>
-        <span className="ml-auto shrink-0 text-xs font-medium text-sage">Completed</span>
+      <Card className="flex items-start gap-3 px-4 py-4 sm:px-5">
+        <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-sage" aria-hidden />
+        <div className="min-w-0 flex-1" aria-live="polite">
+          <p className="break-words text-sm font-medium text-primary">{checkIn.rule_text}</p>
+          <p className="mt-1 text-xs text-secondary">{state.line}</p>
+        </div>
       </Card>
     );
   }
@@ -101,60 +104,59 @@ function HabitCard({
   return (
     <Card className="px-4 py-4 sm:px-5">
       <div className="flex items-start gap-3">
-        {/* Icon */}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-terra/10">
-          <Target size={18} className="text-terra" />
+        <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-terra/10 sm:flex">
+          <Target size={18} className="text-terra" aria-hidden />
         </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-primary">{habit.name}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted">
-            <span className="flex items-center gap-1">
-              <Clock size={12} />
-              Last: {formatRelativeDate(habit.last_reviewed)}
-            </span>
-            {habit.days_since !== undefined && (
-              <span>{habit.days_since} day{habit.days_since !== 1 ? "s" : ""} since</span>
-            )}
-            {habit.interval_days !== undefined && (
-              <span className="flex items-center gap-1">
-                <RotateCcw size={12} />
-                Next in {habit.interval_days} day{habit.interval_days !== 1 ? "s" : ""}
-              </span>
-            )}
+        <div className="min-w-0 flex-1">
+          <p className="break-words text-sm font-semibold text-primary">{checkIn.rule_text}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <RuleOrigin checkIn={checkIn} timeZone={timeZone} />
           </div>
         </div>
-
-        {/* Action */}
-        {!showRating && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-            onClick={() => setShowRating(true)}
-            disabled={completing}
-          >
-            {completing ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              "Review"
-            )}
-          </Button>
-        )}
+        <ForgetButton rule={checkIn.rule_text} busy={forgetting || state.kind === "saving"} onForget={onForget} />
       </div>
 
-      {/* SM2 Rating */}
-      {showRating && !completing && (
-        <SM2QualityRating onRate={handleRate} taskTitle={habit.name} />
-      )}
-      {completing && (
+      {state.kind === "saving" ? (
         <div className="mt-3 flex items-center justify-center gap-2 py-3">
-          <Loader2 size={16} className="animate-spin text-terra" />
-          <span className="text-xs text-muted">Saving...</span>
+          <Loader2 size={16} className="animate-spin text-terra" aria-hidden />
+          <span className="text-xs text-muted">Saving…</span>
         </div>
+      ) : (
+        <SM2QualityRating onRate={answer} question={CHECK_IN_QUESTION} labels={CHECK_IN_ANSWERS} />
       )}
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-gold">
+          {error}
+        </p>
+      )}
+      <p className="mt-2 text-[11px] text-muted">{lastCheckInLine(checkIn, today, timeZone)}</p>
     </Card>
+  );
+}
+
+/** A rule not due yet: when Jarvis will ask about it next. */
+function LaterRow({
+  checkIn,
+  today,
+  timeZone,
+  forgetting,
+  onForget,
+}: {
+  checkIn: RuleCheckIn;
+  today: string;
+  timeZone: string;
+  forgetting: boolean;
+  onForget: () => void;
+}) {
+  return (
+    <li className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-muted px-3 py-2.5 sm:flex-nowrap sm:px-4">
+      <span className="min-w-0 flex-1 basis-full break-words text-sm text-primary sm:basis-auto">
+        {checkIn.rule_text}
+      </span>
+      <RuleOrigin checkIn={checkIn} timeZone={timeZone} />
+      <span className="text-[11px] text-secondary">{nextCheckInLine(checkIn, today)}</span>
+      <ForgetButton rule={checkIn.rule_text} busy={forgetting} onForget={onForget} />
+    </li>
   );
 }
 
@@ -163,59 +165,61 @@ function HabitCard({
 // ---------------------------------------------------------------------------
 
 export default function HabitsPage() {
+  const { showToast } = useJarvis();
+  const { run, isBusy } = useSingleFlight();
   // undefined until the first fetch answers.
-  const [habits, setHabits] = useState<HabitRecord[] | undefined>(undefined);
-  const [habitsError, setHabitsError] = useState<unknown>(null);
-  const [constraints, setConstraints] = useState<BehavioralConstraint[] | undefined>(undefined);
-  const [constraintsError, setConstraintsError] = useState<unknown>(null);
+  const [list, setList] = useState<RuleCheckInList | undefined>(undefined);
+  const [error, setError] = useState<unknown>(null);
 
-  const fetchHabits = useCallback(async () => {
+  const fetchCheckIns = useCallback(async () => {
     try {
-      const raw = await getDueHabits();
-      setHabits(raw.map(parseHabit));
-      setHabitsError(null);
+      setList(await getRuleCheckIns());
+      setError(null);
     } catch (err) {
-      // Couldn't load (e.g. 503: database down) — say so; an outage is never "nothing due".
-      setHabitsError(err);
-    }
-  }, []);
-
-  const fetchConstraints = useCallback(async () => {
-    try {
-      setConstraints(await getBehavioralConstraints());
-      setConstraintsError(null);
-    } catch (err) {
-      setConstraintsError(err);
+      // Couldn't load (e.g. 503: database down) — say so; an outage is never "no rules".
+      setError(err);
     }
   }, []);
 
   useEffect(() => {
-    fetchHabits();
-    fetchConstraints();
-  }, [fetchHabits, fetchConstraints]);
+    fetchCheckIns();
+  }, [fetchCheckIns]);
 
-  /** Retry everything that could not be fetched. */
   const retry = useCallback(() => {
-    if (habitsError) {
-      setHabitsError(null);
-      setHabits(undefined);
-      fetchHabits();
-    }
-    if (constraintsError) {
-      setConstraintsError(null);
-      setConstraints(undefined);
-      fetchConstraints();
-    }
-  }, [habitsError, constraintsError, fetchHabits, fetchConstraints]);
+    setError(null);
+    setList(undefined);
+    fetchCheckIns();
+  }, [fetchCheckIns]);
 
-  const habitList = toListState({ items: habits, error: habitsError });
-  const constraintList = toListState({ items: constraints, error: constraintsError });
+  const setDue: SetItems = useCallback(
+    (update) => setList((prev) => prev && { ...prev, due_trackers: update(prev.due_trackers) }),
+    [],
+  );
+  const setUpcoming: SetItems = useCallback(
+    (update) => setList((prev) => prev && { ...prev, upcoming_trackers: update(prev.upcoming_trackers) }),
+    [],
+  );
 
-  async function handleComplete(id: string, quality: number) {
-    await completeHabit(id, quality);
-    // Refresh list after short delay for animation
-    setTimeout(() => fetchHabits(), 600);
+  /** Forget the rule (and its check-ins); it leaves the list at once and comes back if that fails. */
+  async function forget(checkIn: RuleCheckIn, index: number, setItems: SetItems) {
+    const pending = run(checkIn.constraint_id, () =>
+      removeWithRollback({
+        item: checkIn,
+        index,
+        key: (c) => c.id,
+        setItems,
+        request: () => deleteBehavioralConstraint(checkIn.constraint_id),
+        isGone: (err) => statusOf(err) === 404, // already removed: it is gone either way
+      }),
+    );
+    if (!pending) return;
+    const failure = await pending;
+    if (failure) showToast(errorMessageOf(failure, "That didn't go through. Try again."), "error");
+    else showToast("Forgotten — plans stop applying that rule.", "success");
   }
+
+  const failed = error ? describeError(error) : null;
+  const quiet = list ? nothingDueLine(list) : null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:space-y-5 sm:px-6 sm:py-8">
@@ -223,90 +227,85 @@ export default function HabitsPage() {
       <div>
         <h1 className="text-xl font-bold text-primary">Habits</h1>
         <p className="mt-1 text-sm text-secondary">
-          Review habits due today. Jarvis detects patterns in your behavior and surfaces them here.
+          The rules Jarvis has learned about how you work. Now and then it checks one still fits — the
+          longer a rule holds, the longer it waits to ask again.
         </p>
       </div>
 
-      {/* Constraints could not be fetched — one notice when habits are down too */}
-      {constraintList.kind === "error" && habitList.kind !== "error" && (
-        <Card className="px-4 py-3">
-          <ErrorState compact message={constraintList.message} onRetry={retry} />
-        </Card>
-      )}
-
-      {/* Behavioral constraints — saved from chat, applied to every schedule */}
-      {constraintList.kind === "ready" && (
-        <div className="rounded-card border border-border bg-surface p-4">
-          <h2 className="text-sm font-semibold text-primary">Active constraints</h2>
-          <p className="mt-0.5 text-xs text-secondary">
-            Saved from your conversations — every schedule respects these.
-          </p>
-          <ul className="mt-2 space-y-1.5">
-            {constraintList.items.map((c) => (
-              <li key={c.id} className="group flex items-center gap-2 text-sm text-primary">
-                <span className="text-sage text-xs">&#x25CF;</span>
-                <span>{c.raw_text}</span>
-                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted">
-                  {c.constraint_type}
-                </span>
-                <button
-                  type="button"
-                  title="Remove constraint"
-                  onClick={async () => {
-                    await deleteBehavioralConstraint(c.id);
-                    setConstraints((prev) => prev?.filter((x) => x.id !== c.id));
-                  }}
-                  aria-label="Remove constraint"
-                  className="flex shrink-0 items-center justify-center rounded-button p-1 text-muted transition-all
-                    hover:bg-red-500/10 hover:text-red-500 focus-visible:opacity-100 group-hover:opacity-100
-                    max-md:-my-2 max-md:h-10 max-md:w-10 [@media(hover:hover)]:opacity-0"
-                >
-                  &#x2715;
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* Loading */}
-      {habitList.kind === "loading" && (
-        <div className="space-y-3">
+      {!list && !failed && (
+        <div className="space-y-3" aria-busy="true">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 rounded-card bg-surface-muted animate-pulse" />
+            <div key={i} className="h-24 animate-pulse rounded-card bg-surface-muted" />
           ))}
         </div>
       )}
 
-      {/* Outage — never "nothing due" */}
-      {habitList.kind === "error" && (
+      {/* Outage, or an answer this page can't read — never "no rules" */}
+      {failed && (
         <Card className="px-6 py-12">
-          <ErrorState message={habitList.message} onRetry={retry} />
+          <ErrorState headline={failed.headline} message={failed.detail} onRetry={retry} />
         </Card>
       )}
 
-      {/* Empty state */}
-      {habitList.kind === "empty" && (
+      {/* No rules at all: say where they come from */}
+      {list && !failed && !hasRules(list) && (
         <Card className="px-6 py-12">
           <EmptyState
             icon="🎯"
-            headline="No habits due for review"
-            subtitle="They'll appear here when Jarvis detects patterns in your behavior."
+            headline="No rules yet"
+            subtitle="Jarvis learns your rules from chat — tell it something like “no work after 10 PM”, and it will check in here now and then that the rule still fits."
           />
         </Card>
       )}
 
-      {/* Habit cards */}
-      {habitList.kind === "ready" && (
-        <div className="space-y-2">
-          {habitList.items.map((habit) => (
-            <HabitCard
-              key={habit.id}
-              habit={habit}
-              onComplete={handleComplete}
-            />
-          ))}
-        </div>
+      {list && !failed && hasRules(list) && (
+        <>
+          {/* Due today */}
+          <section aria-labelledby="habits-due" className="space-y-2">
+            <h2 id="habits-due" className="text-sm font-semibold text-primary">
+              Today&rsquo;s check-ins
+            </h2>
+            {quiet ? (
+              <Card className="px-4 py-4 text-sm text-secondary sm:px-5">{quiet}</Card>
+            ) : (
+              list.due_trackers.map((checkIn, index) => (
+                <CheckInCard
+                  key={checkIn.id}
+                  checkIn={checkIn}
+                  today={list.today}
+                  timeZone={list.timezone}
+                  forgetting={isBusy(checkIn.constraint_id)}
+                  onForget={() => forget(checkIn, index, setDue)}
+                />
+              ))
+            )}
+          </section>
+
+          {/* Not due yet */}
+          {list.upcoming_trackers.length > 0 && (
+            <section aria-labelledby="habits-later" className="rounded-card border border-border bg-surface p-4">
+              <h2 id="habits-later" className="text-sm font-semibold text-primary">
+                Not due yet
+              </h2>
+              <p className="mt-0.5 text-xs text-secondary">
+                Every plan respects these. Jarvis will ask about each again on its day.
+              </p>
+              <ul className="mt-3 space-y-2">
+                {list.upcoming_trackers.map((checkIn, index) => (
+                  <LaterRow
+                    key={checkIn.id}
+                    checkIn={checkIn}
+                    today={list.today}
+                    timeZone={list.timezone}
+                    forgetting={isBusy(checkIn.constraint_id)}
+                    onForget={() => forget(checkIn, index, setUpcoming)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
       )}
     </div>
   );
