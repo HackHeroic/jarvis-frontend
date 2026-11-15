@@ -58,11 +58,17 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Nothing should be able to push the page sideways on a phone */
-  html,
-  body {
+  /* Nothing should be able to push the page sideways on a phone. Only the page itself
+     (html) is the scroller: body clips sideways without becoming a scroll container of
+     its own, which with overscroll-behavior swallowed the wheel on pages that scroll as
+     a whole (the landing page). */
+  html {
     overflow-x: hidden;
     overscroll-behavior-y: none;
+  }
+
+  body {
+    overflow-x: clip;
   }
 
   img,
