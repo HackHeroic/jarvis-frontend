@@ -231,6 +231,47 @@ export interface RuleShown {
   created_at: string | null;
 }
 
+/**
+ * One rule Jarvis checks in on ("Still how you work?"), from `GET /habits/tracker/due`.
+ * Dates without a time (`next_due_on`) are days on the user's clock.
+ */
+export interface RuleCheckIn {
+  /** The rule's tracker: answer a check-in at `/habits/tracker/{id}/complete`. */
+  id: string;
+  /** The rule itself: delete it at `/habits/constraints/{constraint_id}`. */
+  constraint_id: string;
+  rule_text: string;
+  source: Provenance;
+  /** When the rule was stored (ISO); null for a rule older than the stamp. */
+  learned_at: string | null;
+  /** The last answered check-in (ISO); null before the first. */
+  last_reviewed_at: string | null;
+  /** YYYY-MM-DD on the user's clock. */
+  next_due_on: string;
+  /** Days between check-ins now: grows while the rule holds, back to 1 after a low answer. */
+  interval_days: number;
+}
+
+/** Every rule the user has, split by whether its check-in is due today. */
+export interface RuleCheckInList {
+  /** The user's IANA zone: the clock of every date here. */
+  timezone: string;
+  /** YYYY-MM-DD, today on the user's clock. */
+  today: string;
+  /** Due today or earlier, the one waiting longest first. */
+  due_trackers: RuleCheckIn[];
+  /** Not due yet, the soonest first. */
+  upcoming_trackers: RuleCheckIn[];
+}
+
+/** A check-in was answered: when the rule comes back. */
+export interface CheckInReviewed {
+  next_review_date: string;
+  next_interval_days: number;
+  /** YYYY-MM-DD on the user's clock. */
+  next_due_on: string;
+}
+
 export interface HourFocus {
   hour: number;
   score: number;

@@ -9,10 +9,12 @@ import { describe, expect, it } from "vitest";
 import {
   ContractError,
   parseAcceptResponse,
+  parseCheckInReviewed,
   parseCompleteDraftVersion,
   parseDraftState,
   parseMemoryList,
   parseMemoryOut,
+  parseRuleCheckInList,
   parseRunTriggerResponse,
   parseSuggestion,
   parseSuggestionList,
@@ -506,5 +508,75 @@ describe("chat complete frame: draft_version", () => {
         ContractError,
       );
     }
+  });
+});
+
+/**
+ * RuleCheckInList and CheckInReviewed — app/schemas/habits.py, as RuleCheckIns answers
+ * them (tests/test_rule_check_ins.py, tests/behaviour/test_rule_check_ins.py): a rule
+ * due for its first check-in and one answered yesterday, back tomorrow.
+ */
+const CHECK_INS = {
+  timezone: "Asia/Kolkata",
+  today: "2026-11-17",
+  due_trackers: [
+    {
+      id: "a0d96314-e79d-460f-be56-606b4c731619",
+      constraint_id: "e630cb79-40b5-4f50-bfab-d2a394621e2d",
+      rule_text: "Keep 1 to 2 PM free for lunch",
+      source: "said",
+      learned_at: "2026-11-16T15:30:00Z",
+      last_reviewed_at: null,
+      next_due_on: "2026-11-17",
+      interval_days: 1,
+    },
+  ],
+  upcoming_trackers: [
+    {
+      id: "09c4442a-0664-43fb-af79-9cfa2e45633a",
+      constraint_id: "fb2d60bd-96a2-445f-ad6c-fa8e9378af30",
+      rule_text: "No work after 10:30 PM",
+      source: "said",
+      learned_at: "2026-11-16T15:30:00Z",
+      last_reviewed_at: "2026-11-17T15:30:00Z",
+      next_due_on: "2026-11-18",
+      interval_days: 1,
+    },
+  ],
+};
+const REVIEWED = { next_review_date: "2026-11-18T15:30:00Z", next_interval_days: 1, next_due_on: "2026-11-18" };
+
+describe("/api/v1/habits/tracker", () => {
+  it("GET /due parses the check-ins due and not due yet", () => {
+    const parsed = parseRuleCheckInList(clone(CHECK_INS));
+    expect(parsed).toEqual(CHECK_INS);
+  });
+
+  it("a user with no rules is two empty lists, never an error", () => {
+    const parsed = parseRuleCheckInList({ ...clone(CHECK_INS), due_trackers: [], upcoming_trackers: [] });
+    expect(parsed.due_trackers).toEqual([]);
+  });
+
+  it("the old shape (a bare list of trackers, no rule text) is a contract error", () => {
+    expect(() => parseRuleCheckInList({ due_trackers: [{ id: "t", repetitions: 0, ef: 2.5 }] })).toThrow(
+      ContractError,
+    );
+  });
+
+  it("a renamed field, an unknown source or a day that is not YYYY-MM-DD is a contract error", () => {
+    const renamed = clone(CHECK_INS);
+    delete (renamed.due_trackers[0] as Partial<(typeof renamed.due_trackers)[0]>).rule_text;
+    const source = clone(CHECK_INS);
+    source.due_trackers[0].source = "guessed";
+    const instant = clone(CHECK_INS);
+    instant.upcoming_trackers[0].next_due_on = "2026-11-18T00:00:00Z";
+    for (const body of [renamed, source, instant]) {
+      expect(() => parseRuleCheckInList(body)).toThrow(ContractError);
+    }
+  });
+
+  it("POST /{id}/complete parses when the rule comes back", () => {
+    expect(parseCheckInReviewed(clone(REVIEWED))).toEqual(REVIEWED);
+    expect(() => parseCheckInReviewed({ next_review_date: REVIEWED.next_review_date })).toThrow(ContractError);
   });
 });

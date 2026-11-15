@@ -10,6 +10,7 @@ import type {
   AcceptSuggestionResponse,
   ActionResultOut,
   AutonomyMode,
+  CheckInReviewed,
   ConsentBehavior,
   ConsentOut,
   DraftScheduleView,
@@ -22,6 +23,8 @@ import type {
   PatternShown,
   Provenance,
   Receipt,
+  RuleCheckIn,
+  RuleCheckInList,
   RuleShown,
   RunTriggerResponse,
   SuggestionOut,
@@ -382,5 +385,53 @@ export function parseDraftState(value: unknown): DraftState {
         ? null
         : parseScheduleView(o.schedule, `${where}.schedule`),
     version,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Habits: check-ins on the user's rules
+// ---------------------------------------------------------------------------
+
+/** A day on the user's clock, as the backend sends a `date`. */
+function day(o: Obj, key: string, where: string): string {
+  const value = str(o, key, where);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new ContractError(`${where}.${key}`, "a YYYY-MM-DD day");
+  return value;
+}
+
+function parseRuleCheckIn(value: unknown, where: string): RuleCheckIn {
+  const o = obj(value, where);
+  return {
+    id: str(o, "id", where),
+    constraint_id: str(o, "constraint_id", where),
+    rule_text: str(o, "rule_text", where),
+    source: oneOf(o, "source", PROVENANCES, where),
+    learned_at: strOrNull(o, "learned_at", where),
+    last_reviewed_at: strOrNull(o, "last_reviewed_at", where),
+    next_due_on: day(o, "next_due_on", where),
+    interval_days: num(o, "interval_days", where),
+  };
+}
+
+/** `GET /habits/tracker/due` (`RuleCheckInList` in app/schemas/habits.py). */
+export function parseRuleCheckInList(value: unknown): RuleCheckInList {
+  const where = "check_ins";
+  const o = obj(value, where);
+  return {
+    timezone: str(o, "timezone", where),
+    today: day(o, "today", where),
+    due_trackers: list(o, "due_trackers", where, parseRuleCheckIn),
+    upcoming_trackers: list(o, "upcoming_trackers", where, parseRuleCheckIn),
+  };
+}
+
+/** `POST /habits/tracker/{id}/complete` (`CheckInReviewed` in app/schemas/habits.py). */
+export function parseCheckInReviewed(value: unknown): CheckInReviewed {
+  const where = "check_in";
+  const o = obj(value, where);
+  return {
+    next_review_date: str(o, "next_review_date", where),
+    next_interval_days: num(o, "next_interval_days", where),
+    next_due_on: day(o, "next_due_on", where),
   };
 }
