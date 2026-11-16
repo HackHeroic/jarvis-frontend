@@ -1,4 +1,4 @@
-# Jarvis — frontend
+# Jarvis — Frontend
 
 The web app for Jarvis, a personal intelligence that learns how one person works and has
 things ready before they are asked. This repository is the Next.js 14 interface; the
