@@ -210,7 +210,7 @@ function FileBody({
             href={file.url}
             target="_blank"
             rel="noopener"
-            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-button bg-terra px-4 py-2 text-sm font-medium text-white transition-all hover:bg-terra/90"
+            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-button bg-terra px-4 py-2 text-sm font-medium text-ink transition-all hover:brightness-95"
           >
             <ExternalLink size={14} />
             Open PDF
@@ -425,7 +425,7 @@ export default function DocumentViewerPage() {
                 className={clsx(
                   "rounded-button px-3 py-1.5 text-xs font-medium transition-colors max-md:min-h-10",
                   shown === value
-                    ? "bg-terra text-white"
+                    ? "bg-terra text-ink"
                     : "cursor-pointer text-secondary hover:bg-surface-subtle hover:text-primary",
                 )}
               >

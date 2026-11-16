@@ -4,10 +4,10 @@ import { motion } from "motion/react";
 
 const features = [
   {
-    title: "AI Smart Schedule",
+    title: "A study rhythm that fits",
     description:
-      "Automatically generates your optimal daily schedule based on deadlines, energy patterns, and priorities.",
-    color: "#6B7FB5",
+      "Makes room for focused study around your deadlines, energy patterns, and real life.",
+    color: "#9A725F",
     span: 2,
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -19,7 +19,7 @@ const features = [
     title: "Anti-Guilt Engine",
     description:
       "Missed a task? Jarvis reschedules without judgment. No shame, no streaks broken — just momentum.",
-    color: "#D4775A",
+    color: "#D97859",
     span: 1,
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -31,7 +31,7 @@ const features = [
     title: "Document Intelligence",
     description:
       "Upload syllabi, PDFs, or notes — Jarvis extracts deadlines, topics, and action items automatically.",
-    color: "#4A7B6B",
+    color: "#A8664F",
     span: 1,
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -40,10 +40,10 @@ const features = [
     ),
   },
   {
-    title: "Smart Workspace",
+    title: "A workspace for each subject",
     description:
-      "Your unified dashboard for tasks, calendar, documents, and AI chat — all in one distraction-free view.",
-    color: "#2C2924",
+      "Keep the task, criteria, course material, and practice together while you work.",
+    color: "#292724",
     span: 2,
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -55,7 +55,7 @@ const features = [
     title: "Behavioral Habits",
     description:
       "Learns your patterns over time — when you focus best, when you skip tasks, and adjusts accordingly.",
-    color: "#E09D5C",
+    color: "#C88A5E",
     span: 1,
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -64,10 +64,10 @@ const features = [
     ),
   },
   {
-    title: "9-Layer Architecture",
+    title: "An active tutor",
     description:
-      "From raw data to strategic planning — a deep intelligence stack that understands your academic life.",
-    color: "#6B7FB5",
+      "Ask about a topic, get a helpful hint, and check what you understand using your own materials.",
+    color: "#9A725F",
     span: 1,
     icon: (
       <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -79,7 +79,7 @@ const features = [
 
 export default function FeatureBento() {
   return (
-    <section id="features" className="py-24 bg-[#1C1A17]">
+    <section id="features" className="py-24 bg-[#292724]">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -88,10 +88,10 @@ export default function FeatureBento() {
           transition={{ duration: 0.5 }}
           className="mb-16"
         >
-          <p className="text-[#D4775A] text-xs uppercase tracking-[2px] font-semibold mb-3">
+          <p className="text-[#D97859] text-xs uppercase tracking-[2px] font-semibold mb-3">
             Everything You Need
           </p>
-          <h2 className="text-3xl md:text-4xl font-extrabold text-[#FAF8F4]">
+          <h2 className="text-3xl md:text-4xl font-extrabold text-[#FFFFFF]">
             Built for how your brain actually works
           </h2>
         </motion.div>
@@ -113,10 +113,10 @@ export default function FeatureBento() {
               <div className="mb-4" style={{ color: f.color }}>
                 {f.icon}
               </div>
-              <h3 className="text-[#FAF8F4] font-semibold text-lg mb-2">
+              <h3 className="text-[#FFFFFF] font-semibold text-lg mb-2">
                 {f.title}
               </h3>
-              <p className="text-[#FAF8F4]/60 text-sm leading-relaxed">
+              <p className="text-[#FFFFFF]/60 text-sm leading-relaxed">
                 {f.description}
               </p>
             </motion.div>

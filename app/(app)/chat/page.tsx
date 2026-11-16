@@ -10,6 +10,10 @@ import {
   X,
   FileText,
   Brain,
+  GraduationCap,
+  Mic,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -41,6 +45,17 @@ interface FileAttachment {
   fileName: string;
 }
 
+type BrowserSpeechRecognition = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
 // ---------------------------------------------------------------------------
 // Chat Page
 // ---------------------------------------------------------------------------
@@ -62,6 +77,8 @@ function ChatPage() {
     abort,
     modelMode,
     setModelMode,
+    tutorMode,
+    setTutorMode,
     conversationId,
     startNewConversation,
     loadConversation,
@@ -100,6 +117,13 @@ function ChatPage() {
   // Why the last file picked was not attached (over the backend's limit), if it wasn't.
   const [fileNote, setFileNote] = useState<string | null>(null);
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
+  const [voiceReplies, setVoiceReplies] = useState(true);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const wasStreaming = useRef(false);
+  const spokenChars = useRef(0);
+  const speechBuffer = useRef("");
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const isResizing = useRef(false);
 
@@ -177,6 +201,123 @@ function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("jarvis-voice-replies");
+      if (saved !== null) setVoiceReplies(saved === "on");
+    } catch { /* storage may be unavailable */ }
+    return () => {
+      recognitionRef.current?.stop();
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const speakText = useCallback((text: string) => {
+    const spokenText = text.replace(/```[\s\S]*?```/g, " code block omitted. ")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[`*_>#]/g, " ").replace(/\s+/g, " ").trim();
+    if (!spokenText || !("speechSynthesis" in window)) return;
+    const utterance = new SpeechSynthesisUtterance(spokenText);
+    const voices = window.speechSynthesis.getVoices();
+    const femaleName = /female|feminine|samantha|victoria|karen|moira|tessa|zira|aria|jenny|ava|susan|allison|aditi|heera|veena|lekha|priya|neha|reena|sangeeta/i;
+    const indianVoices = voices.filter((voice) => /^en[-_]in$/i.test(voice.lang));
+    const indianFemaleVoice = indianVoices.find((voice) => femaleName.test(voice.name));
+    const feminineVoice = indianFemaleVoice ?? voices.find((voice) =>
+      femaleName.test(voice.name)
+      && voice.lang.toLowerCase().startsWith(navigator.language.split("-")[0].toLowerCase()),
+    ) ?? voices.find((voice) =>
+      femaleName.test(voice.name),
+    ) ?? indianVoices[0];
+    if (feminineVoice) utterance.voice = feminineVoice;
+    utterance.lang = feminineVoice?.lang ?? "en-IN";
+    utterance.volume = 1;
+    utterance.rate = 1.08;
+    utterance.pitch = feminineVoice ? 1.28 : 1.48;
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => {
+      window.setTimeout(() => setIsSpeaking(window.speechSynthesis.speaking), 80);
+    };
+    utterance.onerror = () => setIsSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  // Start speaking at sentence boundaries while the model is still streaming.
+  // The remaining fragment is spoken at completion; restored history stays quiet.
+  useEffect(() => {
+    if (!voiceReplies || !("speechSynthesis" in window)) {
+      if (!voiceReplies) {
+        wasStreaming.current = false;
+        spokenChars.current = 0;
+        speechBuffer.current = "";
+        setIsSpeaking(false);
+      }
+      return;
+    }
+    if (isStreaming) {
+      if (!wasStreaming.current) {
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+        spokenChars.current = 0;
+        speechBuffer.current = "";
+        wasStreaming.current = true;
+      }
+      const incoming = streamState.message.slice(spokenChars.current);
+      spokenChars.current = streamState.message.length;
+      speechBuffer.current += incoming;
+      // Speak complete thoughts promptly without fragmenting sentence rhythm.
+      const sentence = /[.!?…](?:["')\]]*)\s/g;
+      let boundary: RegExpExecArray | null;
+      while ((boundary = sentence.exec(speechBuffer.current)) !== null) {
+        const phrase = speechBuffer.current.slice(0, boundary.index + boundary[0].length).trim();
+        speechBuffer.current = speechBuffer.current.slice(boundary.index + boundary[0].length);
+        sentence.lastIndex = 0;
+        speakText(phrase);
+      }
+      return;
+    }
+    if (!wasStreaming.current) return;
+    wasStreaming.current = false;
+    const finalFragment = speechBuffer.current.trim();
+    speechBuffer.current = "";
+    if (finalFragment) speakText(finalFragment);
+  }, [isStreaming, streamState.message, voiceReplies, speakText]);
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const speechWindow = window as typeof window & {
+      SpeechRecognition?: new () => BrowserSpeechRecognition;
+      webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
+    };
+    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!Recognition) return;
+    const recognition = new Recognition();
+    recognition.lang = navigator.language || "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript;
+      if (transcript) setInput((current) => current ? `${current.trim()} ${transcript}` : transcript);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    recognition.start();
+  }, [isListening]);
+
+  const toggleVoiceReplies = useCallback(() => {
+    setVoiceReplies((enabled) => {
+      const next = !enabled;
+      try { localStorage.setItem("jarvis-voice-replies", next ? "on" : "off"); } catch { /* ignore */ }
+      if (!next && "speechSynthesis" in window) window.speechSynthesis.cancel();
+      return next;
+    });
+  }, []);
 
   // ---- Auto-scroll on new messages / streaming updates ----
   useEffect(() => {
@@ -321,11 +462,45 @@ function ChatPage() {
         />
       </div>
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0 h-full">
+      <div className="chat-main-container relative flex-1 flex flex-col min-w-0 h-full">
+        {isSpeaking && (
+          <div className="chat-speaking-frame" aria-hidden="true" />
+        )}
         {/* Top bar */}
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border py-2 pl-[62px] pr-3 sm:pr-6 lg:pl-6">
           <span className="text-sm font-medium text-primary">Chat</span>
           <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+            <button
+              type="button"
+              onClick={toggleVoiceReplies}
+              aria-pressed={voiceReplies}
+              aria-label={voiceReplies ? "Turn voice replies off" : "Turn voice replies on"}
+              title={voiceReplies ? "Voice replies on" : "Voice replies off"}
+              className={clsx(
+                "flex shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors max-md:min-h-10",
+                voiceReplies ? "bg-terra/15 text-terra" : "text-secondary hover:bg-surface-muted hover:text-primary",
+              )}
+            >
+              {voiceReplies ? <Volume2 size={15} /> : <VolumeX size={15} />}
+              <span className="hidden sm:inline">Voice {voiceReplies ? "on" : "off"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTutorMode(!tutorMode)}
+              disabled={isStreaming}
+              aria-pressed={tutorMode}
+              aria-label={tutorMode ? "Turn off active tutor mode" : "Turn on active tutor mode"}
+              title={tutorMode ? "Turn off active tutor mode" : "Turn on active tutor mode"}
+              className={clsx(
+                "flex shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors max-md:min-h-10",
+                tutorMode
+                  ? "bg-sage/15 text-sage"
+                  : "text-secondary hover:bg-surface-muted hover:text-primary",
+              )}
+            >
+              <GraduationCap size={15} />
+              <span className="hidden sm:inline">Tutor {tutorMode ? "on" : "off"}</span>
+            </button>
             <button
               type="button"
               onClick={handleNewChat}
@@ -392,9 +567,9 @@ function ChatPage() {
               {messages.map((msg) => {
                 if (msg.role === "user") {
                   return (
-                    <div key={msg.id} className="flex justify-end">
+                    <div key={msg.id} className="chat-message-enter flex justify-end">
                       <div
-                        className="max-w-[88%] break-words bg-terra px-4 py-2.5 text-sm text-white sm:max-w-[80%]"
+                        className="max-w-[88%] break-words bg-terra px-4 py-2.5 text-sm text-ink sm:max-w-[80%]"
                         style={{ borderRadius: "14px 14px 4px 14px" }}
                       >
                         {msg.fileName && (
@@ -413,7 +588,7 @@ function ChatPage() {
 
                 // Assistant message -- delegate to JarvisResponse
                 return (
-                  <div key={msg.id} className="flex justify-start">
+                  <div key={msg.id} className="chat-message-enter flex justify-start">
                     <div
                       className="min-w-0 max-w-full px-1 py-1 text-sm text-primary sm:max-w-[85%]"
                     >
@@ -443,6 +618,12 @@ function ChatPage() {
         {/* Input area */}
         <div className="shrink-0 border-t border-border px-3 py-3 sm:px-6">
           <div className="max-w-2xl mx-auto">
+            {tutorMode && (
+              <p role="status" className="mb-2 flex items-center gap-1.5 px-1 text-xs text-sage">
+                <GraduationCap size={14} />
+                Active tutor · explanations, hints and one understanding check at a time.
+              </p>
+            )}
             {/* Attachment badge */}
             {attachment && (
               <div className="flex items-center gap-2 mb-2 px-1">
@@ -483,6 +664,20 @@ function ChatPage() {
                 <Paperclip size={18} />
               </button>
 
+              {/* Speak a prompt into the composer (supported in most Chromium browsers). */}
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={clsx(
+                  "flex flex-shrink-0 items-center justify-center rounded-lg p-2 transition-colors max-md:h-10 max-md:w-10",
+                  isListening ? "bg-red-500/15 text-red-500" : "text-muted hover:bg-surface-muted hover:text-secondary",
+                )}
+                aria-label={isListening ? "Stop listening" : "Speak a message"}
+                title={isListening ? "Listening… click to stop" : "Speak a message"}
+              >
+                <Mic size={18} className={isListening ? "animate-pulse" : ""} />
+              </button>
+
               {/* Textarea */}
               <textarea
                 ref={textareaRef}
@@ -492,7 +687,7 @@ function ChatPage() {
                 rows={1}
                 aria-describedby={inputNote ? "chat-input-note" : undefined}
                 aria-invalid={inputProblem !== null}
-                placeholder="Tell Jarvis what's on your mind..."
+                placeholder={tutorMode ? "Ask about a topic or your course material..." : "Tell Jarvis what's on your mind..."}
                 className="min-w-0 flex-1 resize-none rounded-xl border border-border bg-surface-muted px-3.5 py-2.5 text-sm text-primary transition-colors placeholder:text-muted focus:border-terra/50 focus:outline-none max-md:px-3 sm:px-4"
                 style={{ maxHeight: "120px" }}
               />
@@ -515,7 +710,7 @@ function ChatPage() {
                   className={clsx(
                     "flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors max-md:h-10 max-md:w-10",
                     (input.trim() || attachment) && !inputProblem
-                      ? "bg-terra text-white hover:bg-terra/90"
+                      ? "bg-terra text-ink hover:brightness-95"
                       : "bg-surface-muted text-muted cursor-not-allowed"
                   )}
                   aria-label="Send message"

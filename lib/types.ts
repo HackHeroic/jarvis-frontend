@@ -510,6 +510,7 @@ export interface ChatRequest {
   media_type?: string;
   file_name?: string;
   model_mode?: ModelMode;
+  tutor_mode?: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -176,7 +176,7 @@ export function markOnboarded(): void {
 // Schedule Slot → ScheduleTask Converter
 // ---------------------------------------------------------------------------
 
-const TASK_COLORS = ['#6B7FB5', '#4A7B6B', '#D4775A', '#E09D5C'];
+const TASK_COLORS = ['#9A725F', '#A8664F', '#D97859', '#C88A5E'];
 
 export function slotsToScheduleTasks(
   slots: Record<string, TaskSchedule>,

@@ -281,7 +281,7 @@ export function SchedulePreview({
             aria-busy={state.busy === 'accept'}
             className={clsx(
               'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
-              'bg-terra text-white hover:bg-terra/90 active:scale-[0.98]',
+              'bg-terra text-ink hover:brightness-95 active:scale-[0.98]',
               'disabled:opacity-40 disabled:pointer-events-none',
             )}
           >

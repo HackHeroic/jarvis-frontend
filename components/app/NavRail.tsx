@@ -19,6 +19,8 @@ import {
   Search,
   Plus,
   X,
+  Menu,
+  ChevronLeft,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import { archiveAllSessions } from "@/lib/api";
@@ -42,6 +44,7 @@ export default function NavRail() {
   const router = useRouter();
   const { theme, toggleTheme } = useThemeContext();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [cmdQuery, setCmdQuery] = useState("");
   const cmdInputRef = useRef<HTMLInputElement>(null);
@@ -63,6 +66,16 @@ export default function NavRail() {
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    setCollapsed(localStorage.getItem("jarvis-sidebar-collapsed") === "true");
+  }, []);
+
+  const toggleSidebar = () => {
+    const next = !collapsed;
+    localStorage.setItem("jarvis-sidebar-collapsed", String(next));
+    setCollapsed(next);
+  };
 
   const handleToggleTheme = () => {
     toggleTheme();
@@ -174,18 +187,39 @@ export default function NavRail() {
       {/* ------------------------------------------------------------------ */}
       <nav
         aria-label="Main navigation"
-        className="hidden w-14 shrink-0 flex-col items-center bg-ink py-4 md:flex"
+        className={clsx(
+          "hidden shrink-0 flex-col bg-ink py-4 text-white shadow-lg transition-[width] duration-300 ease-out md:flex",
+          collapsed ? "w-14 items-center" : "w-56 items-stretch px-3",
+        )}
       >
         {/* Logo */}
         <Link
           href="/"
-          className="mb-6 flex h-9 w-9 items-center justify-center rounded-[10px] bg-terra text-sm font-extrabold text-ink"
+          className={clsx(
+            "mb-3 flex h-10 items-center rounded-xl bg-terra font-display font-bold text-ink shadow-md",
+            collapsed ? "w-10 justify-center text-sm" : "gap-2 px-2.5 text-base",
+          )}
         >
-          J
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15">J</span>
+          {!collapsed && <span>Jarvis</span>}
         </Link>
 
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!collapsed}
+          className={clsx(
+            "mb-5 flex h-9 items-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white",
+            collapsed ? "w-9 justify-center" : "justify-between px-2.5",
+          )}
+        >
+          {!collapsed && <span className="text-[10px] font-semibold uppercase tracking-[.14em]">Your study space</span>}
+          {collapsed ? <Menu size={17} /> : <ChevronLeft size={17} />}
+        </button>
+
         {/* Nav items */}
-        <div className="flex flex-1 flex-col items-center gap-1.5">
+        <div className={clsx("flex flex-1 flex-col gap-1.5", collapsed ? "items-center" : "items-stretch")}>
           {NAV_ITEMS.map((item) => {
             const Icon = iconMap[item.icon];
             const isActive = isActiveHref(item.href);
@@ -197,13 +231,19 @@ export default function NavRail() {
                   aria-label={item.label}
                   aria-current={isActive ? "page" : undefined}
                   className={clsx(
-                    "flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-150",
+                    "group relative flex h-10 items-center rounded-xl transition-all duration-200",
+                    collapsed ? "w-9 justify-center" : "w-full gap-3 px-2.5",
                     isActive
-                      ? "bg-white/[0.12] text-white"
-                      : "text-white opacity-50 hover:opacity-80 hover:bg-white/[0.08]"
+                      ? "bg-white/[0.10] text-white"
+                      : "text-white/55 hover:bg-white/[0.07] hover:text-white"
                   )}
                 >
-                  {Icon && <Icon size={18} />}
+                  <span
+                    aria-hidden="true"
+                    className={clsx("absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-terra transition-opacity", isActive ? "opacity-100" : "opacity-0")}
+                  />
+                  {Icon && <Icon size={18} className="shrink-0 transition-transform duration-200 group-hover:scale-105" />}
+                  {!collapsed && <span className="truncate text-sm font-medium">{item.label}</span>}
                 </Link>
               </Tooltip>
             );
@@ -211,23 +251,25 @@ export default function NavRail() {
         </div>
 
         {/* Bottom section */}
-        <div className="relative flex flex-col items-center gap-3" ref={menuRef}>
+        <div className={clsx("relative flex gap-3", collapsed ? "flex-col items-center" : "w-full flex-col items-stretch")} ref={menuRef}>
           <Tooltip content="Command Palette (⌘K)" side="right">
             <button
               onClick={openCmd}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/30 transition-colors hover:text-white/50 hover:border-white/20"
+              className={clsx("flex h-9 items-center justify-center rounded-lg border border-white/10 text-white/55 transition-colors hover:bg-white/[0.07] hover:text-white hover:border-white/20", collapsed ? "w-9" : "w-full gap-3 px-2.5")}
               aria-label="Command palette"
             >
               <Command size={16} />
+              {!collapsed && <span className="text-xs">Command palette</span>}
             </button>
           </Tooltip>
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-terra text-[11px] font-bold text-ink transition-transform hover:scale-110"
+            className={clsx("flex h-9 items-center justify-center rounded-xl bg-terra text-xs font-bold text-ink transition-transform hover:scale-[1.02]", collapsed ? "w-9 rounded-full" : "w-full gap-2 px-2.5")}
             aria-label="User menu"
             aria-expanded={menuOpen}
           >
             MM
+            {!collapsed && <span className="font-medium">Madhav</span>}
           </button>
 
           {/* Popover menu */}

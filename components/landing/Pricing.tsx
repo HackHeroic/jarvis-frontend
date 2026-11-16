@@ -37,11 +37,11 @@ export default function Pricing() {
       id="pricing"
       className="py-24"
       style={{
-        background: "linear-gradient(to bottom, #1C1A17, #0F0D0A)",
+        background: "linear-gradient(to bottom, #292724, #211F1C)",
       }}
     >
       <div className="max-w-4xl mx-auto px-6 md:px-12">
-        <h2 className="text-3xl md:text-4xl font-extrabold text-[#FAF8F4] text-center mb-16">
+        <h2 className="text-3xl md:text-4xl font-extrabold text-[#FFFFFF] text-center mb-16">
           Start getting things done.
         </h2>
 
@@ -51,28 +51,28 @@ export default function Pricing() {
               key={plan.name}
               className={`relative rounded-xl p-8 ${
                 plan.popular
-                  ? "border-2 border-[#D4775A] bg-[#D4775A]/10"
-                  : "border border-[#FAF8F4]/10 bg-[#FAF8F4]/5"
+                  ? "border-2 border-[#D97859] bg-[#D97859]/10"
+                  : "border border-[#FFFFFF]/10 bg-[#FFFFFF]/5"
               }`}
             >
               {plan.popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#D4775A] text-[#1C1A17] text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#D97859] text-[#292724] text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                   Popular
                 </span>
               )}
 
-              <h3 className="text-[#FAF8F4] font-semibold text-xl mb-2">
+              <h3 className="text-[#FFFFFF] font-semibold text-xl mb-2">
                 {plan.name}
               </h3>
               <div className="mb-6">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-[#FAF8F4] text-4xl font-extrabold">
+                  <span className="text-[#FFFFFF] text-4xl font-extrabold">
                     {plan.price}
                   </span>
-                  <span className="text-[#FAF8F4]/60 text-sm">{plan.period}</span>
+                  <span className="text-[#FFFFFF]/60 text-sm">{plan.period}</span>
                 </div>
                 {plan.popular && (
-                  <span className="text-[#FAF8F4]/60 text-xs">($89/yr)</span>
+                  <span className="text-[#FFFFFF]/60 text-xs">($89/yr)</span>
                 )}
               </div>
 
@@ -80,13 +80,13 @@ export default function Pricing() {
                 {plan.features.map((f) => (
                   <li
                     key={f}
-                    className="flex items-start gap-2 text-[#FAF8F4]/70 text-sm"
+                    className="flex items-start gap-2 text-[#FFFFFF]/70 text-sm"
                   >
                     <svg
                       className="w-4 h-4 mt-0.5 shrink-0"
                       fill="none"
                       viewBox="0 0 24 24"
-                      stroke={plan.popular ? "#D4775A" : "#FAF8F4"}
+                      stroke={plan.popular ? "#D97859" : "#FFFFFF"}
                       strokeWidth={2}
                     >
                       <path
@@ -104,8 +104,8 @@ export default function Pricing() {
                 href="/dashboard"
                 className={`block text-center font-semibold text-sm px-6 py-3 rounded-lg transition-colors ${
                   plan.popular
-                    ? "bg-[#D4775A] text-[#1C1A17] hover:bg-[#D4775A]/90"
-                    : "border border-[#FAF8F4]/20 text-[#FAF8F4] hover:border-[#FAF8F4]/40"
+                    ? "bg-[#D97859] text-[#292724] hover:bg-[#D97859]/90"
+                    : "border border-[#FFFFFF]/20 text-[#FFFFFF] hover:border-[#FFFFFF]/40"
                 }`}
               >
                 {plan.cta}
@@ -114,7 +114,7 @@ export default function Pricing() {
           ))}
         </div>
 
-        <p className="text-center text-[#FAF8F4]/60 text-xs mt-8">
+        <p className="text-center text-[#FFFFFF]/60 text-xs mt-8">
           No credit card required. Cancel anytime.
         </p>
       </div>

@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { DEMO_USER } from "@/lib/constants";
 import type { DashboardRange } from "@/lib/dashboard";
+import JarvisAvatar from "@/components/app/JarvisAvatar";
 
 function getGreeting(now: Date): string {
   const hour = now.getHours();
@@ -49,23 +50,26 @@ export default function DailyGreeting({
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-      <div className="min-w-0">
-        <h1 className="text-xl font-bold leading-tight text-primary sm:text-[22px]">
-          {getGreeting(now)}, {DEMO_USER.name}
-        </h1>
-        {/* The facts describe the selected range; they wrap as whole phrases */}
-        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-secondary sm:text-sm">
-          {facts.map((fact, i) => (
-            <span key={fact} className="flex items-center gap-x-1.5">
-              {i > 0 && (
-                <span aria-hidden="true" className="text-muted">
-                  &middot;
-                </span>
-              )}
-              <span className="whitespace-nowrap">{fact}</span>
-            </span>
-          ))}
-        </p>
+      <div className="flex min-w-0 items-center gap-3">
+        <JarvisAvatar size={64} />
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold leading-tight text-primary sm:text-[22px]">
+            {getGreeting(now)}, {DEMO_USER.name}
+          </h1>
+          {/* The facts describe the selected range; they wrap as whole phrases */}
+          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-secondary sm:text-sm">
+            {facts.map((fact, i) => (
+              <span key={fact} className="flex items-center gap-x-1.5">
+                {i > 0 && (
+                  <span aria-hidden="true" className="text-muted">
+                    &middot;
+                  </span>
+                )}
+                <span className="whitespace-nowrap">{fact}</span>
+              </span>
+            ))}
+          </p>
+        </div>
       </div>
 
       <div
@@ -84,7 +88,7 @@ export default function DailyGreeting({
               className={clsx(
                 "rounded-button px-3 py-1.5 text-xs font-medium transition-colors max-md:min-h-10",
                 isActive
-                  ? "bg-terra text-white"
+                  ? "bg-terra text-ink"
                   : "cursor-pointer text-secondary hover:bg-surface-subtle hover:text-primary",
               )}
             >

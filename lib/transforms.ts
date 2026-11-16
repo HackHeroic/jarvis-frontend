@@ -5,7 +5,7 @@ import type { MemoryRecord, ScheduleTask } from "./types";
 // Color palette for auto-assigning goal colors (deterministic hash)
 // ---------------------------------------------------------------------------
 
-const PALETTE = ["#D4775A", "#4A7B6B", "#6B7FB5", "#C9A84C", "#3D3D3D"];
+const PALETTE = ["#D97859", "#A8664F", "#9A725F", "#C88A5E", "#292724"];
 
 function hashCode(str: string): number {
   let hash = 0;

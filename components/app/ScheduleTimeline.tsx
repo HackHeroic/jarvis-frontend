@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import TaskBlock from "@/components/app/TaskBlock";
 import { activeTaskId, dayHeading, type DashboardRange, type RangeView } from "@/lib/dashboard";
 import type { ScheduleTask } from "@/lib/types";
+import { motion } from "motion/react";
 
 interface ScheduleTimelineProps {
   view: RangeView;
@@ -69,17 +70,20 @@ export default function ScheduleTimeline({ view, range, now }: ScheduleTimelineP
   }
 
   const row = (task: ScheduleTask) => (
-    <div
+    <motion.div
       key={task.task_id}
-      className="cursor-pointer"
+      layout
+      transition={{ layout: { duration: 0.24, ease: "easeOut" } }}
+      className="relative cursor-pointer"
       onClick={() => router.push(`/workspace/${task.task_id}`)}
     >
+      <span aria-hidden="true" className="absolute left-[56px] top-4 z-10 h-2 w-2 rounded-full bg-terra ring-4 ring-surface-card" />
       <TaskBlock
         task={task}
         isActive={task.task_id === active}
         progressMinutes={progressMinutes(task)}
       />
-    </div>
+    </motion.div>
   );
 
   // Today: where NOW falls among the day's tasks (before the first one not yet over).
@@ -116,7 +120,7 @@ export default function ScheduleTimeline({ view, range, now }: ScheduleTimelineP
       )}
 
       {range === "today" && todayTasks.length > 0 && (
-        <div className="space-y-2">
+        <div className="relative space-y-2 before:absolute before:bottom-2 before:left-[59px] before:top-2 before:w-px before:bg-border">
           {todayTasks.map((task, i) => (
             <div key={task.task_id}>
               {i === nowIndex && <NowLine />}
@@ -132,7 +136,9 @@ export default function ScheduleTimeline({ view, range, now }: ScheduleTimelineP
           {view.days.map((day) => (
             <section key={day.key} className="space-y-2">
               <DayHeader label={dayHeading(day.date, now)} count={day.tasks.length} />
-              {day.tasks.map(row)}
+              <div className="relative space-y-2 before:absolute before:bottom-2 before:left-[59px] before:top-2 before:w-px before:bg-border">
+                {day.tasks.map(row)}
+              </div>
             </section>
           ))}
         </div>
