@@ -69,6 +69,8 @@ export type UseJarvisChatReturn = {
       mediaType?: string;
       modelMode?: string;
       fileName?: string;
+      /** The message was spoken: ask for a reply written to be read aloud. */
+      voice?: boolean;
     },
   ) => Promise<void>;
   abort: () => void;
@@ -254,6 +256,8 @@ export function useJarvisChat(): UseJarvisChatReturn {
         mediaType?: string;
         modelMode?: string;
         fileName?: string;
+        /** The message was spoken: ask for a reply written to be read aloud. */
+        voice?: boolean;
       },
     ) => {
       if (!content.trim() || isStreaming) return;
@@ -302,6 +306,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
           file_name: options?.fileName,
           model_mode: options?.modelMode ? toModelMode(options.modelMode) : modelMode,
           tutor_mode: tutorMode,
+          voice_mode: options?.voice === true,
           conversation_id: conversationId || undefined,
         },
         untilAborted(control.deliverySignal, {

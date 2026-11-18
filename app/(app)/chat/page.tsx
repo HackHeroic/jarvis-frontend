@@ -346,7 +346,7 @@ function ChatPage() {
     const deliver = (text: string | null) => {
       const request = text?.trim();
       if (!request || voiceTurn.current.isStreaming || promptProblem(request)) return;
-      voiceTurn.current.sendMessage(request);
+      voiceTurn.current.sendMessage(request, { voice: true });
     };
     const onCommand = (event: Event) => deliver((event as CustomEvent<string>).detail);
     window.addEventListener(VOICE_COMMAND_EVENT, onCommand);

@@ -511,6 +511,7 @@ export interface ChatRequest {
   file_name?: string;
   model_mode?: ModelMode;
   tutor_mode?: boolean;
+  voice_mode?: boolean;
 }
 
 // ---------------------------------------------------------------------------
