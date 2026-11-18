@@ -73,6 +73,21 @@ export function useWakeWord({ onCommand, onWake, available, bargeIn = false }: O
       else setStatus(awake() ? "awake" : "standby");
     };
 
+    // While Jarvis is talking (barge-in), "stop" or "pause" acts the moment it is heard:
+    // no name needed and no waiting for the sentence to end. Jarvis's own lines avoid
+    // those words, so it does not interrupt itself.
+    let interruptedAt = 0;
+    const interruption = (transcript: string): boolean => {
+      if (!handlers.current.bargeIn || !speaking()) return false;
+      if (Date.now() - interruptedAt < 2500) return true;
+      if (!/\b(stop|pause|paws|silence|be quiet|shut up)\b/i.test(transcript)) return false;
+      interruptedAt = Date.now();
+      awakeUntil = 0;
+      setHeard("");
+      handlers.current.onCommand("stop");
+      return true;
+    };
+
     const deliver = (text: string) => {
       awakeUntil = 0;
       setHeard("");
@@ -90,6 +105,7 @@ export function useWakeWord({ onCommand, onWake, available, bargeIn = false }: O
         for (let i = event.resultIndex ?? 0; i < event.results.length; i += 1) {
           const result = event.results[i];
           const transcript = result[0]?.transcript ?? "";
+          if (interruption(transcript)) continue;
           if (!result.isFinal) {
             // Show what is being heard as soon as the name is in it.
             const sofar = awake() ? spokenRequest(transcript) : commandAfterWakeWord(transcript);

@@ -172,14 +172,19 @@ function CapstoneWalkthrough() {
   useEffect(() => {
     const onControl = (event: Event) => {
       const what = (event as CustomEvent<string>).detail;
-      if (what === "stop") setPlaying(false);
+      if (what.startsWith("topic:")) {
+        const id = what.slice(6);
+        if (id === "all") { setTour(true); open(CAPSTONE_TOPICS[0].id, true); }
+        else if (CAPSTONE_TOPICS.some((candidate) => candidate.id === id)) { setTour(false); open(id, true); }
+      }
+      else if (what === "stop") setPlaying(false);
       else if (what === "resume") setPlaying(true);
       else if (what === "next") { setAt((current) => Math.min(topic.steps.length - 1, current + 1)); setPlaying(true); }
       else if (what === "back") { setAt((current) => Math.max(-1, current - 1)); setPlaying(true); }
     };
     window.addEventListener(CAPSTONE_CONTROL_EVENT, onControl);
     return () => window.removeEventListener(CAPSTONE_CONTROL_EVENT, onControl);
-  }, [topic]);
+  }, [topic, open]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

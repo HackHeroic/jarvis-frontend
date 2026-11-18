@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Mic, MicOff } from "lucide-react";
 import clsx from "clsx";
 import { useWakeWord, type PresenceStatus } from "@/lib/hooks/useWakeWord";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
-import { say } from "@/lib/speech";
+import { primeVoices, say } from "@/lib/speech";
 import { useThemeContext } from "@/lib/providers";
 import { voiceAction } from "@/lib/voiceActions";
-import { CAPSTONE_CONTROL_EVENT, CAPSTONE_MODE_KEY } from "@/lib/capstone";
+import { CAPSTONE_CONTROL_EVENT, CAPSTONE_MODE_KEY, capstoneTopicFor } from "@/lib/capstone";
 import { holdVoiceCommand, VOICE_COMMAND_EVENT } from "@/lib/wakeWord";
 
 const LABEL: Record<PresenceStatus, string> = {
@@ -54,16 +54,22 @@ export default function JarvisPresence() {
       else if (pathname === "/capstone") router.push("/dashboard");
       return;
     }
-    if (action.kind === "explain") {
-      // How Jarvis was built is told only in capstone mode; otherwise it is a normal request.
-      let capstone = false;
-      try { capstone = localStorage.getItem(CAPSTONE_MODE_KEY) === "on"; } catch { /* stays off */ }
-      if (capstone) {
-        router.push(`/capstone?topic=${action.topic}`);
+    // How Jarvis was built is told only in capstone mode; otherwise it is a normal request.
+    let capstone = false;
+    try { capstone = localStorage.getItem(CAPSTONE_MODE_KEY) === "on"; } catch { /* stays off */ }
+    if (capstone) {
+      // In capstone mode a topic's name is enough: "double click", "morning brief".
+      const topic = action.kind === "explain" ? action.topic : capstoneTopicFor(request)?.id;
+      if (topic) {
+        if (pathname === "/capstone") {
+          window.dispatchEvent(new CustomEvent(CAPSTONE_CONTROL_EVENT, { detail: `topic:${topic}` }));
+        } else {
+          router.push(`/capstone?topic=${topic}`);
+        }
         return;
       }
-      action = action.otherwise;
     }
+    if (action.kind === "explain") action = action.otherwise;
     if (action.kind === "capstone" || action.kind === "explain" || action.kind === "control") return;
     if (action.kind === "navigate") {
       say(action.say);
@@ -83,6 +89,8 @@ export default function JarvisPresence() {
     router.push("/chat");
   }, [pathname, router, setTheme]);
 
+  useEffect(() => primeVoices(), []);
+
   const onWake = useCallback(() => {
     // Hearing its name mid-explanation, Jarvis stops talking and listens.
     if (pathname === "/capstone") window.dispatchEvent(new CustomEvent(CAPSTONE_CONTROL_EVENT, { detail: "stop" }));
@@ -92,7 +100,9 @@ export default function JarvisPresence() {
   const { status, heard, enabled, toggle } = useWakeWord({ onCommand, onWake, available: roomy, bargeIn: pathname === "/capstone" });
   if (status === "unsupported") return null;
 
-  const text = status === "awake" && heard ? heard : LABEL[status];
+  const text = status === "awake" && heard ? heard
+    : status === "speaking" && pathname === "/capstone" ? "Say “stop” to pause"
+    : LABEL[status];
   return (
     <>
       {/* The moment Jarvis hears its name: the reactor opens over the page. */}

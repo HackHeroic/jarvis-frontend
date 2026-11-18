@@ -27,8 +27,18 @@ export function speechRecognition(): RecognitionConstructor | null {
   return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
 }
 
-/** British male voices, best first: the nearest a browser has to the film's Jarvis. */
-const JARVIS_VOICES = [/^daniel\b/i, /google uk english male/i, /^(oliver|arthur|george|ryan|thomas)\b/i, /uk english male/i];
+/**
+ * British male voices, best first: the nearest a browser has to the film's Jarvis. The
+ * higher-quality system voices (installed in macOS Spoken Content) come before the
+ * compact ones.
+ */
+const JARVIS_VOICES = [
+  /^(daniel|oliver|jamie|arthur|malcolm).*\((premium|enhanced)\)/i,
+  /google uk english male/i,
+  /^daniel\b/i,
+  /^(oliver|jamie|arthur|malcolm|george|ryan|thomas)\b/i,
+  /uk english male/i,
+];
 
 function jarvisVoice(): SpeechSynthesisVoice | undefined {
   const voices = window.speechSynthesis.getVoices();
@@ -41,6 +51,16 @@ function jarvisVoice(): SpeechSynthesisVoice | undefined {
     ?? voices.find((voice) => /^en/i.test(voice.lang));
 }
 
+/**
+ * Ask the browser for its voices ahead of the first sentence. Chrome loads them late:
+ * without this the first thing Jarvis says comes out in the default voice.
+ */
+export function primeVoices(): void {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.addEventListener?.("voiceschanged", () => window.speechSynthesis.getVoices(), { once: true });
+}
+
 /** An utterance in Jarvis's voice: the same voice for replies and for "Yes, sir?". */
 export function jarvisUtterance(text: string): SpeechSynthesisUtterance {
   const utterance = new SpeechSynthesisUtterance(text);
@@ -48,8 +68,9 @@ export function jarvisUtterance(text: string): SpeechSynthesisUtterance {
   if (voice) utterance.voice = voice;
   utterance.lang = voice?.lang ?? "en-GB";
   utterance.volume = 1;
-  utterance.rate = 1.04;
-  utterance.pitch = 0.92;
+  // Unhurried and a little low: calm, not chirpy.
+  utterance.rate = 0.98;
+  utterance.pitch = 0.82;
   return utterance;
 }
 
