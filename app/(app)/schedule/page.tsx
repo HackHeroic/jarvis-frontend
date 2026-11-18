@@ -263,7 +263,7 @@ function SchedulePageInner() {
                 className={clsx(
                   "px-3 py-1.5 text-xs font-medium capitalize transition-colors max-md:min-h-10",
                   viewMode === mode
-                    ? "bg-terra text-white"
+                    ? "bg-terra text-ink"
                     : "bg-surface-card text-secondary hover:bg-surface-muted",
                 )}
               >

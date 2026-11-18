@@ -55,7 +55,7 @@ export default function TaskBlock({ task, isActive, progressMinutes }: TaskBlock
           <div className="min-w-0 flex-1">
             <div className="flex items-start gap-2">
               {isCompleted && (
-                <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-sage text-white">
+                <div className="completion-check mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-sage text-white">
                   <Check size={10} strokeWidth={3} />
                 </div>
               )}

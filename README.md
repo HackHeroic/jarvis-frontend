@@ -20,7 +20,7 @@ Start the backend first (port 8000), then open `http://localhost:3000/dashboard`
 | Page | What it shows |
 |---|---|
 | `/dashboard` | The morning brief, what Jarvis noticed, and today |
-| `/chat` | Talk to Jarvis: a brain dump becomes a draft plan you accept or discard |
+| `/chat` | Talk to Jarvis: brain dumps become draft plans; optional Tutor mode teaches in short steps, uses hints and checks understanding |
 | `/schedule` | The accepted plan by day, week and month |
 | `/documents` | Uploaded files, opened in the viewer, and the tasks each is linked to |
 | `/workspace/[taskId]` | One task: its criteria, study material and linked documents |

@@ -8,6 +8,8 @@ import { JarvisProvider } from "@/lib/context/JarvisContext";
 import ToastContainer from "@/components/ui/ToastContainer";
 import clsx from "clsx";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
+import { motion } from "motion/react";
+import AmbientObjects from "@/components/app/AmbientObjects";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -51,25 +53,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <JarvisProvider>
-      <div className="px-safe-x flex h-app overflow-hidden bg-surface-canvas">
-        <NavRail />
-        {/* min-w-0 lets this column shrink below its content width instead of
-            forcing the whole row wider than the screen */}
-        <main
-          className={clsx(
-            "min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-nav",
-            // Reserve room for the floating Jarvis button while it is showing
-            showAIPanel && chatCollapsed && "pb-fab",
+      <div className="relative isolate h-app overflow-hidden">
+        <div className="ambient-backdrop" aria-hidden="true">
+          <div className="ambient-blob ambient-blob--one" />
+          <div className="ambient-blob ambient-blob--two" />
+          <div className="ambient-blob ambient-blob--three" />
+          <AmbientObjects />
+          <div className="ambient-particles" />
+        </div>
+        <div className="px-safe-x relative z-10 flex h-full overflow-hidden">
+          <NavRail />
+          <main
+            className={clsx(
+              "min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-nav",
+              showAIPanel && chatCollapsed && "pb-fab",
+            )}
+          >
+            <motion.div
+              key={pathname}
+              initial={{ opacity: 0, y: 7 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.24, ease: "easeOut" }}
+              className={pathname === "/chat" ? "h-full" : undefined}
+            >
+              {children}
+            </motion.div>
+          </main>
+          {showAIPanel && (
+            <AIChatPanel
+              collapsed={chatCollapsed}
+              onToggle={() => setChatCollapsed((prev) => !prev)}
+            />
           )}
-        >
-          {children}
-        </main>
-        {showAIPanel && (
-          <AIChatPanel
-            collapsed={chatCollapsed}
-            onToggle={() => setChatCollapsed((prev) => !prev)}
-          />
-        )}
+        </div>
       </div>
       <ToastContainer />
     </JarvisProvider>

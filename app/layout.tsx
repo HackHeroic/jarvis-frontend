@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Providers } from "@/lib/providers";
+import { MotionConfig } from "motion/react";
 import "./globals.css";
 
 const inter = Inter({
@@ -16,11 +17,11 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Jarvis — Your Brain Dump Becomes Your Plan | AI Study Scheduler",
-  description: "Stop managing your productivity. Tell Jarvis what's stressing you and watch it create an optimized study schedule. AI-powered, anti-guilt, built for students.",
+  title: "Jarvis — Your Personal AI Study Companion",
+  description: "Understand your course material, practice what you are learning, and make room for study with a personal AI learning companion.",
   openGraph: {
-    title: "Jarvis — AI-Powered Study Scheduler",
-    description: "Your brain dump becomes your plan. AI scheduling that adapts to you.",
+    title: "Jarvis — AI Study Companion",
+    description: "A personal AI tutor for your course material, study habits and learning rhythm.",
     type: "website",
   },
   twitter: { card: "summary_large_image" },
@@ -34,8 +35,8 @@ export const viewport: Viewport = {
   maximumScale: 5,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FAF8F4" },
-    { media: "(prefers-color-scheme: dark)", color: "#1C1A17" },
+    { media: "(prefers-color-scheme: light)", color: "#FAF8F5" },
+    { media: "(prefers-color-scheme: dark)", color: "#211F1C" },
   ],
 };
 
@@ -48,7 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="font-sans">
-        <Providers>{children}</Providers>
+        <MotionConfig reducedMotion="user">
+          <Providers>{children}</Providers>
+        </MotionConfig>
       </body>
     </html>
   );

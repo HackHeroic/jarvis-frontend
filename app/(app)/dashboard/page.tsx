@@ -23,6 +23,17 @@ import {
   type DashboardRange,
 } from "@/lib/dashboard";
 import type { PearlInsight } from "@/lib/types";
+import { motion } from "motion/react";
+
+const dashboardStagger = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.075 } },
+};
+
+const dashboardCard = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.34, ease: "easeOut" as const } },
+};
 
 /** Re-read the clock this often, so "today" stays today past midnight. */
 const CLOCK_MS = 60_000;
@@ -121,38 +132,47 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:space-y-5 sm:px-6 sm:py-8">
+    <motion.div
+      variants={dashboardStagger}
+      initial="hidden"
+      animate="visible"
+      className="mx-auto max-w-5xl space-y-6 px-4 py-7 sm:space-y-7 sm:px-7 sm:py-10"
+    >
       {/* Greeting — its facts and the tiles describe the selected range */}
-      <DailyGreeting
-        now={now}
-        range={range}
-        onRangeChange={setRange}
-        rangeLabel={rangeHeading(range, now)}
-        taskCount={stats.total}
-        estimatedMinutes={stats.minutes}
-        unscheduledCount={stats.unscheduled}
-      />
+      <motion.div variants={dashboardCard}>
+        <DailyGreeting
+          now={now}
+          range={range}
+          onRangeChange={setRange}
+          rangeLabel={rangeHeading(range, now)}
+          taskCount={stats.total}
+          estimatedMinutes={stats.minutes}
+          unscheduledCount={stats.unscheduled}
+        />
+      </motion.div>
 
       {/* Stats */}
-      <StatsStrip
-        tasksCompleted={stats.done}
-        tasksTotal={stats.total}
-        doneLabel={DONE_LABELS[range]}
-        focusMinutes={focusMinutes}
-        streakDays={streakDays}
-        patternsLearned={patterns}
-      />
+      <motion.div variants={dashboardCard}>
+        <StatsStrip
+          tasksCompleted={stats.done}
+          tasksTotal={stats.total}
+          doneLabel={DONE_LABELS[range]}
+          focusMinutes={focusMinutes}
+          streakDays={streakDays}
+          patternsLearned={patterns}
+        />
+      </motion.div>
 
       {/* One placeholder until the suggestions and tasks have answered */}
       {!ready && (
-        <div className="space-y-4 sm:space-y-5" aria-busy="true" aria-label="Loading">
+        <motion.div variants={dashboardCard} className="space-y-4 sm:space-y-5" aria-busy="true" aria-label="Loading">
           <div className="h-36 rounded-card bg-surface-muted animate-pulse" />
           <div className="h-40 rounded-card bg-surface-muted animate-pulse" />
-        </div>
+        </motion.div>
       )}
 
       {/* Mounted from the start (the suggestions load inside), shown all at once */}
-      <div hidden={!ready} className="space-y-4 sm:space-y-5">
+      <motion.div hidden={!ready} variants={dashboardCard} className="space-y-6 sm:space-y-7">
         {/* What Jarvis prepared on its own: pending suggestions to accept or dismiss */}
         <WhileYouWereAway onSettled={onSuggestionsSettled} />
 
@@ -161,16 +181,16 @@ export default function DashboardPage() {
 
         {/* PEARL Insights */}
         {pearlInsights.length > 0 && (
-          <Card className="border-l-[3px] border-sage px-4 py-4 sm:px-5">
+          <Card className="overflow-hidden border-l-[3px] border-terra bg-[linear-gradient(120deg,#FFFFFF_0%,#FAF0E9_100%)] px-5 py-5 shadow-md sm:px-7 sm:py-6">
             <div className="mb-2 flex items-center gap-2">
-              <Sparkles size={14} className="text-sage" />
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-sage">
+              <Sparkles size={15} className="text-terra" />
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-terra">
                 Jarvis Noticed
               </h3>
             </div>
-            <ul className="space-y-1.5">
+            <ul className="space-y-2">
               {pearlInsights.map((p, i) => (
-                <li key={i} className="text-sm text-primary">
+                <li key={i} className="max-w-4xl text-sm leading-relaxed text-primary sm:text-base">
                   {p.insight}
                 </li>
               ))}
@@ -232,7 +252,7 @@ export default function DashboardPage() {
             Connected to Jarvis Engine
           </p>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

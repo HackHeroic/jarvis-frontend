@@ -8,7 +8,7 @@ export default function Philosophy() {
       id="how-it-works"
       className="py-32"
       style={{
-        background: "linear-gradient(to bottom, #1C1A17, #2A2420)",
+        background: "linear-gradient(to bottom, #292724, #37312C)",
       }}
     >
       <div className="max-w-3xl mx-auto px-6 md:px-12 text-center">
@@ -17,11 +17,11 @@ export default function Philosophy() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.7 }}
-          className="text-2xl md:text-3xl font-semibold text-[#FAF8F4] leading-snug"
+          className="text-2xl md:text-3xl font-semibold text-[#FFFFFF] leading-snug"
         >
           &ldquo;Every other productivity app makes you feel guilty for not
           keeping up.{" "}
-          <span className="text-[#D4775A]">
+          <span className="text-[#D97859]">
             Jarvis makes falling behind impossible.
           </span>
           &rdquo;
@@ -32,7 +32,7 @@ export default function Philosophy() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="mt-8 text-[#FAF8F4]/60 text-sm max-w-md mx-auto"
+          className="mt-8 text-[#FFFFFF]/60 text-sm max-w-md mx-auto"
         >
           When you skip a task, Jarvis doesn&apos;t punish you. It re-evaluates
           your priorities and builds a new plan that still gets you to the finish

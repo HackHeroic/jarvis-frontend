@@ -1,5 +1,9 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ClipboardList, Timer, Flame, Brain } from "lucide-react";
+import { useReducedMotion } from "motion/react";
 import { Card } from "@/components/ui/Card";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { streakLabel } from "@/lib/dashboard";
@@ -24,6 +28,38 @@ const ICON =
 const VALUE = "truncate text-base font-semibold sm:text-lg";
 const LABEL = "text-[11px] leading-tight text-secondary sm:text-xs";
 
+function AnimatedNumber({
+  value,
+  format = (number: number) => String(number),
+}: {
+  value: number;
+  format?: (number: number) => string;
+}) {
+  const reduceMotion = useReducedMotion();
+  const [shown, setShown] = useState(value);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      setShown(value);
+      return;
+    }
+    const duration = 620;
+    const started = performance.now();
+    let frame = 0;
+    setShown(0);
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - started) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setShown(Math.round(value * eased));
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [reduceMotion, value]);
+
+  return <span className="tabular-nums">{format(shown)}</span>;
+}
+
 export default function StatsStrip({
   tasksCompleted,
   tasksTotal,
@@ -43,7 +79,7 @@ export default function StatsStrip({
   };
 
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 2xl:grid-cols-4">
       {/* Tasks — progress reads as a bar under the row rather than a ring
           beside it, which left no room for the label at four-up widths */}
       <Card className="px-3 py-3 sm:px-4">
@@ -53,7 +89,7 @@ export default function StatsStrip({
           </div>
           <div className="min-w-0 flex-1">
             <p className={`${VALUE} text-dusk`}>
-              {tasksCompleted}/{tasksTotal}
+              <AnimatedNumber value={tasksCompleted} />/<AnimatedNumber value={tasksTotal} />
             </p>
             <p className={LABEL}>{doneLabel}</p>
           </div>
@@ -67,7 +103,7 @@ export default function StatsStrip({
           aria-label={doneLabel}
         >
           <div
-            className="h-full rounded-full bg-dusk transition-all duration-500"
+            className="stats-progress h-full rounded-full bg-dusk transition-all duration-500"
             style={{ width: `${taskPercent}%` }}
           />
         </div>
@@ -79,7 +115,7 @@ export default function StatsStrip({
           <Timer size={18} />
         </div>
         <div className="min-w-0">
-          <p className={`${VALUE} text-sage`}>{formatTime(focusMinutes)}</p>
+          <p className={`${VALUE} text-sage`}><AnimatedNumber value={focusMinutes} format={formatTime} /></p>
           <p className={LABEL}>Focus today</p>
         </div>
       </Card>
@@ -94,7 +130,7 @@ export default function StatsStrip({
             {streakDays === null ? (
               <span aria-label="Not known yet">{streakLabel(null)}</span>
             ) : (
-              streakLabel(streakDays)
+              <AnimatedNumber value={streakDays} format={(days) => streakLabel(days)} />
             )}
           </p>
           <p className={LABEL}>Streak</p>
@@ -116,7 +152,7 @@ export default function StatsStrip({
                 {patternsLearned === null ? (
                   <span aria-label="Not known yet">—</span>
                 ) : (
-                  patternsLearned
+                  <AnimatedNumber value={patternsLearned} />
                 )}
               </p>
               <p className={LABEL}>Patterns</p>

@@ -326,14 +326,26 @@ export default function WorkspacePage() {
   // ---- Loading state ----
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="h-8 w-8 rounded-lg bg-surface-muted animate-pulse" />
-          <div className="h-6 w-48 rounded-lg bg-surface-muted animate-pulse" />
-        </div>
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 rounded-card bg-surface-muted animate-pulse" />
+      <div className="mx-auto max-w-3xl space-y-5 px-4 py-6 sm:px-6 sm:py-8" aria-busy="true" aria-live="polite">
+        <Card className="workspace-loading-enter relative overflow-hidden border-terra/15 bg-surface-card/90 px-5 py-10 text-center shadow-md sm:py-12">
+          <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-terra/[0.08] blur-3xl" />
+          <div className="workspace-loader mx-auto mb-5" aria-hidden="true">
+            <span className="workspace-loader-orbit workspace-loader-orbit--outer"><i /></span>
+            <span className="workspace-loader-orbit workspace-loader-orbit--inner"><i /></span>
+            <span className="workspace-loader-core" />
+          </div>
+          <p className="relative text-[10px] font-semibold uppercase tracking-[0.2em] text-terra">Jarvis is getting things ready</p>
+          <h1 className="relative mt-2 text-xl font-semibold tracking-tight text-primary sm:text-2xl">Opening your workspace</h1>
+          <p className="relative mx-auto mt-2 max-w-sm text-sm leading-relaxed text-secondary">
+            Gathering your task, notes, and practice materials.
+          </p>
+          <div className="relative mt-6 flex justify-center gap-1.5" aria-hidden="true">
+            {[0, 1, 2].map((dot) => <span key={dot} className="workspace-loader-tick" style={{ animationDelay: `${dot * 180}ms` }} />)}
+          </div>
+        </Card>
+        <div className="space-y-3" aria-hidden="true">
+          {[0, 1].map((item) => (
+            <div key={item} className="workspace-skeleton h-24 rounded-card border border-border/60 bg-surface-card/55" />
           ))}
         </div>
       </div>

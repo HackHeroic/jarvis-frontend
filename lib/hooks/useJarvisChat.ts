@@ -91,6 +91,8 @@ export type UseJarvisChatReturn = {
   isReplanning: boolean;
   modelMode: ModelMode;
   setModelMode: (mode: ModelMode) => void;
+  tutorMode: boolean;
+  setTutorMode: (enabled: boolean) => void;
   devMode: boolean;
   toggleDevMode: () => void;
   /** Clear the learning toast (streamState.latestPattern). */
@@ -121,6 +123,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
   const [conversationLoadError, setConversationLoadError] = useState<ConversationLoadError | null>(null);
   const [isReplanning, setIsReplanning] = useState(false);
   const [modelMode, setModelMode] = useState<ModelMode>("auto");
+  const [tutorMode, setTutorMode] = useState(false);
   // How each draft the chat held was settled: every card for it stays read-only.
   const [settledDrafts, setSettledDrafts] = useState<Record<string, DraftOutcome>>({});
   // Accept and Discard share one in-flight guard per card (as the dashboard banner's
@@ -155,12 +158,17 @@ export function useJarvisChat(): UseJarvisChatReturn {
     // Read as the backend reads it: a stored "27b" (the old local option) is auto.
     const savedModelMode = localStorage.getItem("jarvis-model-mode");
     if (savedModelMode) setModelMode(toModelMode(savedModelMode));
+    setTutorMode(localStorage.getItem("jarvis-tutor-mode") === "true");
   }, []);
 
   // Persist model mode to localStorage
   useEffect(() => {
     localStorage.setItem("jarvis-model-mode", modelMode);
   }, [modelMode]);
+
+  useEffect(() => {
+    localStorage.setItem("jarvis-tutor-mode", String(tutorMode));
+  }, [tutorMode]);
 
   // Persist non-streaming messages to localStorage
   useEffect(() => {
@@ -293,6 +301,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
           media_type: options?.mediaType,
           file_name: options?.fileName,
           model_mode: options?.modelMode ? toModelMode(options.modelMode) : modelMode,
+          tutor_mode: tutorMode,
           conversation_id: conversationId || undefined,
         },
         untilAborted(control.deliverySignal, {
@@ -484,7 +493,7 @@ export function useJarvisChat(): UseJarvisChatReturn {
         { signal: control.requestSignal },
       );
     },
-    [isStreaming, conversationId, modelMode, addLearningMoment, setDraft],
+    [isStreaming, conversationId, modelMode, tutorMode, addLearningMoment, setDraft],
   );
 
   /** Remember how a draft was settled, so every card for it turns read-only with that outcome. */
@@ -716,6 +725,8 @@ export function useJarvisChat(): UseJarvisChatReturn {
     isReplanning,
     modelMode,
     setModelMode,
+    tutorMode,
+    setTutorMode,
     devMode,
     toggleDevMode,
     dismissLearningToast,

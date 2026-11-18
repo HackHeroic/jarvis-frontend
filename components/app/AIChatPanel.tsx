@@ -228,7 +228,7 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
       <div className="relative w-0 shrink-0">
         <button
           onClick={onToggle}
-          className="fab-position z-30 flex h-12 w-12 items-center justify-center rounded-full bg-terra text-base font-bold text-white shadow-lg transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-terra/50 lg:bottom-auto lg:top-1/2 lg:h-10 lg:w-10 lg:-translate-y-1/2 lg:text-sm"
+          className="fab-position z-30 flex h-12 w-12 items-center justify-center rounded-full bg-terra text-base font-bold text-ink shadow-lg transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-terra/50 lg:bottom-auto lg:top-1/2 lg:h-10 lg:w-10 lg:-translate-y-1/2 lg:text-sm"
           aria-label="Open Jarvis (Cmd+J)"
           title="Open Jarvis (Cmd+J)"
         >
@@ -253,15 +253,15 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
         // Tablets: a drawer on the right, the nav rail and page still in view
         "md:left-auto md:w-[min(400px,100%)] md:border-l md:border-border md:shadow-2xl",
         // Desktop: a docked column beside the page
-        "lg:static lg:z-auto lg:w-[300px] lg:shrink-0 lg:shadow-none xl:w-[340px]",
+        "lg:static lg:z-auto lg:w-[320px] lg:shrink-0 lg:border-l lg:border-border/80 lg:shadow-[-8px_0_28px_rgba(48,45,41,0.035)] xl:w-[360px]",
       )}
       role="dialog"
       aria-label="Jarvis AI"
     >
       {/* Header */}
       <div className="sheet-pt flex shrink-0 items-center gap-2.5 border-b border-border px-4 pb-3">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-terra text-xs font-bold text-white">
-          J
+        <div className={clsx("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-terra text-xs font-bold text-ink", isStreaming && "jarvis-thinking-glow")}>
+          <span className="relative z-10">J</span>
         </div>
         <span className="truncate text-sm font-semibold text-primary">Jarvis AI</span>
         {isDemoMode && <Badge color="dusk">DEMO</Badge>}
@@ -291,7 +291,7 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {condensedMessages.length === 0 ? (
           <div className="flex gap-2.5">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-terra text-[10px] font-bold text-white">
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-terra text-[10px] font-bold text-ink">
               J
             </div>
             <div className="min-w-0 text-[13px] leading-relaxed text-secondary">
@@ -303,9 +303,9 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
           condensedMessages.map((msg) => {
             if (msg.role === "user") {
               return (
-                <div key={msg.id} className="flex justify-end">
+                <div key={msg.id} className="chat-message-enter flex justify-end">
                   <div
-                    className="max-w-[90%] break-words bg-terra px-3 py-1.5 text-xs text-white"
+                    className="max-w-[90%] break-words bg-terra px-3 py-1.5 text-xs text-ink"
                     style={{ borderRadius: "10px 10px 2px 10px" }}
                   >
                     {msg.content}
@@ -321,8 +321,8 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
               : undefined;
 
             return (
-              <div key={msg.id} className="flex gap-2">
-                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-terra text-[8px] font-bold text-white mt-0.5">
+              <div key={msg.id} className="chat-message-enter flex gap-2">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-terra text-[8px] font-bold text-ink mt-0.5">
                   J
                 </div>
                 <div className="min-w-0 flex-1">
@@ -330,7 +330,13 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
                     <Badge color={color}>{intent.replace(/_/g, " ")}</Badge>
                   )}
                   <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-secondary">
-                    {msg.content || (msg.response?.message) || "Processing..."}
+                    {msg.content || msg.response?.message || (isStreaming ? (
+                      <span className="inline-flex items-center gap-1.5" role="status" aria-label="Jarvis is thinking">
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-terra" />
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-terra [animation-delay:150ms]" />
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-terra [animation-delay:300ms]" />
+                      </span>
+                    ) : "Processing...")}
                   </p>
                 </div>
               </div>
@@ -388,7 +394,7 @@ export default function AIChatPanel({ collapsed, onToggle }: AIChatPanelProps) {
             className={clsx(
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors max-md:h-10 max-md:w-10 lg:h-7 lg:w-7",
               input.trim() && !isStreaming && !inputProblem
-                ? "bg-terra text-white"
+                ? "bg-terra text-ink"
                 : "bg-surface-muted text-muted"
             )}
             aria-label="Send message"
