@@ -156,6 +156,22 @@
 .stats-progress { transform-origin: left; animation: stats-progress-enter 700ms cubic-bezier(.2,.7,.2,1) both; }
 .completion-check { animation: completion-check-enter 260ms cubic-bezier(.2,.7,.2,1) both; }
 
+.workspace-loading-enter { animation: workspace-loading-enter 520ms cubic-bezier(.2,.7,.2,1) both; }
+.workspace-loader { position: relative; width: 76px; height: 76px; filter: drop-shadow(0 0 15px color-mix(in srgb, var(--color-terra) 22%, transparent)); }
+.workspace-loader-core { position: absolute; left: 50%; top: 50%; width: 15px; height: 15px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff 0%, #f4c8b7 28%, var(--color-terra) 75%); box-shadow: 0 0 18px color-mix(in srgb, var(--color-terra) 66%, transparent); transform: translate(-50%, -50%); animation: workspace-core-pulse 1.8s ease-in-out infinite; }
+.workspace-loader-orbit { position: absolute; inset: 3px; border: 1px solid color-mix(in srgb, var(--color-terra) 25%, transparent); border-radius: 50%; animation: workspace-orbit-spin 5s linear infinite; }
+.workspace-loader-orbit--inner { inset: 14px; border-style: dashed; opacity: .75; animation-duration: 3.4s; animation-direction: reverse; }
+.workspace-loader-orbit i { position: absolute; top: -3px; left: calc(50% - 3px); width: 6px; height: 6px; border-radius: 50%; background: #fff8f4; box-shadow: 0 0 9px 3px var(--color-terra); }
+.workspace-loader-orbit--inner i { background: #fff; box-shadow: 0 0 7px 2px #a88cff; }
+.workspace-loader-tick { width: 5px; height: 5px; border-radius: 50%; background: var(--color-terra); opacity: .35; animation: workspace-tick-pulse 900ms ease-in-out infinite; }
+.workspace-skeleton { position: relative; overflow: hidden; }
+.workspace-skeleton::after { position: absolute; inset: 0; content: ""; transform: translateX(-100%); background: linear-gradient(100deg, transparent, color-mix(in srgb, var(--color-terra) 8%, transparent), transparent); animation: workspace-skeleton-shimmer 2.2s ease-in-out infinite; }
+@keyframes workspace-loading-enter { from { opacity: 0; transform: translateY(10px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes workspace-orbit-spin { to { transform: rotate(360deg); } }
+@keyframes workspace-core-pulse { 50% { transform: translate(-50%, -50%) scale(.72); filter: brightness(1.2); } }
+@keyframes workspace-tick-pulse { 50% { opacity: 1; transform: scale(1.45); } }
+@keyframes workspace-skeleton-shimmer { 65%, 100% { transform: translateX(100%); } }
+
 .jarvis-avatar-dance {
   transform-origin: center bottom;
   animation: jarvis-dance 1.65s ease-in-out infinite;
@@ -246,7 +262,7 @@
 @keyframes jarvis-frame-breathe { to { opacity: .96; transform: scale(1.012); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .ambient-blob, .ambient-particles, .ambient-object, .ambient-ring-spin, .ambient-core-pulse, .ambient-satellite, .page-enter, .chat-message-enter, .jarvis-thinking-glow, .stats-progress, .completion-check, .jarvis-avatar-dance, .jarvis-avatar-halo, .jarvis-avatar-eyes, .jarvis-avatar-sparkle, .jarvis-avatar-note, .chat-speaking-frame::before, .chat-speaking-frame::after { animation: none !important; }
+  .ambient-blob, .ambient-particles, .ambient-object, .ambient-ring-spin, .ambient-core-pulse, .ambient-satellite, .page-enter, .chat-message-enter, .jarvis-thinking-glow, .stats-progress, .completion-check, .jarvis-avatar-dance, .jarvis-avatar-halo, .jarvis-avatar-eyes, .jarvis-avatar-sparkle, .jarvis-avatar-note, .workspace-loading-enter, .workspace-loader-orbit, .workspace-loader-core, .workspace-loader-tick, .workspace-skeleton::after, .chat-speaking-frame::before, .chat-speaking-frame::after { animation: none !important; }
 }
 
 @layer base {
