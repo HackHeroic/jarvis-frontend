@@ -30,6 +30,8 @@ export type CapstoneTopic = {
 };
 
 export const CAPSTONE_MODE_KEY = "jarvis-capstone-mode";
+/** Fired on window with detail "stop" | "resume" | "next" | "back" to steer the walkthrough. */
+export const CAPSTONE_CONTROL_EVENT = "jarvis:capstone-control";
 
 export const CAPSTONE_TOPICS: CapstoneTopic[] = [
   {

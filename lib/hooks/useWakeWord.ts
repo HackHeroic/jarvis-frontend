@@ -22,19 +22,21 @@ type Options = {
   onWake?: () => void;
   /** False where hands-free does not run at all (phones). */
   available: boolean;
+  /** Keep listening while Jarvis speaks, so "Jarvis, stop" can interrupt it. */
+  bargeIn?: boolean;
 };
 
 /**
  * Listens for "Jarvis" with the browser's speech recognition, all the time the app is
  * open, and reports the request spoken with or after it.
  */
-export function useWakeWord({ onCommand, onWake, available }: Options) {
+export function useWakeWord({ onCommand, onWake, available, bargeIn = false }: Options) {
   const [enabled, setEnabled] = useState(true);
   const [status, setStatus] = useState<PresenceStatus>("standby");
   const [heard, setHeard] = useState("");
 
-  const handlers = useRef({ onCommand, onWake });
-  handlers.current = { onCommand, onWake };
+  const handlers = useRef({ onCommand, onWake, bargeIn });
+  handlers.current = { onCommand, onWake, bargeIn };
 
   useEffect(() => {
     try { setEnabled(localStorage.getItem(HANDS_FREE_KEY) !== "off"); } catch { /* keep the default */ }
@@ -61,7 +63,7 @@ export function useWakeWord({ onCommand, onWake, available }: Options) {
     let recognition: BrowserSpeechRecognition | null = null;
 
     const speaking = () => "speechSynthesis" in window && window.speechSynthesis.speaking;
-    const paused = () => dictating || speaking() || document.hidden;
+    const paused = () => dictating || (speaking() && !handlers.current.bargeIn) || document.hidden;
     const awake = () => Date.now() < awakeUntil;
 
     const show = () => {

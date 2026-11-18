@@ -9,7 +9,7 @@ import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { say } from "@/lib/speech";
 import { useThemeContext } from "@/lib/providers";
 import { voiceAction } from "@/lib/voiceActions";
-import { CAPSTONE_MODE_KEY } from "@/lib/capstone";
+import { CAPSTONE_CONTROL_EVENT, CAPSTONE_MODE_KEY } from "@/lib/capstone";
 import { holdVoiceCommand, VOICE_COMMAND_EVENT } from "@/lib/wakeWord";
 
 const LABEL: Record<PresenceStatus, string> = {
@@ -36,6 +36,17 @@ export default function JarvisPresence() {
 
   const onCommand = useCallback((request: string) => {
     let action = voiceAction(request);
+    if (action.kind === "control") {
+      if (pathname === "/capstone") {
+        window.dispatchEvent(new CustomEvent(CAPSTONE_CONTROL_EVENT, { detail: action.what }));
+        return;
+      }
+      if (action.what === "stop") {
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        return;
+      }
+      action = action.otherwise;
+    }
     if (action.kind === "capstone") {
       try { localStorage.setItem(CAPSTONE_MODE_KEY, action.on ? "on" : "off"); } catch { /* ignore */ }
       say(action.say);
@@ -53,7 +64,7 @@ export default function JarvisPresence() {
       }
       action = action.otherwise;
     }
-    if (action.kind === "capstone" || action.kind === "explain") return;
+    if (action.kind === "capstone" || action.kind === "explain" || action.kind === "control") return;
     if (action.kind === "navigate") {
       say(action.say);
       if (pathname !== action.href) router.push(action.href);
@@ -72,9 +83,13 @@ export default function JarvisPresence() {
     router.push("/chat");
   }, [pathname, router, setTheme]);
 
-  const onWake = useCallback(() => say("Yes, sir?"), []);
+  const onWake = useCallback(() => {
+    // Hearing its name mid-explanation, Jarvis stops talking and listens.
+    if (pathname === "/capstone") window.dispatchEvent(new CustomEvent(CAPSTONE_CONTROL_EVENT, { detail: "stop" }));
+    say("Yes, sir?");
+  }, [pathname]);
 
-  const { status, heard, enabled, toggle } = useWakeWord({ onCommand, onWake, available: roomy });
+  const { status, heard, enabled, toggle } = useWakeWord({ onCommand, onWake, available: roomy, bargeIn: pathname === "/capstone" });
   if (status === "unsupported") return null;
 
   const text = status === "awake" && heard ? heard : LABEL[status];

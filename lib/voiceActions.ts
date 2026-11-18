@@ -6,6 +6,8 @@
 import { capstoneTopicFor } from "@/lib/capstone";
 
 export type VoiceAction =
+  /** "stop", "continue", "next", "back": steers whatever Jarvis is presenting. */
+  | { kind: "control"; what: "stop" | "resume" | "next" | "back"; otherwise: VoiceAction }
   | { kind: "capstone"; on: boolean; say: string }
   /** Asked to explain how Jarvis is built; `otherwise` is what to do outside capstone mode. */
   | { kind: "explain"; topic: string; otherwise: VoiceAction }
@@ -26,14 +28,24 @@ const PAGES: Array<{ href: string; say: string; words: RegExp }> = [
 const GO = /^(?:please\s+)?(?:open(?: up)?|show(?: me)?|go(?: back)? to|take me(?: back)? to|pull up|bring up|switch to|navigate to|let me see|display)\b/;
 
 /** "explain", "walk us through", "show the"…: a request for a walkthrough of a topic. */
-const EXPLAIN = /^(?:please\s+)?(?:can you\s+)?(?:explain|walk (?:me |us )?through|animate|present|demonstrate|describe|tell (?:me|us) (?:about|how)|how (?:does|do|did|is|are)|show(?: me| us)?|play)\b/;
+const EXPLAIN = /^(?:please\s+)?(?:can you\s+)?(?:explain|walk (?:me |us )?through|animate|present|demonstrate|describe|tell (?:me|us) (?:about|how)|how (?:does|do|did|is|are|were|was)|show(?: me| us)?|play|draw|open|start|what (?:is|are)(?: the| your)?)\b/;
 
 /** What to do with a spoken request. */
 export function voiceAction(request: string): VoiceAction {
   const text = request.trim();
   const said = text.toLowerCase().replace(/[.!?]+$/, "");
 
-  const mode = /\bcapstone(?: project)?(?: mode)?\b/.exec(said);
+  if (said.split(/\s+/).length <= 4) {
+    const what = /\b(stop|pause|quiet|enough|wait|hold on|silence|shut up)\b/.test(said) ? "stop"
+      : /\b(continue|resume|go on|carry on|keep going|go ahead)\b/.test(said) ? "resume"
+      : /\b(next|skip)\b/.test(said) ? "next"
+      : /\b(back|previous|again|repeat)\b/.test(said) ? "back"
+      : null;
+    if (what) return { kind: "control", what, otherwise: plainAction(text, said) };
+  }
+
+  // Speech recognition hears "capstone" as capstan, cap stone, captain, keystone…
+  const mode = /\b(?:cap\s?st[oa]ne?s?|capstan|kapstone|captain|keystone|cabstone|project|presentation|demo)\s+mode\b|\bcap\s?st[oa]ne?\b/.exec(said);
   if (mode && said.split(/\s+/).length <= 8) {
     const off = /\b(off|exit|leave|stop|end|disable|close)\b/.test(said);
     return {
@@ -41,6 +53,9 @@ export function voiceAction(request: string): VoiceAction {
       on: !off,
       say: off ? "Capstone mode off, sir." : "Capstone mode on. Ask me how I was built, sir.",
     };
+  }
+  if (EXPLAIN.test(said) && /\b(everything|whole (?:project|thing|system)|all of it|full (?:walkthrough|tour)|how (?:you were|it was|jarvis was) built|entire (?:project|system))\b/.test(said)) {
+    return { kind: "explain", topic: "all", otherwise: plainAction(text, said) };
   }
   if (EXPLAIN.test(said)) {
     const topic = capstoneTopicFor(said);

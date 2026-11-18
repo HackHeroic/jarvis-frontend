@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Paperclip,
   ArrowUp,
@@ -18,6 +18,8 @@ import {
 import clsx from "clsx";
 import { jarvisUtterance, speechRecognition, type BrowserSpeechRecognition } from "@/lib/speech";
 import { DICTATION_EVENT, takeVoiceCommand, VOICE_COMMAND_EVENT } from "@/lib/wakeWord";
+import { voiceAction } from "@/lib/voiceActions";
+import { CAPSTONE_MODE_KEY } from "@/lib/capstone";
 
 import { useJarvisChat } from "@/lib/hooks/useJarvisChat";
 import { JarvisResponse } from "@/components/app/JarvisResponse";
@@ -317,9 +319,27 @@ function ChatPage() {
   // sendMessage sends the trimmed text, so that is what is measured.
   const inputProblem = promptProblem(input.trim());
   const inputNote = inputProblem ?? fileNote;
+  const router = useRouter();
   const handleSend = useCallback(() => {
     if (!input.trim() && !attachment) return;
     if (isStreaming) return;
+    // Typed, as when spoken: capstone mode and its walkthroughs open their own page.
+    if (!attachment) {
+      const local = voiceAction(input);
+      let capstone = false;
+      try { capstone = localStorage.getItem(CAPSTONE_MODE_KEY) === "on"; } catch { /* stays off */ }
+      if (local.kind === "capstone") {
+        try { localStorage.setItem(CAPSTONE_MODE_KEY, local.on ? "on" : "off"); } catch { /* ignore */ }
+        setInput("");
+        if (local.on) router.push("/capstone");
+        return;
+      }
+      if (local.kind === "explain" && capstone) {
+        setInput("");
+        router.push(`/capstone?topic=${local.topic}`);
+        return;
+      }
+    }
     if (promptProblem(input.trim())) return;
     setFileNote(null);
 
@@ -336,7 +356,7 @@ function ChatPage() {
 
     setAttachment(null);
     sendMessage(msg, options);
-  }, [input, isStreaming, sendMessage, attachment]);
+  }, [input, isStreaming, sendMessage, attachment, router]);
 
   // A request spoken after "Jarvis" (on this page, or held from another one) is sent as
   // typed text would be. Refs keep the one listener reading the latest turn state.

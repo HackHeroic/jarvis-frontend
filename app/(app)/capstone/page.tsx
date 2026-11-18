@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import clsx from "clsx";
-import { CAPSTONE_TOPICS, type CapstoneTopic } from "@/lib/capstone";
+import { CAPSTONE_CONTROL_EVENT, CAPSTONE_TOPICS, type CapstoneTopic } from "@/lib/capstone";
 import { jarvisUtterance } from "@/lib/speech";
 
 const CHIP: Record<string, string> = {
@@ -103,9 +103,18 @@ function CapstoneWalkthrough() {
     setPlaying(play);
   }, []);
 
+  // "Explain everything": each topic follows the one before.
+  const [tour, setTour] = useState(false);
+
   // A topic asked for by voice (or in the link) starts playing.
   useEffect(() => {
-    if (asked && CAPSTONE_TOPICS.some((candidate) => candidate.id === asked)) open(asked, true);
+    if (asked === "all") {
+      setTour(true);
+      open(CAPSTONE_TOPICS[0].id, true);
+    } else if (asked && CAPSTONE_TOPICS.some((candidate) => candidate.id === asked)) {
+      setTour(false);
+      open(asked, true);
+    }
   }, [asked, open]);
 
   const line = at < 0 ? `Let me draw that for you, sir. ${topic.intro}` : topic.steps[at].say;
@@ -129,7 +138,9 @@ function CapstoneWalkthrough() {
     const next = () => {
       if (over) return;
       over = true;
+      const following = CAPSTONE_TOPICS[CAPSTONE_TOPICS.findIndex((candidate) => candidate.id === topic.id) + 1];
       if (at + 1 < topic.steps.length) setAt(at + 1);
+      else if (tour && following) open(following.id, true);
       else setPlaying(false);
     };
     const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
@@ -150,12 +161,25 @@ function CapstoneWalkthrough() {
       window.clearTimeout(limit);
       if (canSpeak) window.speechSynthesis.cancel();
     };
-  }, [playing, at, topic, line]);
+  }, [playing, at, topic, line, tour, open]);
 
   const step = (by: number) => {
     setPlaying(false);
     setAt((current) => Math.min(topic.steps.length - 1, Math.max(-1, current + by)));
   };
+
+  // "Jarvis, stop", "continue", "next", "back".
+  useEffect(() => {
+    const onControl = (event: Event) => {
+      const what = (event as CustomEvent<string>).detail;
+      if (what === "stop") setPlaying(false);
+      else if (what === "resume") setPlaying(true);
+      else if (what === "next") { setAt((current) => Math.min(topic.steps.length - 1, current + 1)); setPlaying(true); }
+      else if (what === "back") { setAt((current) => Math.max(-1, current - 1)); setPlaying(true); }
+    };
+    window.addEventListener(CAPSTONE_CONTROL_EVENT, onControl);
+    return () => window.removeEventListener(CAPSTONE_CONTROL_EVENT, onControl);
+  }, [topic]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -177,11 +201,22 @@ function CapstoneWalkthrough() {
       </header>
 
       <nav className="flex flex-wrap gap-1.5" aria-label="Topics">
+        <button
+          type="button"
+          onClick={() => { setTour(true); open(CAPSTONE_TOPICS[0].id, true); }}
+          aria-pressed={tour}
+          className={clsx(
+            "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+            tour ? "border-terra bg-terra/15 text-terra" : "border-terra/40 text-terra hover:bg-terra/10",
+          )}
+        >
+          ▶ Explain everything
+        </button>
         {CAPSTONE_TOPICS.map((candidate) => (
           <button
             key={candidate.id}
             type="button"
-            onClick={() => open(candidate.id, true)}
+onClick={() => { setTour(false); open(candidate.id, true); }}
             aria-current={candidate.id === topic.id}
             className={clsx(
               "rounded-full border px-3 py-1 text-xs font-medium transition-colors",

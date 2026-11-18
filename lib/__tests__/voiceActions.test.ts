@@ -31,6 +31,12 @@ describe("voiceAction", () => {
     expect(voiceAction("capstone mode on")).toMatchObject({ kind: "capstone", on: true });
     expect(voiceAction("turn on capstone project mode")).toMatchObject({ kind: "capstone", on: true });
     expect(voiceAction("capstone mode off")).toMatchObject({ kind: "capstone", on: false });
+    // As speech recognition spells it.
+    for (const heard of ["capstan mode on", "cap stone mode on", "captain mode on", "presentation mode on"]) {
+      expect(voiceAction(heard)).toMatchObject({ kind: "capstone", on: true });
+    }
+    expect(voiceAction("explain everything")).toMatchObject({ kind: "explain", topic: "all" });
+    expect(voiceAction("explain how you were built")).toMatchObject({ kind: "explain", topic: "all" });
   });
 
   it("names the topic of a walkthrough, and what to do outside capstone mode", () => {
@@ -40,5 +46,12 @@ describe("voiceAction", () => {
     expect(voiceAction("how does your memory work")).toMatchObject({
       kind: "explain", topic: "memory", otherwise: { kind: "chat" },
     });
+  });
+
+  it("steers a presentation with one word", () => {
+    expect(voiceAction("stop")).toMatchObject({ kind: "control", what: "stop" });
+    expect(voiceAction("please continue")).toMatchObject({ kind: "control", what: "resume" });
+    expect(voiceAction("next")).toMatchObject({ kind: "control", what: "next", otherwise: { kind: "chat" } });
+    expect(voiceAction("stop nagging me about the lab report today please")).toMatchObject({ kind: "chat" });
   });
 });
