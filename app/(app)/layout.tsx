@@ -10,6 +10,7 @@ import clsx from "clsx";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 import { motion } from "motion/react";
 import AmbientObjects from "@/components/app/AmbientObjects";
+import JarvisPresence from "@/components/app/JarvisPresence";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -63,6 +64,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
         <div className="px-safe-x relative z-10 flex h-full overflow-hidden">
           <NavRail />
+          <div className="relative flex min-w-0 flex-1">
           <main
             className={clsx(
               "min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-nav",
@@ -79,6 +81,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {children}
             </motion.div>
           </main>
+          <JarvisPresence />
+          </div>
           {showAIPanel && (
             <AIChatPanel
               collapsed={chatCollapsed}

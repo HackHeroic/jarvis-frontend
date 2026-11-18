@@ -489,3 +489,49 @@
     font-size: 16px;
   }
 }
+
+/* Jarvis's presence: breathes while it waits for its name, opens while it listens. */
+.jarvis-presence {
+  position: absolute; left: 14px; bottom: 14px; z-index: 30;
+  display: none; align-items: center; gap: 9px; max-width: min(340px, calc(100% - 28px));
+  padding: 6px 13px 6px 6px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-terra) 22%, var(--border-default));
+  background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+  backdrop-filter: blur(10px); box-shadow: 0 6px 22px rgba(48, 45, 41, .10);
+  color: var(--text-secondary); font-size: 12px; line-height: 1.3; text-align: left;
+  transition: border-color .3s ease, box-shadow .3s ease, opacity .3s ease;
+}
+@media (min-width: 768px) { .jarvis-presence { display: inline-flex; } }
+.jarvis-presence-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jarvis-presence-orb { position: relative; display: grid; place-items: center; width: 30px; height: 30px; flex: none; }
+.jarvis-presence-core {
+  position: relative; z-index: 1; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  color: var(--color-ink);
+  background: radial-gradient(circle at 35% 30%, #fff3e6, var(--color-terra) 62%, color-mix(in srgb, var(--color-terra) 70%, #000));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-terra) 55%, transparent);
+  animation: presence-breathe 4.6s ease-in-out infinite;
+}
+.jarvis-presence-ring {
+  position: absolute; inset: 0; border-radius: 50%; opacity: 0;
+  border: 1.5px solid color-mix(in srgb, var(--color-terra) 70%, transparent);
+}
+.jarvis-presence--standby .jarvis-presence-ring { animation: presence-halo 4.6s ease-in-out infinite; }
+.jarvis-presence--awake { border-color: var(--color-terra); color: var(--text-primary); box-shadow: 0 6px 26px color-mix(in srgb, var(--color-terra) 32%, transparent); }
+.jarvis-presence--awake .jarvis-presence-core { animation: presence-listen .9s ease-in-out infinite; }
+.jarvis-presence--awake .jarvis-presence-ring { animation: presence-ripple 1.5s ease-out infinite; }
+.jarvis-presence--awake .jarvis-presence-ring--late { animation-delay: .75s; }
+.jarvis-presence--speaking { color: var(--text-primary); }
+.jarvis-presence--speaking .jarvis-presence-core { animation: presence-speak .55s ease-in-out infinite alternate; }
+.jarvis-presence--speaking .jarvis-presence-ring { animation: presence-ripple 1.1s ease-out infinite; }
+.jarvis-presence--off, .jarvis-presence--blocked { opacity: .78; }
+.jarvis-presence--off .jarvis-presence-core, .jarvis-presence--blocked .jarvis-presence-core {
+  animation: none; background: var(--surface-muted); color: var(--text-muted); box-shadow: none;
+}
+@keyframes presence-breathe { 0%, 100% { transform: scale(.9); filter: brightness(.94); } 45% { transform: scale(1.08); filter: brightness(1.1); } }
+@keyframes presence-halo { 0%, 100% { opacity: 0; transform: scale(.9); } 45% { opacity: .5; transform: scale(1.28); } }
+@keyframes presence-listen { 50% { transform: scale(1.16); filter: brightness(1.18); } }
+@keyframes presence-speak { to { transform: scale(1.14) scaleY(.94); filter: brightness(1.15); } }
+@keyframes presence-ripple { from { opacity: .7; transform: scale(.9); } to { opacity: 0; transform: scale(1.9); } }
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-presence-core, .jarvis-presence-ring { animation: none !important; }
+}

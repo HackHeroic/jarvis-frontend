@@ -16,6 +16,8 @@ import {
   VolumeX,
 } from "lucide-react";
 import clsx from "clsx";
+import { jarvisUtterance, speechRecognition, type BrowserSpeechRecognition } from "@/lib/speech";
+import { DICTATION_EVENT, takeVoiceCommand, VOICE_COMMAND_EVENT } from "@/lib/wakeWord";
 
 import { useJarvisChat } from "@/lib/hooks/useJarvisChat";
 import { JarvisResponse } from "@/components/app/JarvisResponse";
@@ -44,17 +46,6 @@ interface FileAttachment {
   mediaType: string;
   fileName: string;
 }
-
-type BrowserSpeechRecognition = {
-  lang: string;
-  interimResults: boolean;
-  maxAlternatives: number;
-  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
 
 // ---------------------------------------------------------------------------
 // Chat Page
@@ -218,22 +209,7 @@ function ChatPage() {
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .replace(/[`*_>#]/g, " ").replace(/\s+/g, " ").trim();
     if (!spokenText || !("speechSynthesis" in window)) return;
-    const utterance = new SpeechSynthesisUtterance(spokenText);
-    const voices = window.speechSynthesis.getVoices();
-    const femaleName = /female|feminine|samantha|victoria|karen|moira|tessa|zira|aria|jenny|ava|susan|allison|aditi|heera|veena|lekha|priya|neha|reena|sangeeta/i;
-    const indianVoices = voices.filter((voice) => /^en[-_]in$/i.test(voice.lang));
-    const indianFemaleVoice = indianVoices.find((voice) => femaleName.test(voice.name));
-    const feminineVoice = indianFemaleVoice ?? voices.find((voice) =>
-      femaleName.test(voice.name)
-      && voice.lang.toLowerCase().startsWith(navigator.language.split("-")[0].toLowerCase()),
-    ) ?? voices.find((voice) =>
-      femaleName.test(voice.name),
-    ) ?? indianVoices[0];
-    if (feminineVoice) utterance.voice = feminineVoice;
-    utterance.lang = feminineVoice?.lang ?? "en-IN";
-    utterance.volume = 1;
-    utterance.rate = 1.08;
-    utterance.pitch = feminineVoice ? 1.28 : 1.48;
+    const utterance = jarvisUtterance(spokenText);
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => {
       window.setTimeout(() => setIsSpeaking(window.speechSynthesis.speaking), 80);
@@ -289,25 +265,29 @@ function ChatPage() {
       setIsListening(false);
       return;
     }
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: new () => BrowserSpeechRecognition;
-      webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
-    };
-    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    const Recognition = speechRecognition();
     if (!Recognition) return;
     const recognition = new Recognition();
     recognition.lang = navigator.language || "en-US";
+    recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
       const transcript = event.results[0]?.[0]?.transcript;
       if (transcript) setInput((current) => current ? `${current.trim()} ${transcript}` : transcript);
     };
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
+    // Hands-free listening steps aside while the composer's mic dictates.
+    const done = () => {
+      setIsListening(false);
+      window.dispatchEvent(new CustomEvent(DICTATION_EVENT, { detail: false }));
+    };
+    recognition.onerror = done;
+    recognition.onend = done;
     recognitionRef.current = recognition;
     setIsListening(true);
-    recognition.start();
+    window.dispatchEvent(new CustomEvent(DICTATION_EVENT, { detail: true }));
+    // Give the hands-free recogniser a moment to let go of the microphone.
+    window.setTimeout(() => { try { recognition.start(); } catch { done(); } }, 250);
   }, [isListening]);
 
   const toggleVoiceReplies = useCallback(() => {
@@ -357,6 +337,26 @@ function ChatPage() {
     setAttachment(null);
     sendMessage(msg, options);
   }, [input, isStreaming, sendMessage, attachment]);
+
+  // A request spoken after "Jarvis" (on this page, or held from another one) is sent as
+  // typed text would be. Refs keep the one listener reading the latest turn state.
+  const voiceTurn = useRef({ sendMessage, isStreaming });
+  voiceTurn.current = { sendMessage, isStreaming };
+  useEffect(() => {
+    const deliver = (text: string | null) => {
+      const request = text?.trim();
+      if (!request || voiceTurn.current.isStreaming || promptProblem(request)) return;
+      voiceTurn.current.sendMessage(request);
+    };
+    const onCommand = (event: Event) => deliver((event as CustomEvent<string>).detail);
+    window.addEventListener(VOICE_COMMAND_EVENT, onCommand);
+    // After the stored conversation is restored, so the request joins it.
+    const held = window.setTimeout(() => deliver(takeVoiceCommand()), 500);
+    return () => {
+      window.removeEventListener(VOICE_COMMAND_EVENT, onCommand);
+      window.clearTimeout(held);
+    };
+  }, []);
 
   // ---- Keyboard ----
   const handleKeyDown = useCallback(
