@@ -26,4 +26,19 @@ describe("voiceAction", () => {
   it("sends a request to open something that is not a page to chat", () => {
     expect(voiceAction("open a new plan for my exam")).toMatchObject({ kind: "chat" });
   });
+
+  it("turns capstone mode on and off", () => {
+    expect(voiceAction("capstone mode on")).toMatchObject({ kind: "capstone", on: true });
+    expect(voiceAction("turn on capstone project mode")).toMatchObject({ kind: "capstone", on: true });
+    expect(voiceAction("capstone mode off")).toMatchObject({ kind: "capstone", on: false });
+  });
+
+  it("names the topic of a walkthrough, and what to do outside capstone mode", () => {
+    expect(voiceAction("explain the chat turn")).toMatchObject({ kind: "explain", topic: "chat-turn" });
+    expect(voiceAction("show us the SOLID principles")).toMatchObject({ kind: "explain", topic: "solid" });
+    expect(voiceAction("walk us through the database schema")).toMatchObject({ kind: "explain", topic: "database" });
+    expect(voiceAction("how does your memory work")).toMatchObject({
+      kind: "explain", topic: "memory", otherwise: { kind: "chat" },
+    });
+  });
 });

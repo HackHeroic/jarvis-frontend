@@ -570,3 +570,45 @@
 @media (prefers-reduced-motion: reduce) {
   .jarvis-hud, .jarvis-hud-ring, .jarvis-hud-core, .jarvis-presence-bars i { animation: none !important; }
 }
+
+/* Capstone mode: animated walkthroughs of how Jarvis was built. */
+.capstone-lifeline { stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 4 5; }
+.capstone-lane { fill: var(--surface-muted); stroke: var(--border-strong); stroke-width: 1; }
+.capstone-lane-text { fill: var(--text-primary); font-size: 14px; font-weight: 600; }
+.capstone-step { color: var(--text-muted); }
+.capstone-step--now { color: var(--color-terra); }
+.capstone-arrow { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-dasharray: 1; }
+.capstone-step--now .capstone-arrow { stroke-width: 2.6; animation: capstone-draw .7s ease-out both; }
+.capstone-arrow-text { fill: var(--text-secondary); font-size: 13.5px; }
+.capstone-step--now .capstone-arrow-text { fill: var(--text-primary); font-weight: 700; font-size: 15px; }
+.capstone-pulse { fill: var(--color-terra); filter: drop-shadow(0 0 5px var(--color-terra)); }
+.capstone-card { border-color: var(--border-default); background: var(--surface-card); transition: opacity .4s ease, transform .4s ease, border-color .3s ease, box-shadow .3s ease; }
+.capstone-card--waiting { opacity: .18; transform: translateY(6px) scale(.985); }
+.capstone-card--now { border-color: var(--color-terra); box-shadow: 0 8px 28px color-mix(in srgb, var(--color-terra) 26%, transparent); transform: scale(1.02); }
+.capstone-voice { display: inline-flex; align-items: center; gap: 3px; height: 22px; flex: none; }
+.capstone-voice i { width: 3px; height: 30%; border-radius: 2px; background: var(--color-terra); }
+.capstone-voice--on i { height: 100%; animation: presence-bar .65s ease-in-out infinite alternate; }
+.capstone-voice--on i:nth-child(2) { animation-delay: -.4s; }
+.capstone-voice--on i:nth-child(3) { animation-delay: -.15s; }
+.capstone-voice--on i:nth-child(4) { animation-delay: -.55s; }
+@keyframes capstone-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .capstone-step--now .capstone-arrow, .capstone-voice--on i { animation: none !important; }
+  .capstone-card { transition: none; }
+}
+
+.capstone-stage { position: relative; overflow: hidden; }
+.capstone-stage::after {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 40%; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--color-terra) 14%, transparent), transparent);
+  animation: capstone-scan 1.5s ease-out 1 both;
+}
+.capstone-compose { animation: capstone-compose-in .5s ease-out both; }
+.capstone-cursor { display: inline-block; width: 7px; height: 1em; margin-left: 3px; vertical-align: -2px; background: var(--color-terra); animation: capstone-blink .8s steps(2) infinite; }
+@keyframes capstone-scan { from { transform: translateY(-100%); opacity: 1; } to { transform: translateY(260%); opacity: 0; } }
+@keyframes capstone-compose-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes capstone-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .capstone-stage::after, .capstone-compose, .capstone-cursor { animation: none !important; }
+  .capstone-stage::after { display: none; }
+}

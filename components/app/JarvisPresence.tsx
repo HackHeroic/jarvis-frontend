@@ -9,6 +9,7 @@ import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { say } from "@/lib/speech";
 import { useThemeContext } from "@/lib/providers";
 import { voiceAction } from "@/lib/voiceActions";
+import { CAPSTONE_MODE_KEY } from "@/lib/capstone";
 import { holdVoiceCommand, VOICE_COMMAND_EVENT } from "@/lib/wakeWord";
 
 const LABEL: Record<PresenceStatus, string> = {
@@ -34,7 +35,25 @@ export default function JarvisPresence() {
   const { setTheme } = useThemeContext();
 
   const onCommand = useCallback((request: string) => {
-    const action = voiceAction(request);
+    let action = voiceAction(request);
+    if (action.kind === "capstone") {
+      try { localStorage.setItem(CAPSTONE_MODE_KEY, action.on ? "on" : "off"); } catch { /* ignore */ }
+      say(action.say);
+      if (action.on) router.push("/capstone");
+      else if (pathname === "/capstone") router.push("/dashboard");
+      return;
+    }
+    if (action.kind === "explain") {
+      // How Jarvis was built is told only in capstone mode; otherwise it is a normal request.
+      let capstone = false;
+      try { capstone = localStorage.getItem(CAPSTONE_MODE_KEY) === "on"; } catch { /* stays off */ }
+      if (capstone) {
+        router.push(`/capstone?topic=${action.topic}`);
+        return;
+      }
+      action = action.otherwise;
+    }
+    if (action.kind === "capstone" || action.kind === "explain") return;
     if (action.kind === "navigate") {
       say(action.say);
       if (pathname !== action.href) router.push(action.href);
